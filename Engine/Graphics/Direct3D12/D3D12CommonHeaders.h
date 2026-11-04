@@ -2,8 +2,8 @@
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #pragma once
 #include "CommonHeaders.h"
-#include "Graphics\Renderer.h"
-#include "Platform\Window.h"
+#include "Graphics/Renderer.h"
+#include "Platform/Window.h"
 
 // Skip definition of min/max macros in windows.h
 #ifndef NOMINMAX

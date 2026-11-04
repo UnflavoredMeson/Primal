@@ -5,9 +5,15 @@
 #include <chrono>
 #include <string>
 
+#ifndef TEST_ENTITY_COMPONENTS
 #define TEST_ENTITY_COMPONENTS 0
+#endif
+#ifndef TEST_WINDOW
 #define TEST_WINDOW 0
+#endif
+#ifndef TEST_RENDERER
 #define TEST_RENDERER 1
+#endif
 
 class test
 {

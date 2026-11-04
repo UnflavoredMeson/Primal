@@ -70,7 +70,7 @@
       <PreprocessorDefinitions>_DEBUG;CONTENTTOOLS_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <LanguageStandard>stdcpp20</LanguageStandard>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
       <AdditionalIncludeDirectories>$(SolutionDir)Engine;$(SolutionDir)Engine\Common;C:\Program Files\Autodesk\FBX\FBX SDK\2020.3.7\include;$(ProjectDir)$(PlatformTarget)\Compiled</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
@@ -93,7 +93,7 @@
       <PreprocessorDefinitions>NDEBUG;CONTENTTOOLS_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <LanguageStandard>stdcpp20</LanguageStandard>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
       <AdditionalIncludeDirectories>$(SolutionDir)Engine;$(SolutionDir)Engine\Common;C:\Program Files\Autodesk\FBX\FBX SDK\2020.3.7\include;$(ProjectDir)$(PlatformTarget)\Compiled</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>

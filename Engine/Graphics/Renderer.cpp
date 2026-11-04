@@ -2,7 +2,7 @@
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "Renderer.h"
 #include "GraphicsPlatformInterface.h"
-#include "Direct3D12\D3D12Interface.h"
+#include "Direct3D12/D3D12Interface.h"
 
 
 namespace primal::graphics {

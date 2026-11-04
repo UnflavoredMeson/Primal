@@ -2,8 +2,8 @@
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #pragma once
 #include "Test.h"
-#include "..\Platform\PlatformTypes.h"
-#include "..\Platform\Platform.h"
+#include "../Platform/PlatformTypes.h"
+#include "../Platform/Platform.h"
 
 using namespace primal;
 

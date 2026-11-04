@@ -343,3 +343,7 @@ ASALocalRun/
 healthchecksdb
 *.db
 /SyncToy_5f190cc9-7d1a-42fa-b210-18182d63e521.dat
+
+# CMake (Linux build) / clangd
+/build/
+.cache/

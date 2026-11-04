@@ -2,7 +2,9 @@
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "Test.h"
 
+#ifdef _MSC_VER
 #pragma comment(lib, "engine.lib")
+#endif
 
 #if TEST_ENTITY_COMPONENTS
 #include "TestEntityComponents.h"

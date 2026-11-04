@@ -6,7 +6,7 @@
 #include "D3D12Content.h"
 #include "D3D12Light.h"
 #include "D3D12Camera.h"
-#include "Graphics\GraphicsPlatformInterface.h"
+#include "Graphics/GraphicsPlatformInterface.h"
 
 namespace primal::graphics::d3d12 {
 
