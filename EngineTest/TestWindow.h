@@ -4,19 +4,22 @@
 #include "Test.h"
 #include "../Platform/PlatformTypes.h"
 #include "../Platform/Platform.h"
+#include <cstdio>
+#include <iterator>
 
 using namespace primal;
 
 platform::window _windows[4];
 
-LRESULT win_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
+void on_window_event(const platform::window_event& event)
 {
-    switch (msg)
+    using platform::window_event;
+    switch (event.type)
     {
-    case WM_DESTROY:
+    case window_event::closed:
     {
         bool all_closed{ true };
-        for (u32 i{ 0 }; i < _countof(_windows); ++i)
+        for (u32 i{ 0 }; i < std::size(_windows); ++i)
         {
             if (!_windows[i].is_closed())
             {
@@ -25,22 +28,26 @@ LRESULT win_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
         }
         if (all_closed)
         {
-            PostQuitMessage(0);
-            return 0;
+            platform::post_quit();
         }
     }
     break;
-    case WM_SYSCHAR:
-        if (wparam == VK_RETURN && (HIWORD(lparam) & KF_ALTDOWN))
+    case window_event::resized:
+    {
+        const platform::window win{ event.window };
+        std::fprintf(stderr, "window %u resized: %u x %u\n", (u32)(id::id_type)event.window, win.width(), win.height());
+    }
+    break;
+    case window_event::key_down:
+        if (event.key == input::input_code::key_return && (event.modifiers & input::modifier_key::alt))
         {
-            platform::window win{ platform::window_id{(id::id_type)GetWindowLongPtr(hwnd, GWLP_USERDATA)} };
+            const platform::window win{ event.window };
             win.set_fullscreen(!win.is_fullscreen());
-            return 0;
         }
         break;
+    default:
+        break;
     }
-
-    return DefWindowProc(hwnd, msg, wparam, lparam);
 }
 
 class engine_test : public test
@@ -50,15 +57,18 @@ public:
     {
         platform::window_init_info info[]
         {
-            {&win_proc, nullptr, L"Test window 1", 100 - 2000, 100 - 700, 400, 800},
-            {&win_proc, nullptr, L"Test window 2", 150 - 2000, 150 - 700, 800, 400},
-            {&win_proc, nullptr, L"Test window 3", 200 - 2000, 200 - 700, 400, 400},
-            {&win_proc, nullptr, L"Test window 4", 250 - 2000, 250 - 700, 800, 600},
+            {&on_window_event, nullptr, "Test window 1", 100, 100, 400, 800},
+            {&on_window_event, nullptr, "Test window 2", 150, 150, 800, 400},
+            {&on_window_event, nullptr, "Test window 3", 200, 200, 400, 400},
+            {&on_window_event, nullptr, "Test window 4", 250, 250, 800, 600},
         };
-        static_assert(_countof(info) == _countof(_windows));
+        static_assert(std::size(info) == std::size(_windows));
 
-        for (u32 i{ 0 }; i < _countof(_windows); ++i)
+        for (u32 i{ 0 }; i < std::size(_windows); ++i)
+        {
             _windows[i] = platform::create_window(&info[i]);
+            if (!_windows[i].is_valid()) return false;
+        }
         return true;
     }
 
@@ -69,9 +79,9 @@ public:
 
     void shutdown() override
     {
-        for (u32 i{ 0 }; i < _countof(_windows); ++i)
+        for (u32 i{ 0 }; i < std::size(_windows); ++i)
         {
-            platform::remove_window(_windows[i].get_id());
+            if (_windows[i].is_valid()) platform::remove_window(_windows[i].get_id());
         }
     }
 };

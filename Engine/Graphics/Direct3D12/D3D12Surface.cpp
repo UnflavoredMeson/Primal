@@ -3,6 +3,7 @@
 #include "D3D12Surface.h"
 #include "D3D12Core.h"
 #include "D3D12LightCulling.h"
+#include "Platform/PlatformTypes.h"
 
 namespace primal::graphics::d3d12 {
 namespace {
@@ -44,7 +45,9 @@ d3d12_surface::create_swap_chain(IDXGIFactory7* factory, ID3D12CommandQueue* cmd
     desc.Stereo = false;
 
     IDXGISwapChain1* swap_chain;
-    HWND hwnd{ (HWND)_window.handle() };
+    const platform::native_window_handle *const native{ _window.handle() };
+    assert(native && native->kind == platform::native_window_handle::win32);
+    HWND hwnd{ (HWND)native->window };
     DXCall(factory->CreateSwapChainForHwnd(cmd_queue, hwnd, &desc, nullptr, nullptr, &swap_chain));
     DXCall(factory->MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER));
     DXCall(swap_chain->QueryInterface(IID_PPV_ARGS(&_swap_chain)));

@@ -13,9 +13,9 @@ namespace {
 
 graphics::render_surface game_window{};
 
-LRESULT win_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
+void on_window_event(const platform::window_event& event)
 {
-    switch (msg)
+    switch (event.type)
     {
     case WM_DESTROY:
     {
@@ -28,11 +28,18 @@ LRESULT win_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
     break;
     case WM_SYSCHAR:
         if (wparam == VK_RETURN && (HIWORD(lparam) & KF_ALTDOWN))
-        {
-            game_window.window.set_fullscreen(!game_window.window.is_fullscreen());
-            return 0;
-        }
-        break;
+        case platform::window_event::closed:
+            platform::post_quit();
+            break;
+        case platform::window_event::key_down:
+            if (event.key == input::input_code::key_return && (event.modifiers & input::modifier_key::alt))
+            {
+                game_window.window.set_fullscreen(!game_window.window.is_fullscreen());
+                return 0;
+            }
+            break;
+        default:
+            break;
     }
 
     return DefWindowProc(hwnd, msg, wparam, lparam);
@@ -47,7 +54,7 @@ engine_initialize()
 
     platform::window_init_info info
     {
-        &win_proc, nullptr, L"Primal Game" // TODO: get the game name from the loaded game file
+        &on_window_event, nullptr, "Primal Game" // TODO: get the game name from the loaded game file
     };
 
     game_window.window = platform::create_window(&info);

@@ -1,6 +1,6 @@
 // Copyright (c) Arash Khatami
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
-#ifdef _WIN64
+#ifdef PRIMAL_PLATFORM_WINDOWS
 
 #include "InputWin32.h"
 #include "Input.h"
@@ -338,6 +338,25 @@ get_mouse_position(LPARAM lparam)
 }
 
 } // anonymous namespace
+
+u32
+map_virtual_key(u32 virtual_key)
+{
+    return virtual_key <= 0xff ? vk_mapping[virtual_key] : u32_invalid_id;
+}
+
+u32
+modifier_keys()
+{
+    u32 keys{ modifier_key::none };
+    if (GetKeyState(VK_LSHIFT) < 0) keys |= modifier_key::left_shift;
+    if (GetKeyState(VK_RSHIFT) < 0) keys |= modifier_key::right_shift;
+    if (GetKeyState(VK_LCONTROL) < 0) keys |= modifier_key::left_ctrl;
+    if (GetKeyState(VK_RCONTROL) < 0) keys |= modifier_key::right_ctrl;
+    if (GetKeyState(VK_LMENU) < 0) keys |= modifier_key::left_alt;
+    if (GetKeyState(VK_RMENU) < 0) keys |= modifier_key::right_alt;
+    return keys;
+}
 
 HRESULT
 process_input_message(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)

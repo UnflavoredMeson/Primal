@@ -14,6 +14,7 @@
 #include "../EngineDLL/ShaderCompilation.cpp"
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #if TEST_RENDERER
 
 using namespace primal;
@@ -80,16 +81,30 @@ void generate_lights();
 void remove_lights();
 void test_lights(f32 dt);
 
-LRESULT win_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
+camera_surface*
+find_camera_surface(platform::window_id id)
 {
-    bool toggle_fullscreen{ false };
-
-    switch (msg)
+    for (u32 i{ 0 }; i < std::size(_surfaces); ++i)
     {
-    case WM_DESTROY:
+        if (_surfaces[i].surface.window.is_valid() && _surfaces[i].surface.window.get_id() == id)
+        {
+            return &_surfaces[i];
+        }
+    }
+    return nullptr;
+}
+
+void on_window_event(const platform::window_event& event)
+{
+    using platform::window_event;
+    using input::input_code;
+
+    switch (event.type)
+    {
+    case window_event::closed:
     {
         bool all_closed{ true };
-        for (u32 i{ 0 }; i < _countof(_surfaces); ++i)
+        for (u32 i{ 0 }; i < std::size(_surfaces); ++i)
         {
             if (_surfaces[i].surface.window.is_valid())
             {
@@ -105,67 +120,48 @@ LRESULT win_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
         }
         if (all_closed && !is_restarting)
         {
-            PostQuitMessage(0);
-            return 0;
+            platform::post_quit();
         }
     }
     break;
-    case WM_SIZE:
-        resized = (wparam != SIZE_MINIMIZED);
-        break;
-    case WM_SYSCHAR:
-        toggle_fullscreen = (wparam == VK_RETURN && (HIWORD(lparam) & KF_ALTDOWN));
-        break;
-    case WM_KEYDOWN:
-        if (wparam == VK_ESCAPE)
+    case window_event::resized:
+        if (camera_surface *const surface{ find_camera_surface(event.window) })
         {
-            PostMessage(hwnd, WM_CLOSE, 0, 0);
-            return 0;
+            const platform::window win{ surface->surface.window };
+            surface->surface.surface.resize(win.width(), win.height());
+            surface->camera.aspect_ratio((f32)win.width() / win.height());
         }
-        else if(wparam == VK_SPACE)
+        break;
+    case window_event::key_down:
+        if (event.key == input_code::key_escape)
+        {
+            platform::window{ event.window }.close();
+        }
+        else if (event.key == input_code::key_space)
         {
             bool vsync{ false };
             graphics::get_option(graphics::renderer_option::vsync, &vsync, sizeof(bool));
             vsync = !vsync;
             graphics::set_option(graphics::renderer_option::vsync, &vsync, sizeof(bool));
         }
-        else if (wparam == VK_F11)
+        else if (event.key == input_code::key_f11)
         {
             is_restarting = true;
             test_shutdown();
             test_initialize();
         }
-    }
-
-    if ((resized && GetKeyState(VK_LBUTTON) >= 0) || toggle_fullscreen)
-    {
-        platform::window win{ platform::window_id{(id::id_type)GetWindowLongPtr(hwnd, GWLP_USERDATA)} };
-        for (u32 i{ 0 }; i < _countof(_surfaces); ++i)
+        else if (event.key == input_code::key_return && (event.modifiers & input::modifier_key::alt))
         {
-            if (win.get_id() == _surfaces[i].surface.window.get_id())
+            if (camera_surface *const surface{ find_camera_surface(event.window) })
             {
-                if (toggle_fullscreen)
-                {
-                    win.set_fullscreen(!win.is_fullscreen());
-                    // The default window procedure will play a system notification sound
-                    // when pressing the Alt+Enter keyboard combination if WM_SYSCHAR is
-                    // not handled. By returning 0 we can tell the system that we handled
-                    // this message.
-                    return 0;
-                }
-                else
-                {
-                    _surfaces[i].surface.surface.resize(win.width(), win.height());
-                    _surfaces[i].camera.aspect_ratio((f32)win.width() / win.height());
-
-                    resized = false;
-                }
-                break;
+                const platform::window win{ surface->surface.window };
+                win.set_fullscreen(!win.is_fullscreen());
             }
         }
+        break;
+    default:
+        break;
     }
-
-    return DefWindowProc(hwnd, msg, wparam, lparam);
 }
 
 game_entity::entity
@@ -257,14 +253,14 @@ test_initialize()
 
     platform::window_init_info info[]
     {
-        {&win_proc, nullptr, L"Render window 1", 100 - 3000, 100 - 700, 400, 800},
-        {&win_proc, nullptr, L"Render window 2", 150 - 3000, 150 - 700, 800, 400},
-        {&win_proc, nullptr, L"Render window 3", 200 - 3000, 200 - 700, 400, 400},
-        {&win_proc, nullptr, L"Render window 4", 250 - 3000, 250 - 700, 800, 600},
+        {&on_window_event, nullptr, "Render window 1", 100, 100, 400, 800},
+        {&on_window_event, nullptr, "Render window 2", 150, 150, 800, 400},
+        {&on_window_event, nullptr, "Render window 3", 200, 200, 400, 400},
+        {&on_window_event, nullptr, "Render window 4", 250, 250, 800, 600},
     };
-    static_assert(_countof(info) == _countof(_surfaces));
+    static_assert(std::size(info) == std::size(_surfaces));
 
-    for (u32 i{ 0 }; i < _countof(_surfaces); ++i)
+    for (u32 i{ 0 }; i < std::size(_surfaces); ++i)
         create_camera_surface(_surfaces[i], info[i]);
 
 
@@ -320,7 +316,7 @@ test_shutdown()
     remove_lights();
     joint_test_workers();
 
-    for (u32 i{ 0 }; i < _countof(_surfaces); ++i)
+    for (u32 i{ 0 }; i < std::size(_surfaces); ++i)
         destroy_camera_surface(_surfaces[i]);
 
     graphics::shutdown();
@@ -344,7 +340,7 @@ engine_test::run()
     const f32 dt{ timer.dt_avg() };
     script::update(dt);
     //test_lights(dt);
-    for (u32 i{ 0 }; i < _countof(_surfaces); ++i)
+    for (u32 i{ 0 }; i < std::size(_surfaces); ++i)
     {
         if (_surfaces[i].surface.surface.is_valid())
         {
@@ -358,7 +354,7 @@ engine_test::run()
             info.average_frame_time = dt;
             info.camera_id = _surfaces[i].camera.get_id();
 
-            assert(_countof(thresholds) >= info.render_item_count);
+            assert(std::size(thresholds) >= info.render_item_count);
             _surfaces[i].surface.surface.render(info);
         }
     }

@@ -14,7 +14,11 @@ target_sources(Engine PRIVATE
     Input/Input.cpp
 )
 
-# NOTE: Windows-only sources are not part of the Linux build yet. Attempting to build as step 1
+# Linux platform layer (SDL3). Window.cpp is compiled through PlatformLinux.cpp (IncludeWindowCpp.h).
+target_sources(Engine PRIVATE
+    Input/InputSDL.cpp
+    Platform/PlatformLinux.cpp
+)
 
 target_include_directories(Engine PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
@@ -25,6 +29,7 @@ target_link_libraries(Engine PUBLIC
     primal::build_settings
     primal::sal
     Microsoft::DirectXMath
+    SDL3::SDL3
 )
 
 # PIC so the engine can later be linked into a shared EngineDLL (libEngineDLL.so) for the editor.

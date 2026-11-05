@@ -6,6 +6,7 @@
 namespace primal::platform {
 
 DEFINE_TYPED_ID(window_id);
+struct native_window_handle;
 
 class window
 {
@@ -17,13 +18,15 @@ public:
 
     void set_fullscreen(bool is_fullscreen) const;
     bool is_fullscreen() const;
-    void* handle() const;
-    void set_caption(const wchar_t* caption) const;
+    const native_window_handle* handle() const;
+    void set_caption(const char* caption) const; // UTF-8
     math::u32v4 size() const;
     void resize(u32 width, u32 height) const;
     u32 width() const;
     u32 height() const;
     bool is_closed() const;
+    // Same as the user closing the window: it's hidden and a window_event::closed is sent.
+    void close() const;
 private:
     window_id _id{ id::invalid_id };
 };

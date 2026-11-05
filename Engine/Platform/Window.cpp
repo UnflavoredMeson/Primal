@@ -19,7 +19,7 @@ window::is_fullscreen() const
     return is_window_fullscreen(_id);
 }
 
-void*
+const native_window_handle*
 window::handle() const
 {
     assert(is_valid());
@@ -27,7 +27,7 @@ window::handle() const
 }
 
 void
-window::set_caption(const wchar_t* caption) const
+window::set_caption(const char* caption) const
 {
     assert(is_valid());
     set_window_caption(_id, caption);
@@ -66,6 +66,12 @@ window::is_closed() const
 {
     assert(is_valid());
     return is_window_closed(_id);
+}
+void
+window::close() const
+{
+    assert(is_valid());
+    close_window(_id);
 }
 }
 #endif // INCLUDE_WINDOW_CPP

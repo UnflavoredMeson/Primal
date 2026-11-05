@@ -18,6 +18,9 @@ if(NOT TARGET Microsoft::DirectXMath)
     add_library(Microsoft::DirectXMath ALIAS DirectXMath)
 endif()
 
+# SDL3 (system package) for standalone windows, input and the event loop.
+find_package(SDL3 3.2 REQUIRED CONFIG COMPONENTS SDL3-shared)
+
 # DirectXMath includes <sal.h>, which only exists on Windows. Provide a minimal stub elsewhere.
 add_library(primal_sal_stub INTERFACE)
 add_library(primal::sal ALIAS primal_sal_stub)

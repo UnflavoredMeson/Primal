@@ -70,37 +70,6 @@ struct shader_group_data
     u8* data;
 };
 
-bool tracking{ false };
-void track_mouse(HWND hwnd)
-{
-    TRACKMOUSEEVENT tme;
-    tme.cbSize = sizeof(TRACKMOUSEEVENT);
-    tme.dwFlags = TME_HOVER | TME_LEAVE;
-    tme.dwHoverTime = 10;
-    tme.hwndTrack = hwnd;
-
-    TrackMouseEvent(&tme);
-}
-
-LRESULT
-WinProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
-{
-    switch (msg)
-    {
-    case WM_MOUSEMOVE:
-        if (!tracking)
-        {
-            track_mouse(hwnd);
-            tracking = true;
-        }
-        break;
-    case WM_MOUSELEAVE:
-        tracking = false;
-        break;
-    }
-    return DefWindowProc(hwnd, msg, wparam, lparam);
-}
-
 u8*
 patch_material_data(u8* data)
 {
@@ -259,7 +228,9 @@ CreateRenderSurface(HWND host, s32 width, s32 height)
     std::lock_guard lock{ mutex };
 
     assert(host);
-    platform::window_init_info info{ &WinProc, host, nullptr, 0, 0, width, height };
+    // NOTE: PlatformWin32.cpp tracks the mouse for child windows (WM_MOUSEHOVER/WM_MOUSELEAVE for the editor).
+    const platform::native_window_handle parent{ platform::native_window_handle::win32, nullptr, (u64)host };
+    platform::window_init_info info{ nullptr, &parent, nullptr, 0, 0, width, height };
     viewport_surface surface{};
     surface.window = platform::create_window(&info);
     surface.surface = graphics::create_surface(surface.window);
@@ -295,7 +266,7 @@ GetWindowHandle(u32 id)
 {
     std::lock_guard lock{ mutex };
     assert(id < surfaces.size());
-    return (HWND)surfaces[id].window.handle();
+    return (HWND)surfaces[id].window.handle()->window;
 }
 
 EDITOR_INTERFACE id::id_type
