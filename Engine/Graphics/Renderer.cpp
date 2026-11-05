@@ -2,15 +2,16 @@
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "Renderer.h"
 #include "GraphicsPlatformInterface.h"
+#if PRIMAL_GRAPHICS_D3D12
 #include "Direct3D12/D3D12Interface.h"
-
+#endif
 
 namespace primal::graphics {
 namespace {
 
 // Defines where the compiled engine shaders file is located for each one of the supported APIs.
 constexpr const char* engine_shader_paths[]{
-    ".\\shaders\\d3d12\\shaders.bin",
+    R"(.\shaders\d3d12\shaders.bin)",
     // ".\\shaders\\vulkan\\shaders.bin", etc.
 };
 
@@ -22,9 +23,11 @@ set_platform_interface(graphics_platform platform, platform_interface& pi)
 {
     switch (platform)
     {
+#if PRIMAL_GRAPHICS_D3D12
     case graphics_platform::direct3d12:
         d3d12::get_platform_interface(pi);
         break;
+#endif
     default:
         return false;
     }

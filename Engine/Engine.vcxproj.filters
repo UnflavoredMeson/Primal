@@ -2,6 +2,7 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClInclude Include="Common\CommonHeaders.h" />
+    <ClInclude Include="Common\PlatformDetection.h" />
     <ClInclude Include="Common\PrimitiveTypes.h" />
     <ClInclude Include="Common\Id.h" />
     <ClInclude Include="Components\Entity.h" />

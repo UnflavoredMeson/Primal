@@ -57,9 +57,10 @@ private:
     u32             _lod_count;
 };
 
-// NOTE: This is needed to maintain compatibility with STL vector.
+// NOTE: free_list relocates its items bitwise, which breaks std::unordered_map in libstdc++
+// (it can point into itself). Keeping the map on the heap makes the item relocatable.
 struct noexcept_map {
-    std::unordered_map<u32, std::unique_ptr<u8[]>> map;
+    std::unique_ptr<std::unordered_map<u32, std::unique_ptr<u8[]>>> map{ std::make_unique<std::unordered_map<u32, std::unique_ptr<u8[]>>>() };
     noexcept_map() = default;
     noexcept_map(const noexcept_map&) = default;
     noexcept_map(noexcept_map&&) noexcept = default;
@@ -85,7 +86,7 @@ get_geometry_hierarchy_buffer_size(const void *const data)
     assert(lod_count);
     blob.skip(sizeof(f32) * lod_count); // skip thresholds
     // add size of  lod_count, thresholds and lod offsets to the size of hierarchy.
-    u32 size{ sizeof(u32) + (sizeof(f32) + sizeof(lod_offset)) * lod_count };
+    u32 size{ static_cast<u32>(sizeof(u32) + (sizeof(f32) + sizeof(lod_offset)) * lod_count) };
 
     u32 mesh_count{ 0 };
     for (u32 lod_idx{ 0 }; lod_idx < lod_count; ++lod_idx)
@@ -356,7 +357,7 @@ add_shader_group(const u8 *const * shaders, u32 num_shaders, const u32 *const ke
         const u64 size{ shader_ptr->buffer_size() };
         std::unique_ptr<u8[]> shader{ std::make_unique<u8[]>(size) };
         memcpy(shader.get(), shaders[i], size);
-        group.map[keys[i]] = std::move(shader);
+        (*group.map)[keys[i]] = std::move(shader);
     }
     std::lock_guard lock{ shader_mutex };
     return shader_groups.add(std::move(group));
@@ -368,7 +369,7 @@ remove_shader_group(id::id_type id)
     std::lock_guard lock{ shader_mutex };
     assert(id::is_valid(id));
 
-    shader_groups[id].map.clear();
+    shader_groups[id].map->clear();
     shader_groups.remove(id);
 }
 
@@ -378,7 +379,7 @@ get_shader(id::id_type id, u32 shader_key)
     std::lock_guard lock{ shader_mutex };
     assert(id::is_valid(id));
 
-    for (const auto& [key, value] : shader_groups[id].map)
+    for (const auto& [key, value] : *shader_groups[id].map)
     {
         if (key == shader_key)
         {

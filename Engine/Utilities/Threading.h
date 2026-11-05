@@ -2,10 +2,12 @@
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #pragma once
 #include "CommonHeaders.h"
+#include <atomic>
+#include <immintrin.h> // _mm_pause
 
 namespace primal::utl {
 
-#if _WIN64
+#if PRIMAL_PLATFORM_WINDOWS
 class ticket_mutex {
 public:
     ticket_mutex() = default;

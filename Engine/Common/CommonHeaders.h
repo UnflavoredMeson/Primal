@@ -2,7 +2,9 @@
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #pragma once
 
-#ifdef _WIN64
+#include "PlatformDetection.h"
+
+#ifdef _MSC_VER
 #pragma warning(disable: 4530) // disable exception warning
 #endif
 

@@ -16,9 +16,10 @@
 #error One of the tests need to be enabled
 #endif
 
-#ifdef _WIN64
-#include <Windows.h>
 #include <filesystem>
+
+#if PRIMAL_PLATFORM_WINDOWS
+#include <Windows.h>
 
 // TODO: duplicate!
 std::filesystem::path
@@ -63,19 +64,34 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
     return 0;
 }
 
-#else
+#elif PRIMAL_PLATFORM_LINUX
+
+// TODO: duplicate!
+std::filesystem::path
+set_current_directory_to_executable_path()
+{
+    // set the working directory to the executable path
+    std::error_code ec;
+    const std::filesystem::path p{ std::filesystem::read_symlink("/proc/self/exe", ec) };
+    if (ec) return {};
+    std::filesystem::current_path(p.parent_path(), ec);
+    if (ec) return {};
+    return std::filesystem::current_path();
+}
+
+// NOTE: there is no _CrtSetDbgFlag on Linux. For leak checking, configure with
+//       -DPRIMAL_ENABLE_SANITIZERS=ON (AddressSanitizer includes LeakSanitizer).
 int main()
 {
-#if _DEBUG
-    _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
-#endif
+    set_current_directory_to_executable_path();
     engine_test test{};
 
     if (test.initialize())
     {
+        //TODO: replace with the platform event pump once the platform layer is ported
         test.run();
     }
 
     test.shutdown();
 }
-#endif // _WIN64
+#endif

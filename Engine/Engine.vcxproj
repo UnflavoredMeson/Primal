@@ -21,6 +21,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Common\CommonHeaders.h" />
+    <ClInclude Include="Common\PlatformDetection.h" />
     <ClInclude Include="Common\Id.h" />
     <ClInclude Include="Common\PrimitiveTypes.h" />
     <ClInclude Include="Components\ComponentsCommon.h" />

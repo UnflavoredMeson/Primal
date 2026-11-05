@@ -13,7 +13,6 @@ constexpr f32 inv_two_pi{ 1.f / two_pi };
 constexpr f32 epsilon{ 1e-5f };
 constexpr f32 to_rad{ pi * (1.f/180.f)};
 constexpr f32 to_deg{ inv_pi * 180.f};
-#if defined(_WIN64)
 using v2 = DirectX::XMFLOAT2;
 using v2a = DirectX::XMFLOAT2A;
 using v3 = DirectX::XMFLOAT3;
@@ -29,6 +28,5 @@ using s32v4 = DirectX::XMINT4;
 using m3x3 = DirectX::XMFLOAT3X3; // NOTE: DirectXMath doesn't have aligned 3x3 matrices
 using m4x4 = DirectX::XMFLOAT4X4;
 using m4x4a = DirectX::XMFLOAT4X4A;
-#endif
 
 }

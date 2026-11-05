@@ -2,6 +2,7 @@
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #pragma once
 #include "CommonHeaders.h"
+#include <type_traits>
 
 namespace primal::utl {
 
@@ -12,6 +13,13 @@ namespace primal::utl {
 template<typename T, bool destruct = true>
 class vector
 {
+    // Items are relocated (when growing or erasing) with realloc()/memcpy() unless that would break
+    // them: types that aren't trivially copyable but have a move constructor are move-constructed
+    // instead. E.g. std::string/std::wstring and std::unordered_map in libstdc++ hold pointers into
+    // themselves; MSVC's happen to survive a byte copy. Types that can't be moved (DISABLE_MOVE)
+    // keep the bitwise relocation the engine relies on, and so does vector<T, false> (used by
+    // free_list), whose storage may contain destroyed items.
+    static constexpr bool relocate_with_move{ destruct && !std::is_trivially_copyable_v<T> && std::is_move_constructible_v<T> };
 public:
     // Default constructor. Doesn't allocate memory.
     constexpr vector() = default;
@@ -167,6 +175,24 @@ public:
     {
         if (new_capacity > _capacity)
         {
+            if constexpr (relocate_with_move)
+            {
+                T *const new_buffer{ static_cast<T*>(malloc(new_capacity * sizeof(T))) };
+                assert(new_buffer);
+                if (new_buffer)
+                {
+                    for (u64 i{ 0 }; i < _size; ++i)
+                    {
+                        new (std::addressof(new_buffer[i])) T(std::move(_data[i]));
+                        _data[i].~T();
+                    }
+                    free(_data);
+                    _data = new_buffer;
+                    _capacity = new_capacity;
+                }
+                return;
+            }
+
             // NOTE: realoc() will automatically copy the data in the buffer
             //       if a new region of memory is allocated.
             void* new_buffer{ realloc(_data, new_capacity * sizeof(T)) };
@@ -195,7 +221,18 @@ public:
         --_size;
         if (item < std::addressof(_data[_size]))
         {
-            memcpy(item, item + 1, (std::addressof(_data[_size]) - item) * sizeof(T));
+            if constexpr (relocate_with_move)
+            {
+                for (T* at{ item }; at < std::addressof(_data[_size]); ++at)
+                {
+                    new (at) T(std::move(*(at + 1)));
+                    (at + 1)->~T();
+                }
+            }
+            else
+            {
+                memmove(item, item + 1, (std::addressof(_data[_size]) - item) * sizeof(T));
+            }
         }
 
         return item;
@@ -217,7 +254,15 @@ public:
         --_size;
         if (item < std::addressof(_data[_size]))
         {
-            memcpy(item, std::addressof(_data[_size]), sizeof(T));
+            if constexpr (relocate_with_move)
+            {
+                new (item) T(std::move(_data[_size]));
+                _data[_size].~T();
+            }
+            else
+            {
+                memcpy(item, std::addressof(_data[_size]), sizeof(T));
+            }
         }
 
         return item;
