@@ -12,6 +12,8 @@
 #include "TestWindow.h"
 #elif TEST_RENDERER
 #include "TestRenderer.h"
+#elif TEST_SURFACES
+#include "TestSurfaces.h"
 #else
 #error One of the tests need to be enabled
 #endif

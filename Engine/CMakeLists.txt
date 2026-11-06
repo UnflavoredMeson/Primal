@@ -23,6 +23,13 @@ target_sources(Engine PRIVATE
     Platform/PlatformLinux.cpp
 )
 
+# Vulkan backend (PRIMAL_GRAPHICS_VULKAN, on by default on Linux; see Common/PlatformDetection.h).
+target_sources(Engine PRIVATE
+    Graphics/Vulkan/VulkanCore.cpp
+    Graphics/Vulkan/VulkanInterface.cpp
+    Graphics/Vulkan/VulkanSurface.cpp
+)
+
 target_include_directories(Engine PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/Common
@@ -33,6 +40,7 @@ target_link_libraries(Engine PUBLIC
     primal::sal
     Microsoft::DirectXMath
     SDL3::SDL3
+    Vulkan::Vulkan
 )
 
 # Shader compiler (HLSL -> DXIL/SPIR-V via DXC). Reusable by EngineTest and, later, a Linux EngineDLL.

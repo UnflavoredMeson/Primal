@@ -62,9 +62,9 @@ private:
 struct noexcept_map {
     std::unique_ptr<std::unordered_map<u32, std::unique_ptr<u8[]>>> map{ std::make_unique<std::unordered_map<u32, std::unique_ptr<u8[]>>>() };
     noexcept_map() = default;
-    noexcept_map(const noexcept_map&) = default;
+    noexcept_map(const noexcept_map&) = delete;
     noexcept_map(noexcept_map&&) noexcept = default;
-    noexcept_map& operator=(const noexcept_map&) = default;
+    noexcept_map& operator=(const noexcept_map&) = delete;
     noexcept_map& operator=(noexcept_map&&) noexcept = default;
 };
 

@@ -15,6 +15,9 @@
 #ifndef TEST_RENDERER
 #define TEST_RENDERER 1
 #endif
+#ifndef TEST_SURFACES
+#define TEST_SURFACES 0
+#endif
 
 class test
 {

@@ -1,0 +1,951 @@
+// Copyright (c) 2026 Charles Smith
+// Distributed under the MIT license. See the LICENSE file in the project root for more information.
+#include "VulkanCore.h"
+#include "VulkanSurface.h"
+#include <cstdlib>
+
+namespace primal::graphics::vulkan::core {
+namespace {
+
+// Graphics queue + per-frame command buffers, synchronized with a timeline semaphore
+// (counterpart of d3d12_command; the timeline semaphore works like an ID3D12Fence).
+class vulkan_command
+{
+public:
+    vulkan_command() = default;
+    DISABLE_COPY_AND_MOVE(vulkan_command);
+    ~vulkan_command() { assert(!_queue && !_fence); }
+
+    bool initialize(VkDevice device, u32 queue_family)
+    {
+        _device = device;
+        _queue_family = queue_family;
+        vkGetDeviceQueue(device, queue_family, 0, &_queue);
+        NAME_VK_OBJECT(_queue, VK_OBJECT_TYPE_QUEUE, "GFX Queue");
+
+        VkSemaphoreTypeCreateInfo timeline_info{ VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO };
+        timeline_info.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
+        timeline_info.initialValue = 0;
+        VkSemaphoreCreateInfo semaphore_info{ VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
+        semaphore_info.pNext = &timeline_info;
+        if (!VkCall(vkCreateSemaphore(device, &semaphore_info, nullptr, &_fence))) return false;
+        NAME_VK_OBJECT(_fence, VK_OBJECT_TYPE_SEMAPHORE, "GFX Frame Fence (timeline)");
+
+        for (u32 i{ 0 }; i < frame_buffer_count; ++i)
+        {
+            command_frame& frame{ _cmd_frames[i] };
+
+            VkCommandPoolCreateInfo pool_info{ VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO };
+            pool_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+            pool_info.queueFamilyIndex = queue_family;
+            if (!VkCall(vkCreateCommandPool(device, &pool_info, nullptr, &frame.cmd_pool))) return false;
+            NAME_VK_OBJECT_INDEXED(frame.cmd_pool, VK_OBJECT_TYPE_COMMAND_POOL, i, "GFX Command Pool");
+
+            VkCommandBufferAllocateInfo alloc_info{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
+            alloc_info.commandPool = frame.cmd_pool;
+            alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+            alloc_info.commandBufferCount = 1;
+            if (!VkCall(vkAllocateCommandBuffers(device, &alloc_info, &frame.cmd_buffer))) return false;
+            NAME_VK_OBJECT_INDEXED(frame.cmd_buffer, VK_OBJECT_TYPE_COMMAND_BUFFER, i, "GFX Command Buffer");
+
+            VkSemaphoreCreateInfo binary_info{ VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
+            if (!VkCall(vkCreateSemaphore(device, &binary_info, nullptr, &frame.image_acquired))) return false;
+            NAME_VK_OBJECT_INDEXED(frame.image_acquired, VK_OBJECT_TYPE_SEMAPHORE, i, "Image Acquired Semaphore");
+        }
+
+        return true;
+    }
+
+    // Wait for the current frame to be signaled, then reset and begin its command buffer.
+    VkCommandBuffer begin_frame()
+    {
+        command_frame& frame{ _cmd_frames[_frame_index] };
+        frame.wait(_device, _fence);
+        VkCall(vkResetCommandPool(_device, frame.cmd_pool, 0));
+
+        VkCommandBufferBeginInfo begin_info{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
+        begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        VkCall(vkBeginCommandBuffer(frame.cmd_buffer, &begin_info));
+        return frame.cmd_buffer;
+    }
+
+    // Submit the frame's command buffer (after the swapchain image was acquired), present,
+    // and signal the timeline semaphore with the new fence value.
+    void end_frame(vulkan_surface& surface)
+    {
+        command_frame& frame{ _cmd_frames[_frame_index] };
+        VkCall(vkEndCommandBuffer(frame.cmd_buffer));
+
+        const u64 fence_value{ ++_fence_value };
+
+        VkSemaphoreSubmitInfo wait_info{ VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO };
+        wait_info.semaphore = frame.image_acquired;
+        // Everything before writing to the swapchain image may start before it's acquired.
+        wait_info.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+        VkSemaphoreSubmitInfo signal_infos[2]{};
+        signal_infos[0].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+        signal_infos[0].semaphore = surface.render_finished_semaphore();
+        signal_infos[0].stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+        signal_infos[1].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+        signal_infos[1].semaphore = _fence;
+        signal_infos[1].value = fence_value;
+        signal_infos[1].stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+
+        VkCommandBufferSubmitInfo cmd_info{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO };
+        cmd_info.commandBuffer = frame.cmd_buffer;
+
+        VkSubmitInfo2 submit{ VK_STRUCTURE_TYPE_SUBMIT_INFO_2 };
+        submit.waitSemaphoreInfoCount = 1;
+        submit.pWaitSemaphoreInfos = &wait_info;
+        submit.commandBufferInfoCount = 1;
+        submit.pCommandBufferInfos = &cmd_info;
+        submit.signalSemaphoreInfoCount = (u32)std::size(signal_infos);
+        submit.pSignalSemaphoreInfos = &signal_infos[0];
+        VkCall(vkQueueSubmit2(_queue, 1, &submit, VK_NULL_HANDLE));
+
+        // Presenting swap chain images happens in lockstep with frame buffers.
+        surface.present(_queue);
+
+        frame.fence_value = fence_value;
+        _frame_index = (_frame_index + 1) % frame_buffer_count;
+    }
+
+    // Wait until the GPU is done with all submitted frames, and the queue with its presents.
+    // NOTE: the frame fences don't cover a present's wait on the render finished semaphore.
+    //       Without VK_EXT_swapchain_maintenance1 (present fences), waiting for the queue to be
+    //       idle is the only way to know the semaphores and swapchain images aren't in use anymore,
+    //       which is needed before recreating or destroying a swapchain.
+    void flush()
+    {
+        for (u32 i{ 0 }; i < frame_buffer_count; ++i)
+        {
+            _cmd_frames[i].wait(_device, _fence);
+        }
+        if (_queue) VkCall(vkQueueWaitIdle(_queue));
+        _frame_index = 0;
+    }
+
+    void release()
+    {
+        if (!_device) return;
+        flush();
+
+        for (u32 i{ 0 }; i < frame_buffer_count; ++i)
+        {
+            _cmd_frames[i].release(_device);
+        }
+
+        if (_fence) vkDestroySemaphore(_device, _fence, nullptr);
+        _fence = VK_NULL_HANDLE;
+        _fence_value = 0;
+        _queue = VK_NULL_HANDLE;
+        _device = VK_NULL_HANDLE;
+    }
+
+    [[nodiscard]] constexpr VkQueue queue() const { return _queue; }
+    [[nodiscard]] constexpr u32 queue_family() const { return _queue_family; }
+    [[nodiscard]] constexpr u32 frame_index() const { return _frame_index; }
+    [[nodiscard]] constexpr VkSemaphore image_acquired_semaphore() const { return _cmd_frames[_frame_index].image_acquired; }
+
+private:
+    struct command_frame
+    {
+        VkCommandPool cmd_pool{ VK_NULL_HANDLE };
+        VkCommandBuffer cmd_buffer{ VK_NULL_HANDLE };
+        // Signaled by vkAcquireNextImageKHR. Reusable once this frame's fence value is reached,
+        // because the frame's submit waited on it.
+        VkSemaphore image_acquired{ VK_NULL_HANDLE };
+        u64 fence_value{ 0 };
+
+        void wait(VkDevice device, VkSemaphore fence) const
+        {
+            assert(device && fence);
+            u64 completed{ 0 };
+            VkCall(vkGetSemaphoreCounterValue(device, fence, &completed));
+            // If the timeline value is still less than "fence_value", the GPU hasn't finished
+            // executing this frame's command buffer yet.
+            if (completed < fence_value)
+            {
+                VkSemaphoreWaitInfo wait_info{ VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO };
+                wait_info.semaphoreCount = 1;
+                wait_info.pSemaphores = &fence;
+                wait_info.pValues = &fence_value;
+                VkCall(vkWaitSemaphores(device, &wait_info, UINT64_MAX));
+            }
+        }
+
+        void release(VkDevice device)
+        {
+            // Destroying the pool frees its command buffers.
+            if (cmd_pool) vkDestroyCommandPool(device, cmd_pool, nullptr);
+            if (image_acquired) vkDestroySemaphore(device, image_acquired, nullptr);
+            cmd_pool = VK_NULL_HANDLE;
+            cmd_buffer = VK_NULL_HANDLE;
+            image_acquired = VK_NULL_HANDLE;
+            fence_value = 0;
+        }
+    };
+
+    VkDevice _device{ VK_NULL_HANDLE };
+    VkQueue _queue{ VK_NULL_HANDLE };
+    u32 _queue_family{ u32_invalid_id };
+    VkSemaphore _fence{ VK_NULL_HANDLE };
+    u64 _fence_value{ 0 };
+    command_frame _cmd_frames[frame_buffer_count]{};
+    u32 _frame_index{ 0 };
+};
+
+struct deferred_object
+{
+    VkObjectType type;
+    u64 handle;
+};
+
+using surface_collection = utl::free_list<vulkan_surface>;
+
+constexpr const char* validation_layer_name{ "VK_LAYER_KHRONOS_validation" };
+
+VkInstance vk_instance{ VK_NULL_HANDLE };
+VkDebugUtilsMessengerEXT debug_messenger{ VK_NULL_HANDLE };
+VkPhysicalDevice main_physical_device{ VK_NULL_HANDLE };
+VkDevice main_device{ VK_NULL_HANDLE };
+vulkan_command gfx_command;
+surface_collection surfaces;
+
+PFN_vkSetDebugUtilsObjectNameEXT set_debug_utils_object_name{ nullptr };
+
+utl::vector<deferred_object> deferred_releases[frame_buffer_count]{};
+u32 deferred_releases_flag[frame_buffer_count]{};
+std::mutex deferred_releases_mutex{};
+
+// Number of validation errors reported (validation is only on in debug builds). Printed at shutdown.
+u32 validation_error_count{ 0 };
+
+struct options
+{
+    bool enable_vsync{ true };   // enable/disable vsync
+    bool enable_dxr{ false };    // enable/disable ray tracing (not supported yet)
+    u32 msaa_samples{ 1 };      // MSAA samples (1, 2, 4, 8)
+} options;
+
+bool
+failed_init()
+{
+    shutdown();
+    return false;
+}
+
+VKAPI_ATTR VkBool32 VKAPI_CALL
+debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT,
+               const VkDebugUtilsMessengerCallbackDataEXT* data, void*)
+{
+    const char* label{ "info" };
+    if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
+    {
+        label = "ERROR";
+        ++validation_error_count;
+    }
+    else if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
+    {
+        label = "warning";
+    }
+    std::fprintf(stderr, "::Vulkan %s: %s\n", label, data && data->pMessage ? data->pMessage : "");
+    return VK_FALSE;
+}
+
+bool
+has_layer(const utl::vector<VkLayerProperties>& layers, const char* name)
+{
+    for (const auto& layer : layers)
+    {
+        if (std::strcmp(layer.layerName, name) == 0) return true;
+    }
+    return false;
+}
+
+bool
+has_extension(const utl::vector<VkExtensionProperties>& extensions, const char* name)
+{
+    for (const auto& extension : extensions)
+    {
+        if (std::strcmp(extension.extensionName, name) == 0) return true;
+    }
+    return false;
+}
+
+// Validation is on in debug builds if the layer is installed. PRIMAL_VULKAN_VALIDATION=0 turns it off.
+bool
+use_validation()
+{
+#ifdef _DEBUG
+    const char* const env{ std::getenv("PRIMAL_VULKAN_VALIDATION") };
+    return !env || env[0] != '0';
+#else
+    return false;
+#endif
+}
+
+bool
+create_instance()
+{
+    u32 api_version{ 0 };
+    VkCall(vkEnumerateInstanceVersion(&api_version));
+    if (api_version < minimum_api_version)
+    {
+        std::fprintf(stderr, "Vulkan: the loader supports Vulkan %u.%u, 1.3 is required.\n",
+                     VK_API_VERSION_MAJOR(api_version), VK_API_VERSION_MINOR(api_version));
+        return false;
+    }
+
+    u32 count{ 0 };
+    vkEnumerateInstanceLayerProperties(&count, nullptr);
+    utl::vector<VkLayerProperties> layers(count);
+    vkEnumerateInstanceLayerProperties(&count, layers.data());
+
+    vkEnumerateInstanceExtensionProperties(nullptr, &count, nullptr);
+    utl::vector<VkExtensionProperties> extensions(count);
+    vkEnumerateInstanceExtensionProperties(nullptr, &count, extensions.data());
+
+    utl::vector<const char*> enabled_layers;
+    utl::vector<const char*> enabled_extensions;
+    enabled_extensions.emplace_back(VK_KHR_SURFACE_EXTENSION_NAME);
+
+    // Window systems. The native handle of each window says which one it uses (see VulkanSurface.cpp).
+    u32 window_system_count{ 0 };
+#if PRIMAL_PLATFORM_LINUX
+    constexpr const char* window_system_extensions[]{ "VK_KHR_xlib_surface", "VK_KHR_wayland_surface" };
+#else
+    constexpr const char* window_system_extensions[]{ "VK_KHR_win32_surface" };
+#endif
+    for (const char* name : window_system_extensions)
+    {
+        if (has_extension(extensions, name))
+        {
+            enabled_extensions.emplace_back(name);
+            ++window_system_count;
+        }
+    }
+    if (!window_system_count)
+    {
+        std::fprintf(stderr, "Vulkan: no supported window system surface extension.\n");
+        return false;
+    }
+
+    const bool validation{ use_validation() && has_layer(layers, validation_layer_name) };
+    const bool debug_utils{ has_extension(extensions, VK_EXT_DEBUG_UTILS_EXTENSION_NAME) };
+    const bool layer_settings{ validation && has_extension(extensions, VK_EXT_LAYER_SETTINGS_EXTENSION_NAME) };
+    if (validation) enabled_layers.emplace_back(validation_layer_name);
+#ifdef _DEBUG
+    if (debug_utils) enabled_extensions.emplace_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+    if (use_validation() && !validation)
+    {
+        std::fprintf(stderr, "Warning: Vulkan validation layer is not available. Install vulkan-validation-layers.\n");
+    }
+#endif
+    if (layer_settings) enabled_extensions.emplace_back(VK_EXT_LAYER_SETTINGS_EXTENSION_NAME);
+
+    VkApplicationInfo app_info{ VK_STRUCTURE_TYPE_APPLICATION_INFO };
+    app_info.pApplicationName = "Primal";
+    app_info.pEngineName = "Primal";
+    app_info.engineVersion = VK_MAKE_API_VERSION(0, version.major, version.minor, version.revision);
+    app_info.apiVersion = minimum_api_version;
+
+    VkInstanceCreateInfo info{ VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO };
+    info.pApplicationInfo = &app_info;
+    info.enabledLayerCount = (u32)enabled_layers.size();
+    info.ppEnabledLayerNames = enabled_layers.data();
+    info.enabledExtensionCount = (u32)enabled_extensions.size();
+    info.ppEnabledExtensionNames = enabled_extensions.data();
+
+    // Synchronization validation (hazards between commands/submits), the counterpart of the
+    // D3D12 debug layer's resource state checks.
+    const VkBool32 enable{ VK_TRUE };
+    const VkLayerSettingEXT settings[]{
+        { validation_layer_name, "validate_sync", VK_LAYER_SETTING_TYPE_BOOL32_EXT, 1, &enable },
+    };
+    VkLayerSettingsCreateInfoEXT settings_info{ VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT };
+    settings_info.settingCount = (u32)std::size(settings);
+    settings_info.pSettings = &settings[0];
+
+    // Messages from vkCreateInstance/vkDestroyInstance go to this messenger.
+    VkDebugUtilsMessengerCreateInfoEXT messenger_info{ VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT };
+    messenger_info.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+    messenger_info.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+                                 VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+    messenger_info.pfnUserCallback = debug_callback;
+
+    const void** next{ &info.pNext };
+    if (validation && debug_utils)
+    {
+        *next = &messenger_info;
+        next = &messenger_info.pNext;
+    }
+    if (layer_settings)
+    {
+        *next = &settings_info;
+    }
+
+    if (!VkCall(vkCreateInstance(&info, nullptr, &vk_instance))) return false;
+    if (validation) std::fprintf(stderr, "::Vulkan validation layer enabled%s\n", layer_settings ? " (+ synchronization validation)" : "");
+
+#ifdef _DEBUG
+    if (debug_utils)
+    {
+        set_debug_utils_object_name = (PFN_vkSetDebugUtilsObjectNameEXT)vkGetInstanceProcAddr(vk_instance, "vkSetDebugUtilsObjectNameEXT");
+        if (validation)
+        {
+            const auto create_messenger{ (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(vk_instance, "vkCreateDebugUtilsMessengerEXT") };
+            if (create_messenger) VkCall(create_messenger(vk_instance, &messenger_info, nullptr, &debug_messenger));
+        }
+    }
+#endif
+
+    return true;
+}
+
+struct device_features
+{
+    VkPhysicalDeviceMutableDescriptorTypeFeaturesEXT mutable_descriptor{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MUTABLE_DESCRIPTOR_TYPE_FEATURES_EXT };
+    VkPhysicalDeviceVulkan13Features vulkan13{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES, &mutable_descriptor };
+    VkPhysicalDeviceVulkan12Features vulkan12{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES, &vulkan13 };
+    VkPhysicalDeviceVulkan11Features vulkan11{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES, &vulkan12 };
+    VkPhysicalDeviceFeatures2 features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2, &vulkan11 };
+
+    device_features() = default;
+    DISABLE_COPY_AND_MOVE(device_features); // the pNext chain points into this struct
+};
+
+bool
+get_required_features(const device_features& supported, device_features& enabled, bool log_missing)
+{
+    bool ok{ true };
+    auto require = [&](VkBool32 is_supported, VkBool32& enable, const char* name) {
+        enable = VK_TRUE;
+        if (!is_supported)
+        {
+            if (log_missing) std::fprintf(stderr, "Vulkan: missing device feature %s\n", name);
+            ok = false;
+        }
+    };
+#define REQUIRE(level, name) require(supported.level.name, enabled.level.name, #name)
+    // Vulkan 1.0
+    REQUIRE(features.features, shaderInt16);                    // -enable-16bit-types
+    REQUIRE(features.features, samplerAnisotropy);
+    REQUIRE(features.features, multiDrawIndirect);              // ExecuteIndirect equivalent
+    REQUIRE(features.features, drawIndirectFirstInstance);
+    // Vulkan 1.1
+    REQUIRE(vulkan11, storageBuffer16BitAccess);                // -enable-16bit-types
+    REQUIRE(vulkan11, uniformAndStorageBuffer16BitAccess);
+    REQUIRE(vulkan11, shaderDrawParameters);
+    // Vulkan 1.2
+    REQUIRE(vulkan12, timelineSemaphore);                       // frame fences
+    REQUIRE(vulkan12, scalarBlockLayout);                       // -fvk-use-dx-layout
+    REQUIRE(vulkan12, shaderFloat16);                           // -enable-16bit-types
+    REQUIRE(vulkan12, descriptorIndexing);                      // ResourceDescriptorHeap[]
+    REQUIRE(vulkan12, runtimeDescriptorArray);
+    REQUIRE(vulkan12, descriptorBindingPartiallyBound);
+    REQUIRE(vulkan12, descriptorBindingUpdateUnusedWhilePending);
+    REQUIRE(vulkan12, descriptorBindingSampledImageUpdateAfterBind);
+    REQUIRE(vulkan12, descriptorBindingStorageImageUpdateAfterBind);
+    REQUIRE(vulkan12, descriptorBindingStorageBufferUpdateAfterBind);
+    REQUIRE(vulkan12, descriptorBindingUniformBufferUpdateAfterBind);
+    REQUIRE(vulkan12, shaderSampledImageArrayNonUniformIndexing);
+    REQUIRE(vulkan12, shaderStorageBufferArrayNonUniformIndexing);
+    REQUIRE(vulkan12, drawIndirectCount);
+    REQUIRE(vulkan12, bufferDeviceAddress);
+    // Vulkan 1.3
+    REQUIRE(vulkan13, dynamicRendering);                        // no render pass objects
+    REQUIRE(vulkan13, synchronization2);
+    REQUIRE(vulkan13, maintenance4);
+    // VK_EXT_mutable_descriptor_type: typed views aliasing ResourceDescriptorHeap[]
+    REQUIRE(mutable_descriptor, mutableDescriptorType);
+#undef REQUIRE
+    return ok;
+}
+
+constexpr const char* required_device_extensions[]{
+    VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+    VK_EXT_MUTABLE_DESCRIPTOR_TYPE_EXTENSION_NAME,
+};
+
+// Returns the index of a queue family that supports graphics and compute, or u32_invalid_id.
+// NOTE: presenting is checked per window (vulkan_surface::create()).
+u32
+find_graphics_queue_family(VkPhysicalDevice physical_device)
+{
+    u32 count{ 0 };
+    vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &count, nullptr);
+    utl::vector<VkQueueFamilyProperties> families(count);
+    vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &count, families.data());
+    constexpr VkQueueFlags required{ VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT };
+    for (u32 i{ 0 }; i < count; ++i)
+    {
+        if ((families[i].queueFlags & required) == required) return i;
+    }
+    return u32_invalid_id;
+}
+
+bool
+is_device_suitable(VkPhysicalDevice physical_device, bool log_missing)
+{
+    VkPhysicalDeviceProperties properties{};
+    vkGetPhysicalDeviceProperties(physical_device, &properties);
+    if (properties.apiVersion < minimum_api_version)
+    {
+        if (log_missing) std::fprintf(stderr, "Vulkan: %s supports Vulkan %u.%u, 1.3 is required.\n", properties.deviceName,
+                                      VK_API_VERSION_MAJOR(properties.apiVersion), VK_API_VERSION_MINOR(properties.apiVersion));
+        return false;
+    }
+
+    u32 count{ 0 };
+    vkEnumerateDeviceExtensionProperties(physical_device, nullptr, &count, nullptr);
+    utl::vector<VkExtensionProperties> extensions(count);
+    vkEnumerateDeviceExtensionProperties(physical_device, nullptr, &count, extensions.data());
+    bool ok{ true };
+    for (const char* name : required_device_extensions)
+    {
+        if (!has_extension(extensions, name))
+        {
+            if (log_missing) std::fprintf(stderr, "Vulkan: %s doesn't support %s\n", properties.deviceName, name);
+            ok = false;
+        }
+    }
+    if (!ok) return false;
+
+    device_features supported{};
+    vkGetPhysicalDeviceFeatures2(physical_device, &supported.features);
+    device_features enabled{};
+    if (!get_required_features(supported, enabled, log_missing)) return false;
+
+    return find_graphics_queue_family(physical_device) != u32_invalid_id;
+}
+
+// Get the most performing GPU that supports everything we need (discrete > integrated > others).
+// NOTE: like d3d12's determine_main_adapter(), this could later let the user choose.
+VkPhysicalDevice
+determine_main_physical_device()
+{
+    u32 count{ 0 };
+    vkEnumeratePhysicalDevices(vk_instance, &count, nullptr);
+    utl::vector<VkPhysicalDevice> devices(count);
+    vkEnumeratePhysicalDevices(vk_instance, &count, devices.data());
+
+    auto rank = [](VkPhysicalDeviceType type) {
+        switch (type)
+        {
+        case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU: return 3;
+        case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU: return 2;
+        case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU: return 1;
+        default: return 0; // CPU (lavapipe) and others
+        }
+    };
+
+    VkPhysicalDevice best{ VK_NULL_HANDLE };
+    s32 best_rank{ -1 };
+    for (const VkPhysicalDevice device : devices)
+    {
+        if (!is_device_suitable(device, false)) continue;
+        VkPhysicalDeviceProperties properties{};
+        vkGetPhysicalDeviceProperties(device, &properties);
+        if (rank(properties.deviceType) > best_rank)
+        {
+            best = device;
+            best_rank = rank(properties.deviceType);
+        }
+    }
+
+    if (!best)
+    {
+        // Say why each device was rejected.
+        for (const VkPhysicalDevice device : devices) is_device_suitable(device, true);
+    }
+
+    return best;
+}
+
+bool
+create_device()
+{
+    main_physical_device = determine_main_physical_device();
+    if (!main_physical_device)
+    {
+        std::fprintf(stderr, "Vulkan: no suitable GPU found.\n");
+        return false;
+    }
+
+    VkPhysicalDeviceProperties properties{};
+    vkGetPhysicalDeviceProperties(main_physical_device, &properties);
+    std::fprintf(stderr, "::Vulkan device: %s (Vulkan %u.%u.%u)\n", properties.deviceName,
+                 VK_API_VERSION_MAJOR(properties.apiVersion), VK_API_VERSION_MINOR(properties.apiVersion),
+                 VK_API_VERSION_PATCH(properties.apiVersion));
+
+    const u32 queue_family{ find_graphics_queue_family(main_physical_device) };
+    const f32 priority{ 1.f };
+    VkDeviceQueueCreateInfo queue_info{ VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO };
+    queue_info.queueFamilyIndex = queue_family;
+    queue_info.queueCount = 1;
+    queue_info.pQueuePriorities = &priority;
+
+    device_features supported{};
+    vkGetPhysicalDeviceFeatures2(main_physical_device, &supported.features);
+    device_features enabled{};
+    get_required_features(supported, enabled, true);
+
+    VkDeviceCreateInfo info{ VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO };
+    info.pNext = &enabled.features;
+    info.queueCreateInfoCount = 1;
+    info.pQueueCreateInfos = &queue_info;
+    info.enabledExtensionCount = (u32)std::size(required_device_extensions);
+    info.ppEnabledExtensionNames = &required_device_extensions[0];
+
+    if (!VkCall(vkCreateDevice(main_physical_device, &info, nullptr, &main_device))) return false;
+    NAME_VK_OBJECT(main_device, VK_OBJECT_TYPE_DEVICE, "Main Vulkan Device");
+
+    return gfx_command.initialize(main_device, queue_family);
+}
+
+void
+destroy_object(const deferred_object& object)
+{
+    const VkDevice device{ main_device };
+    switch (object.type)
+    {
+    case VK_OBJECT_TYPE_SWAPCHAIN_KHR: vkDestroySwapchainKHR(device, (VkSwapchainKHR)object.handle, nullptr); break;
+    case VK_OBJECT_TYPE_SURFACE_KHR: vkDestroySurfaceKHR(vk_instance, (VkSurfaceKHR)object.handle, nullptr); break;
+    case VK_OBJECT_TYPE_IMAGE_VIEW: vkDestroyImageView(device, (VkImageView)object.handle, nullptr); break;
+    case VK_OBJECT_TYPE_IMAGE: vkDestroyImage(device, (VkImage)object.handle, nullptr); break;
+    case VK_OBJECT_TYPE_BUFFER: vkDestroyBuffer(device, (VkBuffer)object.handle, nullptr); break;
+    case VK_OBJECT_TYPE_SAMPLER: vkDestroySampler(device, (VkSampler)object.handle, nullptr); break;
+    case VK_OBJECT_TYPE_PIPELINE: vkDestroyPipeline(device, (VkPipeline)object.handle, nullptr); break;
+    case VK_OBJECT_TYPE_PIPELINE_LAYOUT: vkDestroyPipelineLayout(device, (VkPipelineLayout)object.handle, nullptr); break;
+    case VK_OBJECT_TYPE_SEMAPHORE: vkDestroySemaphore(device, (VkSemaphore)object.handle, nullptr); break;
+    default:
+        assert(false && "Vulkan: deferred release of an unsupported object type.");
+        break;
+    }
+}
+
+void
+process_deferred_releases(u32 frame_idx, bool force_release = false)
+{
+    std::scoped_lock lock{ deferred_releases_mutex };
+
+    // NOTE: The objects could still be in use in previous frames. So we wait
+    //       another round before destroying them.
+    //       force_release is used during shutdown, where we don't have to wait.
+    if (!force_release && ++deferred_releases_flag[frame_idx] < frame_buffer_count) return;
+
+    deferred_releases_flag[frame_idx] = 0;
+
+    utl::vector<deferred_object>& objects{ deferred_releases[frame_idx] };
+    for (const auto& object : objects) destroy_object(object);
+    objects.clear();
+}
+
+void
+record_clear(VkCommandBuffer cmd, const vulkan_surface& surface, surface_id id)
+{
+    static u32 frame_counter{ 0 };
+    ++frame_counter;
+    constexpr f32 colors[][3]{
+        { 0.8f, 0.2f, 0.2f },
+        { 0.2f, 0.8f, 0.2f },
+        { 0.2f, 0.3f, 0.9f },
+        { 0.8f, 0.7f, 0.1f },
+    };
+    const f32* const color{ colors[(u32)(id::id_type)id % std::size(colors)] };
+    const f32 pulse{ 0.6f + 0.4f * (f32)((frame_counter / 4) % 64) / 63.f };
+
+    VkImageMemoryBarrier2 barrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
+    // Wait for the acquire semaphore (signaled at the color attachment output stage), then write.
+    barrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+    barrier.srcAccessMask = VK_ACCESS_2_NONE;
+    barrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+    barrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+    barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED; // previous contents aren't needed
+    barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image = surface.image();
+    barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+
+    VkDependencyInfo dependency{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+    dependency.imageMemoryBarrierCount = 1;
+    dependency.pImageMemoryBarriers = &barrier;
+    vkCmdPipelineBarrier2(cmd, &dependency);
+
+    VkRenderingAttachmentInfo color_attachment{ VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO };
+    color_attachment.imageView = surface.image_view();
+    color_attachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    color_attachment.clearValue.color = { { color[0] * pulse, color[1] * pulse, color[2] * pulse, 1.f } };
+
+    VkRenderingInfo rendering{ VK_STRUCTURE_TYPE_RENDERING_INFO };
+    rendering.renderArea = { { 0, 0 }, surface.extent() };
+    rendering.layerCount = 1;
+    rendering.colorAttachmentCount = 1;
+    rendering.pColorAttachments = &color_attachment;
+    vkCmdBeginRendering(cmd, &rendering);
+    vkCmdEndRendering(cmd);
+
+    // Color attachment -> present. The present waits on the frame's render finished semaphore,
+    // which the submit signals after all commands, so no destination stage is needed.
+    barrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+    barrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+    barrier.dstStageMask = VK_PIPELINE_STAGE_2_NONE;
+    barrier.dstAccessMask = VK_ACCESS_2_NONE;
+    barrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    vkCmdPipelineBarrier2(cmd, &dependency);
+}
+
+} // anonymous namespace
+
+namespace detail {
+void
+deferred_release(VkObjectType type, u64 handle)
+{
+    std::scoped_lock lock{ deferred_releases_mutex };
+    const u32 frame_idx{ current_frame_index() };
+    deferred_releases[frame_idx].push_back({ type, handle });
+    deferred_releases_flag[frame_idx] = 1;
+}
+} // namespace detail
+
+bool
+initialize()
+{
+    if (main_device) shutdown();
+
+    if (!create_instance()) return failed_init();
+    if (!create_device()) return failed_init();
+
+    // TODO: initialize modules (shaders, gpass, fx, upload, content, delight).
+    return true;
+}
+
+void
+shutdown()
+{
+    gfx_command.release();
+
+    for (u32 i{ 0 }; i < frame_buffer_count; ++i)
+    {
+        process_deferred_releases(i, true);
+    }
+
+    // TODO: shut down modules (in reverse order of initialize()).
+
+    // NOTE: modules may defer releases while shutting down. Process those once more.
+    process_deferred_releases(0, true);
+
+    assert(surfaces.empty() && "Vulkan: remove all surfaces before shutting down the renderer.");
+
+    if (main_device) vkDestroyDevice(main_device, nullptr);
+    main_device = VK_NULL_HANDLE;
+    main_physical_device = VK_NULL_HANDLE;
+
+    if (debug_messenger)
+    {
+        const auto destroy_messenger{ (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(vk_instance, "vkDestroyDebugUtilsMessengerEXT") };
+        if (destroy_messenger) destroy_messenger(vk_instance, debug_messenger, nullptr);
+        debug_messenger = VK_NULL_HANDLE;
+    }
+    set_debug_utils_object_name = nullptr;
+
+    if (vk_instance) vkDestroyInstance(vk_instance, nullptr);
+    vk_instance = VK_NULL_HANDLE;
+
+    if (validation_error_count) std::fprintf(stderr, "::Vulkan: %u validation error(s) were reported.\n", validation_error_count);
+    validation_error_count = 0;
+}
+
+void
+set_option(renderer_option::option option, const void* const parameter, [[maybe_unused]] u32 parameter_size)
+{
+    assert(option < renderer_option::count);
+    assert(parameter && parameter_size);
+
+    switch (option)
+    {
+    case renderer_option::vsync: {
+        assert(parameter_size == sizeof(bool));
+        // NOTE: surfaces fall back to FIFO (vsync) if the window system has no mailbox/immediate
+        //       mode. They pick up the change on their next frame (vulkan_surface::needs_resize()).
+        options.enable_vsync = *(const bool*)parameter;
+    }
+    break;
+    case renderer_option::raytracing: {
+        assert(parameter_size == sizeof(bool));
+        options.enable_dxr = *(const bool*)parameter;
+    }
+    break;
+    case renderer_option::msaa: {
+        assert(parameter_size == sizeof(u32));
+        const u32 msaa_samples{ *(const u32*)parameter };
+        if (msaa_samples == 1 || msaa_samples == 2 || msaa_samples == 4 || msaa_samples == 8)
+        {
+            options.msaa_samples = msaa_samples;
+        }
+    }
+    break;
+    default:
+        break;
+    }
+}
+
+void
+get_option(renderer_option::option option, void* const parameter, [[maybe_unused]] u32 parameter_size)
+{
+    assert(option < renderer_option::count);
+    assert(parameter && parameter_size);
+    switch (option)
+    {
+    case renderer_option::vsync:
+        assert(parameter_size == sizeof(bool));
+        *(bool*)parameter = options.enable_vsync;
+        break;
+    case renderer_option::raytracing:
+        assert(parameter_size == sizeof(bool));
+        *(bool*)parameter = options.enable_dxr;
+        break;
+    case renderer_option::msaa:
+        assert(parameter_size == sizeof(u32));
+        *(u32*)parameter = options.msaa_samples;
+        break;
+    default:
+        break;
+    }
+}
+
+VkInstance
+instance()
+{
+    return vk_instance;
+}
+
+VkPhysicalDevice
+physical_device()
+{
+    return main_physical_device;
+}
+
+VkDevice
+device()
+{
+    return main_device;
+}
+
+VkQueue
+graphics_queue()
+{
+    return gfx_command.queue();
+}
+
+u32
+graphics_queue_family()
+{
+    return gfx_command.queue_family();
+}
+
+u32
+current_frame_index()
+{
+    return gfx_command.frame_index();
+}
+
+void
+set_deferred_releases_flag(u32 frame_idx)
+{
+    std::scoped_lock lock{ deferred_releases_mutex };
+    deferred_releases_flag[frame_idx] = 1;
+}
+
+bool
+vsync_enabled()
+{
+    return options.enable_vsync;
+}
+
+void
+set_object_name([[maybe_unused]] u64 handle, [[maybe_unused]] VkObjectType type, [[maybe_unused]] const char* name)
+{
+    if (!set_debug_utils_object_name || !main_device || !handle) return;
+    VkDebugUtilsObjectNameInfoEXT info{ VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT };
+    info.objectType = type;
+    info.objectHandle = handle;
+    info.pObjectName = name;
+    set_debug_utils_object_name(main_device, &info);
+}
+
+surface
+create_surface(platform::window window)
+{
+    surface_id id{ surfaces.add(window) };
+    if (!surfaces[id].create())
+    {
+        surfaces.remove(id);
+        return {};
+    }
+    return surface{ id };
+}
+
+void
+remove_surface(surface_id id)
+{
+    gfx_command.flush();
+    surfaces.remove(id);
+}
+
+void
+resize_surface(surface_id id, u32, u32)
+{
+    gfx_command.flush();
+    surfaces[id].resize();
+}
+
+u32
+surface_width(surface_id id)
+{
+    return surfaces[id].width();
+}
+
+u32
+surface_height(surface_id id)
+{
+    return surfaces[id].height();
+}
+
+void
+render_surface(surface_id id, frame_info)
+{
+    vulkan_surface& surface{ surfaces[id] };
+
+    // Window resized, swapchain out of date, or vsync toggled.
+    if (surface.needs_resize())
+    {
+        gfx_command.flush();
+        surface.resize();
+    }
+
+    // Wait for the GPU to finish with this frame's command buffer and reset it.
+    const VkCommandBuffer cmd{ gfx_command.begin_frame() };
+    const u32 frame_idx{ current_frame_index() };
+
+    if (deferred_releases_flag[frame_idx])
+    {
+        process_deferred_releases(frame_idx);
+    }
+
+    // Nothing to render to (minimized or out of date). The frame is skipped; its command
+    // buffer is reset by the next begin_frame().
+    if (!surface.acquire_next_image(gfx_command.image_acquired_semaphore())) return;
+
+    record_clear(cmd, surface, id);
+
+    // Done recording commands. Now submit, present and signal the fence value for this frame.
+    gfx_command.end_frame(surface);
+}
+} // namespace primal::graphics::vulkan::core

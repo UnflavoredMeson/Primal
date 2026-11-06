@@ -25,3 +25,6 @@ find_package(SDL3 3.2 REQUIRED CONFIG COMPONENTS SDL3-shared)
 add_library(primal_sal_stub INTERFACE)
 add_library(primal::sal ALIAS primal_sal_stub)
 target_include_directories(primal_sal_stub SYSTEM INTERFACE "${PROJECT_SOURCE_DIR}/Engine/ThirdParty/sal")
+
+# Vulkan loader + headers (system packages: vulkan-icd-loader, vulkan-headers).
+find_package(Vulkan 1.3 REQUIRED)

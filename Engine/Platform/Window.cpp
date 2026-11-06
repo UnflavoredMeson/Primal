@@ -73,5 +73,12 @@ window::close() const
     assert(is_valid());
     close_window(_id);
 }
+
+void
+window::set_has_graphics_surface(bool has_surface) const
+{
+    assert(is_valid());
+    set_window_has_graphics_surface(_id, has_surface);
+}
 }
 #endif // INCLUDE_WINDOW_CPP

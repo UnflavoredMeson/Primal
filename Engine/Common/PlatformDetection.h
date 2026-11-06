@@ -19,6 +19,7 @@
 #define PRIMAL_GRAPHICS_D3D12 PRIMAL_PLATFORM_WINDOWS
 #endif
 
+// Vulkan defaults to Linux only, until the backend is added to the Windows projects.
 #ifndef PRIMAL_GRAPHICS_VULKAN
-#define PRIMAL_GRAPHICS_VULKAN 0
+#define PRIMAL_GRAPHICS_VULKAN PRIMAL_PLATFORM_LINUX
 #endif

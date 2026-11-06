@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Charles Smith
 # Distributed under the MIT license. See the LICENSE file in the project root for more information.
 
-set(_primal_tests ENTITY_COMPONENTS WINDOW RENDERER)
+set(_primal_tests ENTITY_COMPONENTS WINDOW RENDERER SURFACES)
 if(NOT PRIMAL_ENGINE_TEST IN_LIST _primal_tests)
     message(FATAL_ERROR "PRIMAL_ENGINE_TEST must be one of: ${_primal_tests} (got '${PRIMAL_ENGINE_TEST}')")
 endif()

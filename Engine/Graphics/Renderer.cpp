@@ -5,6 +5,9 @@
 #if PRIMAL_GRAPHICS_D3D12
 #include "Direct3D12/D3D12Interface.h"
 #endif
+#if PRIMAL_GRAPHICS_VULKAN
+#include "Vulkan/VulkanInterface.h"
+#endif
 
 namespace primal::graphics {
 namespace {
@@ -26,6 +29,11 @@ set_platform_interface(graphics_platform platform, platform_interface& pi)
 #if PRIMAL_GRAPHICS_D3D12
     case graphics_platform::direct3d12:
         d3d12::get_platform_interface(pi);
+        break;
+#endif
+#if PRIMAL_GRAPHICS_VULKAN
+    case graphics_platform::vulkan:
+        vulkan::get_platform_interface(pi);
         break;
 #endif
     default:

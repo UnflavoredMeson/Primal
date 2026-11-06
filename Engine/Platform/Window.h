@@ -27,6 +27,9 @@ public:
     bool is_closed() const;
     // Same as the user closing the window: it's hidden and a window_event::closed is sent.
     void close() const;
+    // Called by the graphics backend when a surface starts/stops presenting to the window.
+    // Until then the platform layer paints the window's background itself (Linux/SDL only).
+    void set_has_graphics_surface(bool has_surface) const;
 private:
     window_id _id{ id::invalid_id };
 };

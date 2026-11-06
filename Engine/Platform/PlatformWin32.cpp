@@ -278,6 +278,12 @@ close_window(window_id id)
 {
     PostMessage(get_from_id(id).hwnd, WM_CLOSE, 0, 0);
 }
+
+void
+set_window_has_graphics_surface(window_id, bool)
+{
+    // Nothing to do: the window class brush paints the background and DXGI presents over it.
+}
 } // anonymous namespace
 
 window

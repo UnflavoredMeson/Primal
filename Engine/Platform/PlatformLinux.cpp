@@ -19,6 +19,7 @@ namespace primal::platform {
             native_window_handle native{};
             bool is_fullscreen{false};
             bool is_closed{false};
+            bool has_graphics_surface{false};
         };
 
         constexpr auto window_id_property = "primal.window_id";
@@ -54,6 +55,11 @@ namespace primal::platform {
 
             // Like Win32: closing the last window doesn't quit. The application decides (post_quit()).
             SDL_SetHint(SDL_HINT_QUIT_ON_LAST_WINDOW_CLOSE, "0");
+            // The background is painted through SDL's window surface. By default that's backed by an
+            // SDL_Renderer (OpenGL), which recreates the X11 window with another visual and so changes
+            // its XID after we handed out the native handle. The software framebuffer (XShm / wl_shm)
+            // leaves the window alone.
+            SDL_SetHint(SDL_HINT_FRAMEBUFFER_ACCELERATION, "0");
             if (!SDL_InitSubSystem(SDL_INIT_VIDEO)) {
                 std::fprintf(stderr, "SDL_InitSubSystem(SDL_INIT_VIDEO) failed: %s\n", SDL_GetError());
                 return false;
@@ -93,10 +99,10 @@ namespace primal::platform {
             return handle.display && handle.window;
         }
 
-        // TODO: once a graphics backend creates a surface for a window, it must stop this
-        //       (SDL_DestroyWindowSurface) before creating its swapchain.
+        // NOTE: stops once a graphics backend presents to the window (set_window_has_graphics_surface).
         void
         paint_background(const window_info &info) {
+            if (info.has_graphics_surface) return;
             SDL_Surface *const surface{SDL_GetWindowSurface(info.sdl_window)};
             if (!surface) return;
             const u32 color{SDL_MapSurfaceRGB(surface, background_color[0], background_color[1], background_color[2])};
@@ -184,7 +190,12 @@ namespace primal::platform {
 
         window_handle
         get_window_handle(window_id id) {
-            return &get_from_id(id).native;
+            const window_info &info{get_from_id(id)};
+            // The native handle must stay valid for the window's lifetime (graphics surfaces are made from it).
+            assert(info.native.kind != native_window_handle::x11 ||
+                   info.native.window == (u64) SDL_GetNumberProperty(SDL_GetWindowProperties(info.sdl_window),
+                                                                     SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0));
+            return &info.native;
         }
 
         void
@@ -212,6 +223,20 @@ namespace primal::platform {
             e.type = SDL_EVENT_WINDOW_CLOSE_REQUESTED;
             e.window.windowID = SDL_GetWindowID(get_from_id(id).sdl_window);
             SDL_PushEvent(&e);
+        }
+
+        void
+        set_window_has_graphics_surface(window_id id, bool has_surface) {
+            window_info &info{get_from_id(id)};
+            if (info.has_graphics_surface == has_surface) return;
+            info.has_graphics_surface = has_surface;
+            if (has_surface) {
+                // SDL's software framebuffer presents to the same X11 window / wl_surface, which
+                // conflicts with a Vulkan swapchain. It has to go before the swapchain is created.
+                SDL_DestroyWindowSurface(info.sdl_window);
+            } else {
+                paint_background(info);
+            }
         }
     } // anonymous namespace
 
