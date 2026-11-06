@@ -11,7 +11,7 @@ namespace {
 
 // Defines where the compiled engine shaders file is located for each one of the supported APIs.
 constexpr const char* engine_shader_paths[]{
-    R"(.\shaders\d3d12\shaders.bin)",
+    R"(./shaders/d3d12/shaders.bin)",
     // ".\\shaders\\vulkan\\shaders.bin", etc.
 };
 

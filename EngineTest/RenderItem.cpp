@@ -96,7 +96,7 @@ load_shaders()
     info.function = "TestShaderVS";
     info.type = graphics::shader_type::vertex;
 
-    const char* shader_path{ "..\\..\\enginetest\\" };
+    const char* shader_path{ "../../EngineTest/" };
 
     std::wstring defines[]{ L"ELEMENTS_TYPE=0", L"ELEMENTS_TYPE=1", L"ELEMENTS_TYPE=3" };
     utl::vector<u32> keys;
@@ -205,30 +205,30 @@ create_render_items()
     //       https://ko-fi.com/gameengineseries/shop
     //       Use the editor to import the scene and put the 3 models in this location.
     //       You can replace them with any model that's available to you.
-    assert(std::filesystem::exists("..\\..\\x64\\lab_model.model"));
-    assert(std::filesystem::exists("..\\..\\x64\\fan_model.model"));
-    assert(std::filesystem::exists("..\\..\\x64\\int_model.model"));
-    assert(std::filesystem::exists("..\\..\\x64\\fembot_model.model"));
+    assert(std::filesystem::exists("../../x64/lab_model.model"));
+    assert(std::filesystem::exists("../../x64/fan_model.model"));
+    assert(std::filesystem::exists("../../x64/int_model.model"));
+    assert(std::filesystem::exists("../../x64/fembot_model.model"));
 
     memset(&texture_ids[0], 0xff, sizeof(id::id_type) * _countof(texture_ids));
 
     std::thread threads[]{
-        std::thread{ [] { texture_ids[texture_usage::ambient_occlusion] = load_texture("..\\..\\x64\\ambient_occlusion.texture"); }},
-        std::thread{ [] { texture_ids[texture_usage::base_color] = load_texture("..\\..\\x64\\base_color.texture"); }},
-        std::thread{ [] { texture_ids[texture_usage::emissive] = load_texture("..\\..\\x64\\emissive.texture"); }},
-        std::thread{ [] { texture_ids[texture_usage::metal_rough] = load_texture("..\\..\\x64\\metal_rough.texture"); }},
-        std::thread{ [] { texture_ids[texture_usage::normal] = load_texture("..\\..\\x64\\normal.texture"); }},
+        std::thread{ [] { texture_ids[texture_usage::ambient_occlusion] = load_texture("../../x64/ambient_occlusion.texture"); }},
+        std::thread{ [] { texture_ids[texture_usage::base_color] = load_texture("../../x64/base_color.texture"); }},
+        std::thread{ [] { texture_ids[texture_usage::emissive] = load_texture("../../x64/emissive.texture"); }},
+        std::thread{ [] { texture_ids[texture_usage::metal_rough] = load_texture("../../x64/metal_rough.texture"); }},
+        std::thread{ [] { texture_ids[texture_usage::normal] = load_texture("../../x64/normal.texture"); }},
 
-        std::thread{ [] { ibl_brdf_lut_id = load_texture("..\\..\\x64\\ibl\\brdf_lut.texture"); } },
+        std::thread{ [] { ibl_brdf_lut_id = load_texture("../../x64/ibl/brdf_lut.texture"); } },
 
-        std::thread{ [] { ibl_diffuse_id = load_texture("..\\..\\x64\\ibl\\set4\\diffuse.texture"); } },
-        std::thread{ [] { ibl_specular_id = load_texture("..\\..\\x64\\ibl\\set4\\specular.texture"); } },
+        std::thread{ [] { ibl_diffuse_id = load_texture("../../x64/ibl/set4/diffuse.texture"); } },
+        std::thread{ [] { ibl_specular_id = load_texture("../../x64/ibl/set4/specular.texture"); } },
 
-        std::thread{ [] { lab_model_id = load_model("..\\..\\x64\\lab_model.model"); } },
-        std::thread{ [] { fan_model_id = load_model("..\\..\\x64\\fan_model.model"); } },
-        std::thread{ [] { int_model_id = load_model("..\\..\\x64\\int_model.model"); } },
-        std::thread{ [] { fembot_model_id = load_model("..\\..\\x64\\fembot_model.model"); } },
-        std::thread{ [] { sphere_model_id = load_model("..\\..\\x64\\sphere_model.model"); } },
+        std::thread{ [] { lab_model_id = load_model("../../x64/lab_model.model"); } },
+        std::thread{ [] { fan_model_id = load_model("../../x64/fan_model.model"); } },
+        std::thread{ [] { int_model_id = load_model("../../x64/int_model.model"); } },
+        std::thread{ [] { fembot_model_id = load_model("../../x64/fembot_model.model"); } },
+        std::thread{ [] { sphere_model_id = load_model("../../x64/sphere_model.model"); } },
         std::thread{ [] { load_shaders(); } },
     };
 

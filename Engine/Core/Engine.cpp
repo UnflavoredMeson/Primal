@@ -1,6 +1,6 @@
 // Copyright (c) Arash Khatami
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
-#if !defined(SHIPPING) && defined(_WIN64)
+#if !defined(SHIPPING)
 #include "Content/ContentLoader.h"
 #include "Components/Script.h"
 #include "Platform/PlatformTypes.h"
@@ -11,39 +11,25 @@
 using namespace primal;
 namespace {
 
-graphics::render_surface game_window{};
+    graphics::render_surface game_window{};
 
-void on_window_event(const platform::window_event& event)
-{
-    switch (event.type)
+    void on_window_event(const platform::window_event& event)
     {
-    case WM_DESTROY:
-    {
-        if (game_window.window.is_closed())
+        switch (event.type)
         {
-            PostQuitMessage(0);
-            return 0;
+            case platform::window_event::closed:
+                platform::post_quit();
+                break;
+            case platform::window_event::key_down:
+                if (event.key == input::input_code::key_return && (event.modifiers & input::modifier_key::alt))
+                {
+                    game_window.window.set_fullscreen(!game_window.window.is_fullscreen());
+                }
+                break;
+            default:
+                break;
         }
     }
-    break;
-    case WM_SYSCHAR:
-        if (wparam == VK_RETURN && (HIWORD(lparam) & KF_ALTDOWN))
-        case platform::window_event::closed:
-            platform::post_quit();
-            break;
-        case platform::window_event::key_down:
-            if (event.key == input::input_code::key_return && (event.modifiers & input::modifier_key::alt))
-            {
-                game_window.window.set_fullscreen(!game_window.window.is_fullscreen());
-                return 0;
-            }
-            break;
-        default:
-            break;
-    }
-
-    return DefWindowProc(hwnd, msg, wparam, lparam);
-}
 
 } // anonymous namespace
 
@@ -73,7 +59,7 @@ engine_update()
 void
 engine_shutdown()
 {
-    platform::remove_window(game_window.window.get_id());
+    if (game_window.window.is_valid()) platform::remove_window(game_window.window.get_id());
     content::unload_game();
 }
 #endif // !defined(SHIPPING)

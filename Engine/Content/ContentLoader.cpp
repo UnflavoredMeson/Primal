@@ -6,11 +6,11 @@
 #include "Components/Script.h"
 #include "Graphics/Renderer.h"
 
-#if !defined(SHIPPING) && defined(_WIN64)
+#if !defined(SHIPPING)
 
 #include <fstream>
 #include <filesystem>
-#include <Windows.h>
+#include <iterator>
 
 namespace primal::content {
 namespace {
@@ -18,6 +18,16 @@ namespace {
 utl::vector<game_entity::entity> entities;
 transform::init_info transform_info{};
 script::init_info script_info{};
+
+// NOTE: reads 4 bytes. (Reading *data directly only reads the lowest byte of the u32.)
+u32
+read_u32(const u8*& data)
+{
+    u32 value;
+    memcpy(&value, data, sizeof(u32));
+    data += sizeof(u32);
+    return value;
+}
 
 bool
 read_transform(const u8*& data, game_entity::entity_info& info)
@@ -45,7 +55,7 @@ bool
 read_script(const u8*& data, game_entity::entity_info& info)
 {
     assert(!info.script);
-    const u32 name_length{ *data }; data += sizeof(u32);
+    const u32 name_length{ read_u32(data) };
     if (!name_length) return false;
     // if a script name is longer than 255 characters then something is probably
     // very wrong, either with the binary writer or the game programmer.
@@ -72,7 +82,7 @@ component_reader component_readers[]
     read_script,
     read_geometry,
 };
-static_assert(_countof(component_readers) == component_type::count);
+static_assert(std::size(component_readers) == component_type::count);
 
 bool
 read_file(std::filesystem::path path, std::unique_ptr<u8[]>& data, u64& size)
@@ -106,7 +116,7 @@ load_game()
     assert(game_data.get());
     const u8* at{ game_data.get() };
     constexpr u32 su32{ sizeof(u32) };
-    const u32 num_entities{ *at }; at += su32;
+    const u32 num_entities{ read_u32(at) };
     if (!num_entities) return false;
 
     for (u32 entity_index{ 0 }; entity_index < num_entities; ++entity_index)
@@ -115,12 +125,12 @@ load_game()
         //const u32 entity_type{ *at }; 
         // skip over entity type (for now):
         at += su32;
-        const u32 num_components{ *at }; at += su32;
+        const u32 num_components{ read_u32(at) };
         if (!num_components) return false;
 
         for (u32 component_index{ 0 }; component_index < num_components; ++component_index)
         {
-            const u32 component_type{ *at }; at += su32;
+            const u32 component_type{ read_u32(at) };
             assert(component_type < component_type::count);
             if (!component_readers[component_type](at, info)) return false;
         }

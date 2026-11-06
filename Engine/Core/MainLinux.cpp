@@ -1,0 +1,34 @@
+// Copyright (c) 2026 Charles Smith
+// Distributed under the MIT license. See the LICENSE file in the project root for more information.
+#include "CommonHeaders.h"
+#if PRIMAL_PLATFORM_LINUX
+#include "Platform/PlatformTypes.h"
+#include "Platform/Platform.h"
+
+// Linux counterpart of MainWin32.cpp: entry point of a game executable linked with the engine.
+// NOTE: an executable that defines its own main() (e.g. EngineTest) doesn't pull this in,
+//       because the linker only uses archive members that resolve undefined symbols.
+
+#ifndef USE_WITH_EDITOR
+
+extern bool engine_initialize();
+
+extern void engine_update();
+
+extern void engine_shutdown();
+
+int main() {
+    // NOTE: for leak checking, configure with -DPRIMAL_ENABLE_SANITIZERS=ON.
+    primal::platform::set_current_directory_to_executable_path();
+
+    if (engine_initialize()) {
+        while (primal::platform::pump_events()) {
+            engine_update();
+        }
+    }
+    engine_shutdown();
+    return 0;
+}
+
+#endif // USE_WITH_EDITOR
+#endif // PRIMAL_PLATFORM_LINUX

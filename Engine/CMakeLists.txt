@@ -9,13 +9,16 @@ target_sources(Engine PRIVATE
     Components/Geometry.cpp
     Components/Script.cpp
     Components/Transform.cpp
+    Content/ContentLoader.cpp
     Content/ContentToEngine.cpp
+    Core/Engine.cpp
     Graphics/Renderer.cpp
     Input/Input.cpp
 )
 
 # Linux platform layer (SDL3). Window.cpp is compiled through PlatformLinux.cpp (IncludeWindowCpp.h).
 target_sources(Engine PRIVATE
+    Core/MainLinux.cpp
     Input/InputSDL.cpp
     Platform/PlatformLinux.cpp
 )
