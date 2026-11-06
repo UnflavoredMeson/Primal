@@ -5,16 +5,6 @@
 #include <cstdarg>
 #include <cstdlib>
 
-#if PRIMAL_PLATFORM_WINDOWS
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <Windows.h>
-#endif
-
 namespace primal::graphics::vulkan {
 
 void
@@ -344,6 +334,16 @@ use_validation()
 bool
 create_instance()
 {
+#if PRIMAL_PLATFORM_WINDOWS
+    // vulkan-1.dll is delay-loaded (Engine/Vulkan.props) so D3D12-only machines can still start.
+    // Load it here first: calling into a missing delay-loaded DLL raises an SEH exception.
+    if (!LoadLibraryW(L"vulkan-1.dll"))
+    {
+        log_message("Vulkan: vulkan-1.dll (the Vulkan loader) wasn't found.\n");
+        return false;
+    }
+#endif
+
     u32 api_version{ 0 };
     VkCall(vkEnumerateInstanceVersion(&api_version));
     if (api_version < minimum_api_version)
@@ -389,7 +389,21 @@ create_instance()
 
     const bool validation{ use_validation() && has_layer(layers, validation_layer_name) };
     const bool debug_utils{ has_extension(extensions, VK_EXT_DEBUG_UTILS_EXTENSION_NAME) };
-    const bool layer_settings{ validation && has_extension(extensions, VK_EXT_LAYER_SETTINGS_EXTENSION_NAME) };
+    // VK_EXT_layer_settings is implemented by the validation layer, so it's listed with the layer's
+    // extensions.
+    bool layer_settings{ false };
+    if (validation)
+    {
+        layer_settings = has_extension(extensions, VK_EXT_LAYER_SETTINGS_EXTENSION_NAME);
+        if (!layer_settings)
+        {
+            u32 layer_extension_count{ 0 };
+            vkEnumerateInstanceExtensionProperties(validation_layer_name, &layer_extension_count, nullptr);
+            utl::vector<VkExtensionProperties> layer_extensions(layer_extension_count);
+            vkEnumerateInstanceExtensionProperties(validation_layer_name, &layer_extension_count, layer_extensions.data());
+            layer_settings = has_extension(layer_extensions, VK_EXT_LAYER_SETTINGS_EXTENSION_NAME);
+        }
+    }
     if (validation) enabled_layers.emplace_back(validation_layer_name);
 #ifdef _DEBUG
     if (debug_utils) enabled_extensions.emplace_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);

@@ -11,6 +11,7 @@
     <ClInclude Include="Test.h" />
     <ClInclude Include="TestEntityComponents.h" />
     <ClInclude Include="TestWindow.h" />
+    <ClInclude Include="TestSurfaces.h" />
     <ClInclude Include="TestRenderer.h" />
   </ItemGroup>
   <ItemGroup>

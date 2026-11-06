@@ -1,7 +1,7 @@
 // Copyright (c) Arash Khatami
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "CommonHeaders.h"
-#ifdef PRIMAL_PLATFORM_WINDOWS
+#if PRIMAL_PLATFORM_WINDOWS
 
 #include "InputWin32.h"
 #include "Input.h"

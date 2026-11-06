@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Charles Smith
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
-#include "VulkanSurface.h"
+#include "VulkanSurface.h" // first: includes Windows.h with NOMINMAX (VulkanCommonHeaders.h)
 #include "VulkanCore.h"
 #include "Platform/PlatformTypes.h"
 #include <algorithm>
@@ -19,6 +19,8 @@ typedef unsigned long VisualID;
 struct wl_display;
 struct wl_surface;
 #include <vulkan/vulkan_wayland.h>
+#elif PRIMAL_PLATFORM_WINDOWS
+#include <vulkan/vulkan_win32.h>
 #endif
 
 namespace primal::graphics::vulkan {
@@ -100,8 +102,15 @@ create_platform_surface(const platform::native_window_handle& native)
         VkCall(vkCreateWaylandSurfaceKHR(core::instance(), &info, nullptr, &surface));
     }
     break;
+#elif PRIMAL_PLATFORM_WINDOWS
+    case platform::native_window_handle::win32: {
+        VkWin32SurfaceCreateInfoKHR info{ VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR };
+        info.hinstance = (HINSTANCE)native.display;
+        info.hwnd = (HWND)native.window;
+        VkCall(vkCreateWin32SurfaceKHR(core::instance(), &info, nullptr, &surface));
+    }
+    break;
 #endif
-    // TODO: win32 (VK_KHR_win32_surface) once the Vulkan backend is built on Windows.
     default:
         log_message("Vulkan: unsupported native window kind %u\n", (u32)native.kind);
         break;

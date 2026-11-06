@@ -173,6 +173,7 @@
       <ProgramDatabaseFile>$(OutDir)$(TargetName)-$([System.DateTime]::Now.ToString("HH_mm_ss_fff")).pdb</ProgramDatabaseFile>
     </Link>
   </ItemDefinitionGroup>
+  <Import Project="$(PRIMAL_ENGINE)Engine\Vulkan.props" Condition="Exists('$(PRIMAL_ENGINE)Engine\Vulkan.props')" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

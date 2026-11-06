@@ -98,8 +98,10 @@
     <ClInclude Include="Test.h" />
     <ClInclude Include="TestEntityComponents.h" />
     <ClInclude Include="TestRenderer.h" />
+    <ClInclude Include="TestSurfaces.h" />
     <ClInclude Include="TestWindow.h" />
   </ItemGroup>
+  <Import Project="$(SolutionDir)Engine\Vulkan.props" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
     <Import Project="..\packages\Microsoft.Direct3D.DXC.1.9.2602.24\build\native\Microsoft.Direct3D.DXC.targets" Condition="Exists('..\packages\Microsoft.Direct3D.DXC.1.9.2602.24\build\native\Microsoft.Direct3D.DXC.targets')" />
