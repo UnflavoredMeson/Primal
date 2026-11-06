@@ -11,11 +11,32 @@
 
 #include <cstdio>
 
+// Breaks into the debugger (MSVC, clang and gcc spellings).
+#if defined(_MSC_VER)
+#define PRIMAL_VK_DEBUG_BREAK() __debugbreak()
+#elif defined(__clang__)
+#define PRIMAL_VK_DEBUG_BREAK() __builtin_debugtrap()
+#else
+#include <csignal>
+#define PRIMAL_VK_DEBUG_BREAK() std::raise(SIGTRAP)
+#endif
+
+// Lets the compiler check log_message() format strings against their arguments (clang/gcc only).
+#if defined(__clang__) || defined(__GNUC__)
+#define PRIMAL_VK_PRINTF_FORMAT(format_index, first_arg) __attribute__((format(printf, format_index, first_arg)))
+#else
+#define PRIMAL_VK_PRINTF_FORMAT(format_index, first_arg)
+#endif
+
 namespace primal::graphics::vulkan {
 // Same as d3d12::frame_buffer_count: the CPU can record up to this many frames ahead of the GPU.
 constexpr u32 frame_buffer_count{ 3 };
 // Vulkan 1.3 core: dynamic rendering, synchronization2, maintenance4 (+ 1.2 timeline semaphores).
 constexpr u32 minimum_api_version{ VK_API_VERSION_1_3 };
+
+// printf-style logging for the backend. Writes to stderr and, on Windows, to the debugger output
+// (OutputDebugStringA), because a WinMain process has no console. Defined in VulkanCore.cpp.
+void log_message(const char* format, ...) PRIMAL_VK_PRINTF_FORMAT(1, 2); // NOLINT(modernize-avoid-variadic-functions)
 
 namespace detail {
 // Logs a failed Vulkan call. Returns true if the call succeeded (result >= 0, which includes
@@ -24,9 +45,9 @@ inline bool
 check_result(VkResult result, const char* call, const char* file, u32 line)
 {
     if (result >= 0) return true;
-    std::fprintf(stderr, "Vulkan error %d in: %s\nLine: %u\n%s\n", (s32)result, file, line, call);
+    log_message("Vulkan error %d in: %s\nLine: %u\n%s\n", (s32)result, file, line, call);
 #ifdef _DEBUG
-    __builtin_debugtrap();
+    PRIMAL_VK_DEBUG_BREAK();
 #endif
     return false;
 }

@@ -2,7 +2,51 @@
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "VulkanCore.h"
 #include "VulkanSurface.h"
+#include <cstdarg>
 #include <cstdlib>
+
+#if PRIMAL_PLATFORM_WINDOWS
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <Windows.h>
+#endif
+
+namespace primal::graphics::vulkan {
+
+void
+log_message(const char* format, ...) // NOLINT(modernize-avoid-variadic-functions): printf wrapper
+{
+    char buffer[1024];
+    std::va_list args;
+    va_start(args, format);
+    std::va_list args_copy;
+    va_copy(args_copy, args);
+    const int length{ std::vsnprintf(buffer, sizeof(buffer), format, args) };
+    va_end(args);
+
+    const char* message{ buffer };
+    std::unique_ptr<char[]> long_message;
+    if (length >= (int)sizeof(buffer))
+    {
+        // Validation messages can be longer than the stack buffer.
+        long_message = std::make_unique<char[]>((size_t)length + 1);
+        std::vsnprintf(long_message.get(), (size_t)length + 1, format, args_copy);
+        message = long_message.get();
+    }
+    va_end(args_copy);
+    if (length < 0) return;
+
+    std::fputs(message, stderr);
+#if PRIMAL_PLATFORM_WINDOWS
+    OutputDebugStringA(message);
+#endif
+}
+
+} // namespace primal::graphics::vulkan
 
 namespace primal::graphics::vulkan::core {
 namespace {
@@ -250,7 +294,7 @@ debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMess
     {
         label = "warning";
     }
-    std::fprintf(stderr, "::Vulkan %s: %s\n", label, data && data->pMessage ? data->pMessage : "");
+    log_message("::Vulkan %s: %s\n", label, data && data->pMessage ? data->pMessage : "");
     return VK_FALSE;
 }
 
@@ -279,8 +323,19 @@ bool
 use_validation()
 {
 #ifdef _DEBUG
-    const char* const env{ std::getenv("PRIMAL_VULKAN_VALIDATION") };
+    constexpr const char* name{ "PRIMAL_VULKAN_VALIDATION" };
+#ifdef _MSC_VER
+    // std::getenv is deprecated by MSVC (C4996).
+    char* env{ nullptr };
+    size_t size{ 0 };
+    if (_dupenv_s(&env, &size, name) != 0 || !env) return true;
+    const bool enabled{ env[0] != '0' };
+    std::free(env);
+    return enabled;
+#else
+    const char* const env{ std::getenv(name) };
     return !env || env[0] != '0';
+#endif
 #else
     return false;
 #endif
@@ -293,8 +348,8 @@ create_instance()
     VkCall(vkEnumerateInstanceVersion(&api_version));
     if (api_version < minimum_api_version)
     {
-        std::fprintf(stderr, "Vulkan: the loader supports Vulkan %u.%u, 1.3 is required.\n",
-                     VK_API_VERSION_MAJOR(api_version), VK_API_VERSION_MINOR(api_version));
+        log_message("Vulkan: the loader supports Vulkan %u.%u, 1.3 is required.\n",
+                    VK_API_VERSION_MAJOR(api_version), VK_API_VERSION_MINOR(api_version));
         return false;
     }
 
@@ -328,7 +383,7 @@ create_instance()
     }
     if (!window_system_count)
     {
-        std::fprintf(stderr, "Vulkan: no supported window system surface extension.\n");
+        log_message("Vulkan: no supported window system surface extension.\n");
         return false;
     }
 
@@ -340,7 +395,7 @@ create_instance()
     if (debug_utils) enabled_extensions.emplace_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     if (use_validation() && !validation)
     {
-        std::fprintf(stderr, "Warning: Vulkan validation layer is not available. Install vulkan-validation-layers.\n");
+        log_message("Warning: Vulkan validation layer is not available. Install vulkan-validation-layers.\n");
     }
 #endif
     if (layer_settings) enabled_extensions.emplace_back(VK_EXT_LAYER_SETTINGS_EXTENSION_NAME);
@@ -387,7 +442,7 @@ create_instance()
     }
 
     if (!VkCall(vkCreateInstance(&info, nullptr, &vk_instance))) return false;
-    if (validation) std::fprintf(stderr, "::Vulkan validation layer enabled%s\n", layer_settings ? " (+ synchronization validation)" : "");
+    if (validation) log_message("::Vulkan validation layer enabled%s\n", layer_settings ? " (+ synchronization validation)" : "");
 
 #ifdef _DEBUG
     if (debug_utils)
@@ -424,7 +479,7 @@ get_required_features(const device_features& supported, device_features& enabled
         enable = VK_TRUE;
         if (!is_supported)
         {
-            if (log_missing) std::fprintf(stderr, "Vulkan: missing device feature %s\n", name);
+            if (log_missing) log_message("Vulkan: missing device feature %s\n", name);
             ok = false;
         }
     };
@@ -493,8 +548,8 @@ is_device_suitable(VkPhysicalDevice physical_device, bool log_missing)
     vkGetPhysicalDeviceProperties(physical_device, &properties);
     if (properties.apiVersion < minimum_api_version)
     {
-        if (log_missing) std::fprintf(stderr, "Vulkan: %s supports Vulkan %u.%u, 1.3 is required.\n", properties.deviceName,
-                                      VK_API_VERSION_MAJOR(properties.apiVersion), VK_API_VERSION_MINOR(properties.apiVersion));
+        if (log_missing) log_message("Vulkan: %s supports Vulkan %u.%u, 1.3 is required.\n", properties.deviceName,
+                                     VK_API_VERSION_MAJOR(properties.apiVersion), VK_API_VERSION_MINOR(properties.apiVersion));
         return false;
     }
 
@@ -507,7 +562,7 @@ is_device_suitable(VkPhysicalDevice physical_device, bool log_missing)
     {
         if (!has_extension(extensions, name))
         {
-            if (log_missing) std::fprintf(stderr, "Vulkan: %s doesn't support %s\n", properties.deviceName, name);
+            if (log_missing) log_message("Vulkan: %s doesn't support %s\n", properties.deviceName, name);
             ok = false;
         }
     }
@@ -570,15 +625,15 @@ create_device()
     main_physical_device = determine_main_physical_device();
     if (!main_physical_device)
     {
-        std::fprintf(stderr, "Vulkan: no suitable GPU found.\n");
+        log_message("Vulkan: no suitable GPU found.\n");
         return false;
     }
 
     VkPhysicalDeviceProperties properties{};
     vkGetPhysicalDeviceProperties(main_physical_device, &properties);
-    std::fprintf(stderr, "::Vulkan device: %s (Vulkan %u.%u.%u)\n", properties.deviceName,
-                 VK_API_VERSION_MAJOR(properties.apiVersion), VK_API_VERSION_MINOR(properties.apiVersion),
-                 VK_API_VERSION_PATCH(properties.apiVersion));
+    log_message("::Vulkan device: %s (Vulkan %u.%u.%u)\n", properties.deviceName,
+                VK_API_VERSION_MAJOR(properties.apiVersion), VK_API_VERSION_MINOR(properties.apiVersion),
+                VK_API_VERSION_PATCH(properties.apiVersion));
 
     const u32 queue_family{ find_graphics_queue_family(main_physical_device) };
     const f32 priority{ 1.f };
@@ -758,7 +813,7 @@ shutdown()
     if (vk_instance) vkDestroyInstance(vk_instance, nullptr);
     vk_instance = VK_NULL_HANDLE;
 
-    if (validation_error_count) std::fprintf(stderr, "::Vulkan: %u validation error(s) were reported.\n", validation_error_count);
+    if (validation_error_count) log_message("::Vulkan: %u validation error(s) were reported.\n", validation_error_count);
     validation_error_count = 0;
 }
 

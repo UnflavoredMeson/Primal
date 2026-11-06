@@ -44,7 +44,7 @@ choose_surface_format(VkPhysicalDevice physical_device, VkSurfaceKHR surface)
     assert(count);
     if (!count) return {};
 
-    for (const auto&[preferred_format, color_space] : preferred_formats)
+    for (const auto& [preferred_format, color_space] : preferred_formats)
     {
         for (const VkSurfaceFormatKHR& format : formats)
         {
@@ -103,7 +103,7 @@ create_platform_surface(const platform::native_window_handle& native)
 #endif
     // TODO: win32 (VK_KHR_win32_surface) once the Vulkan backend is built on Windows.
     default:
-        std::fprintf(stderr, "Vulkan: unsupported native window kind %u\n", (u32)native.kind);
+        log_message("Vulkan: unsupported native window kind %u\n", (u32)native.kind);
         break;
     }
 
@@ -133,7 +133,7 @@ vulkan_surface::create()
     VkCall(vkGetPhysicalDeviceSurfaceSupportKHR(core::physical_device(), core::graphics_queue_family(), _surface, &is_supported));
     if (!is_supported)
     {
-        std::fprintf(stderr, "Vulkan: the graphics queue can't present to this window.\n");
+        log_message("Vulkan: the graphics queue can't present to this window.\n");
         return false;
     }
 
@@ -247,8 +247,8 @@ vulkan_surface::create_swapchain()
     }
 
     _image_index = 0;
-    DEBUG_OP(std::fprintf(stderr, "::Vulkan swapchain created: %u x %u, %u images, format %d, present mode %d\n",
-                          _extent.width, _extent.height, _image_count, (s32)_format, (s32)_present_mode));
+    DEBUG_OP(log_message("::Vulkan swapchain created: %u x %u, %u images, format %d, present mode %d\n",
+                         _extent.width, _extent.height, _image_count, (s32)_format, (s32)_present_mode));
     return true;
 }
 
