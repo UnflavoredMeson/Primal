@@ -190,17 +190,18 @@ public:
                     _data = new_buffer;
                     _capacity = new_capacity;
                 }
-                return;
             }
-
-            // NOTE: realoc() will automatically copy the data in the buffer
-            //       if a new region of memory is allocated.
-            void* new_buffer{ realloc(_data, new_capacity * sizeof(T)) };
-            assert(new_buffer);
-            if (new_buffer)
+            else
             {
-                _data = static_cast<T*>(new_buffer);
-                _capacity = new_capacity;
+                // NOTE: realoc() will automatically copy the data in the buffer
+                //       if a new region of memory is allocated.
+                void* new_buffer{ realloc(_data, new_capacity * sizeof(T)) };
+                assert(new_buffer);
+                if (new_buffer)
+                {
+                    _data = static_cast<T*>(new_buffer);
+                    _capacity = new_capacity;
+                }
             }
         }
     }

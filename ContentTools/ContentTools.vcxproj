@@ -115,7 +115,7 @@
       <FXCPath>$(WindowsSDK_ExecutablePath_x64.Split(';')[0])</FXCPath>
       <FXCPath Condition="'$(FXCPath)' != '' and !HasTrailingSlash('$(FXCPath)')">$(FXCPath)\</FXCPath>
     </PropertyGroup>
-    <Exec Command="CompileShaders" WorkingDirectory="$(ProjectDir)" EnvironmentVariables="WindowsSDKExecutablePathX64=$(FXCPath);CompileShadersOutput=$(ProjectDir)$(PlatformTarget)\Compiled" LogStandardErrorAsError="true" />
+    <Exec Command="call &quot;$(ProjectDir)CompileShaders.cmd&quot;" WorkingDirectory="$(ProjectDir)" EnvironmentVariables="WindowsSDKExecutablePathX64=$(FXCPath);CompileShadersOutput=$(ProjectDir)$(PlatformTarget)\Compiled" LogStandardErrorAsError="true" />
     <PropertyGroup>
       <FXCPath />
     </PropertyGroup>
