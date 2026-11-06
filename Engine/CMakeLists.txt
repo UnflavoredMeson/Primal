@@ -35,6 +35,14 @@ target_link_libraries(Engine PUBLIC
     SDL3::SDL3
 )
 
+# Shader compiler (HLSL -> DXIL/SPIR-V via DXC). Reusable by EngineTest and, later, a Linux EngineDLL.
+# NOTE: on Windows the .vcxproj files compile EngineDLL/ShaderCompilation.cpp directly.
+find_library(DXCOMPILER_LIBRARY NAMES dxcompiler REQUIRED)
+add_library(ShaderCompiler STATIC ${PROJECT_SOURCE_DIR}/EngineDLL/ShaderCompilation.cpp)
+target_include_directories(ShaderCompiler PUBLIC ${PROJECT_SOURCE_DIR}/EngineDLL)
+target_link_libraries(ShaderCompiler PUBLIC Engine ${DXCOMPILER_LIBRARY})
+set_target_properties(ShaderCompiler PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 # PIC so the engine can later be linked into a shared EngineDLL (libEngineDLL.so) for the editor.
 set_target_properties(Engine PROPERTIES
     POSITION_INDEPENDENT_CODE ON

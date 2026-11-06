@@ -252,6 +252,7 @@ struct primitive_topology {
 enum class graphics_platform :u32
 {
     direct3d12 = 0,
+    vulkan = 1,
 };
 #else
 #include "Graphics/GraphicsPlatform.h"
