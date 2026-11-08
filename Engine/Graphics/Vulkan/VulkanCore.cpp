@@ -1,7 +1,10 @@
 // Copyright (c) 2026 Charles Smith
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "VulkanCore.h"
+#include "VulkanHelpers.h"
+#include "VulkanResources.h"
 #include "VulkanSurface.h"
+#include <algorithm>
 #include <cstdarg>
 #include <cstdlib>
 
@@ -234,6 +237,7 @@ struct deferred_object
 {
     VkObjectType type;
     u64 handle;
+    VmaAllocation allocation;
 };
 
 using surface_collection = utl::free_list<vulkan_surface>;
@@ -246,6 +250,14 @@ VkPhysicalDevice main_physical_device{ VK_NULL_HANDLE };
 VkDevice main_device{ VK_NULL_HANDLE };
 vulkan_command gfx_command;
 surface_collection surfaces;
+VmaAllocator vma_allocator{ VK_NULL_HANDLE };
+descriptor_heap srv_desc_heap;
+constant_buffer constant_buffers[frame_buffer_count];
+VkSampler static_samplers[vkx::static_sampler::count]{};
+
+// Same sizes as the D3D12 backend.
+constexpr u32 srv_heap_capacity{ 4096 };
+constexpr u32 constant_buffer_size{ 1024 * 1024 };
 
 PFN_vkSetDebugUtilsObjectNameEXT set_debug_utils_object_name{ nullptr };
 
@@ -536,6 +548,8 @@ get_required_features(const device_features& supported, device_features& enabled
 constexpr const char* required_device_extensions[]{
     VK_KHR_SWAPCHAIN_EXTENSION_NAME,
     VK_EXT_MUTABLE_DESCRIPTOR_TYPE_EXTENSION_NAME,
+    // Root CBVs/SRVs/UAVs (core in Vulkan 1.4, but 1.3 is the minimum).
+    VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME,
 };
 
 // Returns the index of a queue family that supports graphics and compute, or u32_invalid_id.
@@ -670,8 +684,38 @@ create_device()
 
     if (!VkCall(vkCreateDevice(main_physical_device, &info, nullptr, &main_device))) return false;
     NAME_VK_OBJECT(main_device, VK_OBJECT_TYPE_DEVICE, "Main Vulkan Device");
+    vkx::load_device_functions(main_device);
 
     return gfx_command.initialize(main_device, queue_family);
+}
+
+bool
+create_allocator()
+{
+    VmaAllocatorCreateInfo info{};
+    info.vulkanApiVersion = minimum_api_version;
+    info.physicalDevice = main_physical_device;
+    info.device = main_device;
+    info.instance = vk_instance;
+    return VkCall(vmaCreateAllocator(&info, &vma_allocator));
+}
+
+bool
+create_static_samplers()
+{
+    VkPhysicalDeviceProperties properties{};
+    vkGetPhysicalDeviceProperties(main_physical_device, &properties);
+    constexpr const char* names[]{ "Static Sampler - point", "Static Sampler - linear", "Static Sampler - anisotropic" };
+    static_assert(std::size(names) == vkx::static_sampler::count);
+
+    for (u32 i{ 0 }; i < vkx::static_sampler::count; ++i)
+    {
+        VkSamplerCreateInfo info{ vkx::sampler_info((vkx::static_sampler::type)i) };
+        info.maxAnisotropy = std::min(info.maxAnisotropy, properties.limits.maxSamplerAnisotropy);
+        if (!VkCall(vkCreateSampler(main_device, &info, nullptr, &static_samplers[i]))) return false;
+        NAME_VK_OBJECT(static_samplers[i], VK_OBJECT_TYPE_SAMPLER, names[i]);
+    }
+    return true;
 }
 
 void
@@ -683,8 +727,18 @@ destroy_object(const deferred_object& object)
     case VK_OBJECT_TYPE_SWAPCHAIN_KHR: vkDestroySwapchainKHR(device, (VkSwapchainKHR)object.handle, nullptr); break;
     case VK_OBJECT_TYPE_SURFACE_KHR: vkDestroySurfaceKHR(vk_instance, (VkSurfaceKHR)object.handle, nullptr); break;
     case VK_OBJECT_TYPE_IMAGE_VIEW: vkDestroyImageView(device, (VkImageView)object.handle, nullptr); break;
-    case VK_OBJECT_TYPE_IMAGE: vkDestroyImage(device, (VkImage)object.handle, nullptr); break;
-    case VK_OBJECT_TYPE_BUFFER: vkDestroyBuffer(device, (VkBuffer)object.handle, nullptr); break;
+    case VK_OBJECT_TYPE_IMAGE:
+        if (object.allocation) vmaDestroyImage(vma_allocator, (VkImage)object.handle, object.allocation);
+        else vkDestroyImage(device, (VkImage)object.handle, nullptr);
+        break;
+    case VK_OBJECT_TYPE_BUFFER:
+        if (object.allocation) vmaDestroyBuffer(vma_allocator, (VkBuffer)object.handle, object.allocation);
+        else vkDestroyBuffer(device, (VkBuffer)object.handle, nullptr);
+        break;
+    case VK_OBJECT_TYPE_DESCRIPTOR_POOL: vkDestroyDescriptorPool(device, (VkDescriptorPool)object.handle, nullptr); break;
+    case VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT:
+        vkDestroyDescriptorSetLayout(device, (VkDescriptorSetLayout)object.handle, nullptr);
+        break;
     case VK_OBJECT_TYPE_SAMPLER: vkDestroySampler(device, (VkSampler)object.handle, nullptr); break;
     case VK_OBJECT_TYPE_PIPELINE: vkDestroyPipeline(device, (VkPipeline)object.handle, nullptr); break;
     case VK_OBJECT_TYPE_PIPELINE_LAYOUT: vkDestroyPipelineLayout(device, (VkPipelineLayout)object.handle, nullptr); break;
@@ -707,15 +761,107 @@ process_deferred_releases(u32 frame_idx, bool force_release = false)
 
     deferred_releases_flag[frame_idx] = 0;
 
+    srv_desc_heap.process_deferred_free(frame_idx);
+
     utl::vector<deferred_object>& objects{ deferred_releases[frame_idx] };
     for (const auto& object : objects) destroy_object(object);
     objects.clear();
 }
 
-void
-record_clear(VkCommandBuffer cmd, const vulkan_surface& surface, surface_id id)
+// scaffolding, replaced by gpass + post-process later. Renders each surface
+// into an offscreen HDR target + depth buffer (sized like D3D12's gpass buffers: the largest surface
+// so far), then blits it to the swapchain. Exercises VMA images and views, the resource heap,
+// barriers, the frame's constant buffer, a root signature with push descriptors, and a UAV clear.
+namespace scratch {
+
+// Same as d3d12::gpass::main_buffer_format / depth_buffer_format.
+constexpr VkFormat main_buffer_format{ VK_FORMAT_R16G16B16A16_SFLOAT };
+constexpr VkFormat depth_buffer_format{ VK_FORMAT_D32_SFLOAT };
+
+struct shader_constants
 {
-    static u32 frame_counter{ 0 };
+    math::v4 color;
+};
+
+vulkan_render_texture main_buffer{};
+vulkan_depth_buffer depth_buffer{};
+uav_clearable_buffer uav_buffer{};
+vkx::root_signature root_signature{};
+math::u32v2 dimensions{ 0, 0 };
+u32 frame_counter{ 0 };
+
+bool
+initialize()
+{
+    using param = vkx::root_parameter;
+    const param parameters[]{
+        param::cbv(0), param::cbv(1), param::srv(0), param::uav(0),
+        param::sampler(vkx::static_sampler::point, 0),
+        param::sampler(vkx::static_sampler::linear, 1),
+        param::sampler(vkx::static_sampler::anisotropic, 2),
+    };
+    root_signature = vkx::create_root_signature(&parameters[0], (u32)std::size(parameters), "Scratch Root Signature");
+    uav_buffer = uav_clearable_buffer{ uav_clearable_buffer::get_default_init_info(256) };
+
+    // The offscreen target is blitted to the swapchain.
+    VkFormatProperties properties{};
+    vkGetPhysicalDeviceFormatProperties(main_physical_device, main_buffer_format, &properties);
+    constexpr VkFormatFeatureFlags required{ VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT | VK_FORMAT_FEATURE_BLIT_SRC_BIT |
+                                             VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT };
+    if ((properties.optimalTilingFeatures & required) != required)
+    {
+        log_message("Vulkan: R16G16B16A16_SFLOAT can't be rendered to and blitted on this device.\n");
+        return false;
+    }
+
+    return root_signature.is_valid() && uav_buffer.buffer();
+}
+
+void
+shutdown()
+{
+    main_buffer.release();
+    depth_buffer.release();
+    uav_buffer.release();
+    vkx::release(root_signature);
+    dimensions = { 0, 0 };
+    frame_counter = 0;
+}
+
+// Grows the offscreen buffers to fit a surface (counterpart of d3d12::gpass::set_size()).
+void
+set_size(u32 width, u32 height)
+{
+    math::u32v2& d{ dimensions };
+    if (width <= d.x && height <= d.y && main_buffer.image()) return;
+    d = { std::max(width, d.x), std::max(height, d.y) };
+
+    VkImageCreateInfo image_info{ VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
+    image_info.imageType = VK_IMAGE_TYPE_2D;
+    image_info.extent = { d.x, d.y, 1 };
+    image_info.mipLevels = 1;
+    image_info.arrayLayers = 1;
+    image_info.samples = VK_SAMPLE_COUNT_1_BIT;
+    image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+    image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    vulkan_texture_init_info info{};
+    info.image_info = &image_info;
+
+    image_info.format = main_buffer_format;
+    image_info.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    main_buffer = vulkan_render_texture{ info }; // the old buffers are released after frame_buffer_count frames
+    NAME_VK_OBJECT(main_buffer.image(), VK_OBJECT_TYPE_IMAGE, "Scratch Main Buffer");
+
+    image_info.format = depth_buffer_format;
+    image_info.usage = 0;
+    depth_buffer = vulkan_depth_buffer{ info };
+    NAME_VK_OBJECT(depth_buffer.image(), VK_OBJECT_TYPE_IMAGE, "Scratch Depth Buffer");
+}
+
+void
+record(VkCommandBuffer cmd, const vulkan_surface& surface, surface_id id)
+{
     ++frame_counter;
     constexpr f32 colors[][3]{
         { 0.8f, 0.2f, 0.2f },
@@ -725,60 +871,99 @@ record_clear(VkCommandBuffer cmd, const vulkan_surface& surface, surface_id id)
     };
     const f32* const color{ colors[(u32)(id::id_type)id % std::size(colors)] };
     const f32 pulse{ 0.6f + 0.4f * (f32)((frame_counter / 4) % 64) / 63.f };
+    const VkExtent2D extent{ surface.extent() };
 
-    VkImageMemoryBarrier2 barrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
-    // Wait for the acquire semaphore (signaled at the color attachment output stage), then write.
-    barrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-    barrier.srcAccessMask = VK_ACCESS_2_NONE;
-    barrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-    barrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-    barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED; // previous contents aren't needed
-    barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.image = surface.image();
-    barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+    // Shader constants for this frame, bound as root CBVs/SRV.
+    constant_buffer& cb{ cbuffer() };
+    shader_constants* const constants{ cb.allocate<shader_constants>() };
+    assert(constants);
+    constants->color = { color[0] * pulse, color[1] * pulse, color[2] * pulse, 1.f };
+    const u32 heap_index{ main_buffer.srv().index };
+    u32* const root_constant{ cb.allocate<u32>() }; // a D3D12 root constant: written to the constant buffer
+    *root_constant = heap_index;
 
-    VkDependencyInfo dependency{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
-    dependency.imageMemoryBarrierCount = 1;
-    dependency.pImageMemoryBarriers = &barrier;
-    vkCmdPipelineBarrier2(cmd, &dependency);
+    vkx::root_descriptors root{};
+    root.cbv(0, cb.range(constants));
+    root.cbv(1, cb.range(root_constant));
+    root.srv(0, cb.range(constants));
+    root.uav(0, uav_buffer.range());
+    root.push(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, root_signature);
+    vkx::bind_resource_heap(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, root_signature);
+
+    // UAV clear.
+    const u32 clear_value{ frame_counter };
+    uav_buffer.clear_uav(cmd, &clear_value);
+
+    const auto& states{ vkx::resource_states };
+    // The swapchain image is acquired at the color attachment output stage (end_frame()'s semaphore
+    // wait), so that's where the barrier's first scope must start.
+    constexpr vkx::resource_state acquired{ VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_NONE,
+                                            VK_IMAGE_LAYOUT_UNDEFINED };
+
+    vkx::vulkan_barrier barriers{};
+    barriers.add(uav_buffer.buffer(), states.copy_dest, states.unordered_access);
+    barriers.add(main_buffer.image(), VK_IMAGE_ASPECT_COLOR_BIT, states.undefined, states.render_target);
+    barriers.add(depth_buffer.image(), VK_IMAGE_ASPECT_DEPTH_BIT, states.undefined, states.depth_write);
+    barriers.apply(cmd);
 
     VkRenderingAttachmentInfo color_attachment{ VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO };
-    color_attachment.imageView = surface.image_view();
+    color_attachment.imageView = main_buffer.rtv(0);
     color_attachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    color_attachment.clearValue.color = { { color[0] * pulse, color[1] * pulse, color[2] * pulse, 1.f } };
+    color_attachment.clearValue.color = { { constants->color.x, constants->color.y, constants->color.z, 1.f } };
+
+    VkRenderingAttachmentInfo depth_attachment{ VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO };
+    depth_attachment.imageView = depth_buffer.dsv();
+    depth_attachment.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+    depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depth_attachment.clearValue.depthStencil = { 0.f, 0 }; // reversed depth, like the D3D12 gpass
 
     VkRenderingInfo rendering{ VK_STRUCTURE_TYPE_RENDERING_INFO };
-    rendering.renderArea = { { 0, 0 }, surface.extent() };
+    rendering.renderArea = { { 0, 0 }, extent };
     rendering.layerCount = 1;
     rendering.colorAttachmentCount = 1;
     rendering.pColorAttachments = &color_attachment;
+    rendering.pDepthAttachment = &depth_attachment;
     vkCmdBeginRendering(cmd, &rendering);
     vkCmdEndRendering(cmd);
 
-    // Color attachment -> present. The present waits on the frame's render finished semaphore,
-    // which the submit signals after all commands, so no destination stage is needed.
-    barrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-    barrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-    barrier.dstStageMask = VK_PIPELINE_STAGE_2_NONE;
-    barrier.dstAccessMask = VK_ACCESS_2_NONE;
-    barrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-    vkCmdPipelineBarrier2(cmd, &dependency);
+    barriers.add(main_buffer.image(), VK_IMAGE_ASPECT_COLOR_BIT, states.render_target, states.copy_source);
+    barriers.add(surface.image(), VK_IMAGE_ASPECT_COLOR_BIT, acquired, states.copy_dest);
+    barriers.apply(cmd);
+
+    // The main buffer may be larger than the surface: copy the top-left part, like D3D12's viewport.
+    VkImageBlit2 region{ VK_STRUCTURE_TYPE_IMAGE_BLIT_2 };
+    region.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+    region.srcOffsets[1] = { (s32)extent.width, (s32)extent.height, 1 };
+    region.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+    region.dstOffsets[1] = { (s32)extent.width, (s32)extent.height, 1 };
+
+    VkBlitImageInfo2 blit{ VK_STRUCTURE_TYPE_BLIT_IMAGE_INFO_2 };
+    blit.srcImage = main_buffer.image();
+    blit.srcImageLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+    blit.dstImage = surface.image();
+    blit.dstImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    blit.regionCount = 1;
+    blit.pRegions = &region;
+    blit.filter = VK_FILTER_NEAREST;
+    vkCmdBlitImage2(cmd, &blit);
+
+    vkx::transition_image(cmd, surface.image(), VK_IMAGE_ASPECT_COLOR_BIT, states.copy_dest, states.present);
 }
+
+} // namespace scratch
 
 } // anonymous namespace
 
 namespace detail {
 void
-deferred_release(VkObjectType type, u64 handle)
+deferred_release(VkObjectType type, u64 handle, VmaAllocation allocation)
 {
     std::scoped_lock lock{ deferred_releases_mutex };
     const u32 frame_idx{ current_frame_index() };
-    deferred_releases[frame_idx].push_back({ type, handle });
+    deferred_releases[frame_idx].push_back({ type, handle, allocation });
     deferred_releases_flag[frame_idx] = 1;
 }
 } // namespace detail
@@ -790,8 +975,19 @@ initialize()
 
     if (!create_instance()) return failed_init();
     if (!create_device()) return failed_init();
+    if (!create_allocator()) return failed_init();
+    if (!create_static_samplers()) return failed_init();
+    if (!srv_desc_heap.initialize(srv_heap_capacity)) return failed_init();
+
+    for (u32 i{ 0 }; i < frame_buffer_count; ++i)
+    {
+        new (&constant_buffers[i]) constant_buffer{ constant_buffer::get_default_init_info(constant_buffer_size) };
+        if (!constant_buffers[i].buffer()) return failed_init();
+        NAME_VK_OBJECT_INDEXED(constant_buffers[i].buffer(), VK_OBJECT_TYPE_BUFFER, i, "Global Constant Buffer");
+    }
 
     // TODO: initialize modules (shaders, gpass, fx, upload, content, delight).
+    if (!scratch::initialize()) return failed_init();
     return true;
 }
 
@@ -806,11 +1002,29 @@ shutdown()
     }
 
     // TODO: shut down modules (in reverse order of initialize()).
+    scratch::shutdown();
 
-    // NOTE: modules may defer releases while shutting down. Process those once more.
+    for (u32 i{ 0 }; i < frame_buffer_count; ++i)
+    {
+        constant_buffers[i].release();
+    }
+
+    // NOTE: modules may defer releases (and descriptor frees) while shutting down. Process those once
+    //       more, then release the heap, which defers its own pool and layout.
+    process_deferred_releases(0, true);
+    srv_desc_heap.release();
     process_deferred_releases(0, true);
 
     assert(surfaces.empty() && "Vulkan: remove all surfaces before shutting down the renderer.");
+
+    for (VkSampler& sampler : static_samplers)
+    {
+        if (sampler) vkDestroySampler(main_device, sampler, nullptr);
+        sampler = VK_NULL_HANDLE;
+    }
+
+    if (vma_allocator) vmaDestroyAllocator(vma_allocator);
+    vma_allocator = VK_NULL_HANDLE;
 
     if (main_device) vkDestroyDevice(main_device, nullptr);
     main_device = VK_NULL_HANDLE;
@@ -919,6 +1133,31 @@ graphics_queue_family()
     return gfx_command.queue_family();
 }
 
+VmaAllocator
+allocator()
+{
+    return vma_allocator;
+}
+
+descriptor_heap&
+srv_heap()
+{
+    return srv_desc_heap;
+}
+
+constant_buffer&
+cbuffer()
+{
+    return constant_buffers[current_frame_index()];
+}
+
+VkSampler
+static_sampler(vkx::static_sampler::type type)
+{
+    assert(type < vkx::static_sampler::count);
+    return static_samplers[type];
+}
+
 u32
 current_frame_index()
 {
@@ -1008,11 +1247,15 @@ render_surface(surface_id id, frame_info)
         process_deferred_releases(frame_idx);
     }
 
+    constant_buffer& cb{ constant_buffers[frame_idx] };
+    cb.clear();
+
     // Nothing to render to (minimized or out of date). The frame is skipped; its command
     // buffer is reset by the next begin_frame().
     if (!surface.acquire_next_image(gfx_command.image_acquired_semaphore())) return;
 
-    record_clear(cmd, surface, id);
+    scratch::set_size(surface.width(), surface.height());
+    scratch::record(cmd, surface, id);
 
     // Done recording commands. Now submit, present and signal the fence value for this frame.
     gfx_command.end_frame(surface);

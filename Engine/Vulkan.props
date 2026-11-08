@@ -17,7 +17,8 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(PrimalVulkan)' == 'true'">
     <ClCompile>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(VULKAN_SDK)\Include</AdditionalIncludeDirectories>
+      <!-- ThirdParty\vma: the Vulkan Memory Allocator, vendored so Windows and Linux use the same version. -->
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(VULKAN_SDK)\Include;$(MSBuildThisFileDirectory)ThirdParty\vma</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>PRIMAL_GRAPHICS_VULKAN=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>

@@ -57,8 +57,11 @@
     <ClInclude Include="Graphics\Renderer.h" />
     <ClInclude Include="Graphics\Vulkan\VulkanCommonHeaders.h" />
     <ClInclude Include="Graphics\Vulkan\VulkanCore.h" />
+    <ClInclude Include="Graphics\Vulkan\VulkanHelpers.h" />
     <ClInclude Include="Graphics\Vulkan\VulkanInterface.h" />
+    <ClInclude Include="Graphics\Vulkan\VulkanResources.h" />
     <ClInclude Include="Graphics\Vulkan\VulkanSurface.h" />
+    <ClInclude Include="ThirdParty\vma\vk_mem_alloc.h" />
     <ClInclude Include="Input\Input.h" />
     <ClInclude Include="Input\InputWin32.h" />
     <ClInclude Include="Platform\IncludeWindowCpp.h" />
@@ -98,7 +101,10 @@
     <ClCompile Include="Graphics\Renderer.cpp" />
     <!-- Vulkan backend: only with the Vulkan SDK (PrimalVulkan is set in Vulkan.props). -->
     <ClCompile Include="Graphics\Vulkan\VulkanCore.cpp" Condition="'$(PrimalVulkan)' == 'true'" />
+    <ClCompile Include="Graphics\Vulkan\VulkanHelpers.cpp" Condition="'$(PrimalVulkan)' == 'true'" />
     <ClCompile Include="Graphics\Vulkan\VulkanInterface.cpp" Condition="'$(PrimalVulkan)' == 'true'" />
+    <ClCompile Include="Graphics\Vulkan\VulkanMemoryAllocator.cpp" Condition="'$(PrimalVulkan)' == 'true'" />
+    <ClCompile Include="Graphics\Vulkan\VulkanResources.cpp" Condition="'$(PrimalVulkan)' == 'true'" />
     <ClCompile Include="Graphics\Vulkan\VulkanSurface.cpp" Condition="'$(PrimalVulkan)' == 'true'" />
     <ClCompile Include="Input\Input.cpp" />
     <ClCompile Include="Input\InputWin32.cpp" />
