@@ -142,7 +142,9 @@ void CullLightsCS(ComputeShaderInput csIn)
             const bool isPointLight = light.CosPenumbra == -1.f;
             if (isPointLight || (dot(d * rsqrt(distSq), light.Direction) >= light.CosPenumbra))
             {
-                _lightFlagsOpaque[i] = 2 - uint(isPointLight);
+                // NOTE: all threads that see this light write the same value; an atomic makes that a defined
+                //       operation (a plain store from many threads is a data race; Vulkan GPU-AV reports it).
+                InterlockedOr(_lightFlagsOpaque[i], 2 - uint(isPointLight));
             }
         }
     }

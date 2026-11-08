@@ -546,6 +546,7 @@ get_required_features(const device_features& supported, device_features& enabled
     // Vulkan 1.0
     REQUIRE(features.features, shaderInt16);                    // -enable-16bit-types
     REQUIRE(features.features, samplerAnisotropy);
+    REQUIRE(features.features, textureCompressionBC);           // BC1-7 textures (always available in D3D12)
     REQUIRE(features.features, multiDrawIndirect);              // ExecuteIndirect equivalent
     REQUIRE(features.features, drawIndirectFirstInstance);
     // Vulkan 1.1
@@ -914,7 +915,6 @@ initialize()
     }
 
     // initialize modules
-    // TODO: light + delight
     // NOTE: upload goes first (D3D12: after fx): modules may upload data while they initialize (gpass does).
     if (!(upload::initialize() && create_zero_buffer() && shaders::initialize() && gpass::initialize() &&
           fx::initialize() && content::initialize() && delight::initialize()))

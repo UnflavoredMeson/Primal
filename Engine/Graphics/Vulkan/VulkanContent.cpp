@@ -429,6 +429,27 @@ create_resource_from_texture_data(const u8* const data)
 
     assert(mip_levels <= vulkan_texture::max_mips);
 
+    // D3D12 (feature level 11+) guarantees sampling, copying and linear filtering of the formats textures use. In
+    // Vulkan, linear filtering of 32-bit float formats (the IBL cube maps are R32G32B32A32_FLOAT) is optional.
+    {
+        VkFormatProperties properties{};
+        vkGetPhysicalDeviceFormatProperties(core::physical_device(), format.format, &properties);
+        const VkFormatFeatureFlags features{ properties.optimalTilingFeatures };
+        constexpr VkFormatFeatureFlags required{ VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT | VK_FORMAT_FEATURE_TRANSFER_DST_BIT };
+        if ((features & required) != required)
+        {
+            log_message("Vulkan: texture format DXGI_FORMAT %u (VkFormat %d) can't be sampled on this device.\n", dxgi_format,
+                        (s32)format.format);
+            assert(false);
+            return {};
+        }
+        if (!(features & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT))
+        {
+            log_message("Warning: texture format DXGI_FORMAT %u (VkFormat %d) can't be filtered linearly on this device; "
+                        "linear/anisotropic sampling of it is undefined.\n", dxgi_format, (s32)format.format);
+        }
+    }
+
     u32 depth_per_mip_level[vulkan_texture::max_mips]{};
     for (u32 i{ 0 }; i < vulkan_texture::max_mips; ++i)
     {
