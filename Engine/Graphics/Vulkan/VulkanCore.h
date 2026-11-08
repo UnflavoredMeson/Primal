@@ -5,9 +5,26 @@
 #include "VulkanHelpers.h"
 #include <type_traits>
 
+namespace primal::graphics::vulkan::camera {
+class vulkan_camera;
+}
+
 namespace primal::graphics::vulkan {
 class descriptor_heap;
 class constant_buffer;
+
+// Per-surface frame data for the render modules (counterpart of d3d12_frame_info).
+struct vulkan_frame_info
+{
+    const frame_info* info{ nullptr };
+    camera::vulkan_camera* camera{ nullptr }; // null when frame_info has no camera (nothing is drawn then)
+    vkx::buffer_range global_shader_data{}; // hlsl::GlobalShaderData in the frame's constant buffer
+    u32 surface_width{ 0 };
+    u32 surface_height{ 0 };
+    id::id_type surface_id{ id::invalid_id };
+    id::id_type light_culling_id{ id::invalid_id };
+    u32 frame_index{ 0 };
+};
 } // namespace primal::graphics::vulkan
 
 namespace primal::graphics::vulkan::core {
@@ -86,12 +103,17 @@ void get_option(renderer_option::option option, void* const parameter, u32 param
 [[nodiscard]] VkPhysicalDevice physical_device();
 [[nodiscard]] VkDevice device();
 [[nodiscard]] VkQueue graphics_queue();
+// Thread-safe vkQueueSubmit2 on the graphics queue (render frames use the same queue and lock).
+void submit_to_graphics_queue(const VkSubmitInfo2& submit);
 [[nodiscard]] u32 graphics_queue_family();
 [[nodiscard]] VmaAllocator allocator();
 // The bindless resource heap (counterpart of d3d12::core::srv_heap()).
 [[nodiscard]] descriptor_heap& srv_heap();
 // The current frame's constant buffer (cleared at the start of each frame).
 [[nodiscard]] constant_buffer& cbuffer();
+// Alignment for the offset of a buffer range bound as a root SRV/UAV: max(16, minStorageBufferOffsetAlignment).
+// D3D12 root SRVs only need 4 bytes, so data packed for D3D12 (mesh assets) is repacked with this alignment.
+[[nodiscard]] u32 storage_buffer_offset_alignment();
 // The D3D12 static samplers as immutable samplers (vkx::root_parameter::sampler).
 [[nodiscard]] VkSampler static_sampler(vkx::static_sampler::type type);
 [[nodiscard]] u32 current_frame_index();

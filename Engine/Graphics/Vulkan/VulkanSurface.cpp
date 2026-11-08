@@ -26,9 +26,13 @@ struct wl_surface;
 namespace primal::graphics::vulkan {
 namespace {
 
-// Preferred swapchain formats, in order. Rendering is in linear space; *_SRGB swapchain images
-// encode to sRGB when written (d3d12 uses an FP16 scRGB back buffer instead).
+// Preferred swapchain formats, in order. Post-processing writes linear values.
+// 1. FP16 scRGB, the same back buffer as d3d12 (default_back_buffer_format, linear, values above 1 for
+//    HDR). Needs VK_EXT_swapchain_colorspace, and a window system that offers it.
+// 2. 8-bit *_SRGB: the hardware encodes the linear values to sRGB when they're written. Looks the same
+//    in SDR.
 constexpr VkSurfaceFormatKHR preferred_formats[]{
+    { VK_FORMAT_R16G16B16A16_SFLOAT, VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT },
     { VK_FORMAT_B8G8R8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR },
     { VK_FORMAT_R8G8B8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR },
 };
@@ -256,8 +260,8 @@ vulkan_surface::create_swapchain()
     }
 
     _image_index = 0;
-    DEBUG_OP(log_message("::Vulkan swapchain created: %u x %u, %u images, format %d, present mode %d\n",
-                         _extent.width, _extent.height, _image_count, (s32)_format, (s32)_present_mode));
+    DEBUG_OP(log_message("::Vulkan swapchain created: %u x %u, %u images, format %d, color space %d, present mode %d\n",
+                         _extent.width, _extent.height, _image_count, (s32)_format, (s32)_color_space, (s32)_present_mode));
     return true;
 }
 

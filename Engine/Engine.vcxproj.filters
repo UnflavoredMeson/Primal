@@ -50,11 +50,18 @@
     <ClInclude Include="EngineAPI\GeometryComponent.h" />
     <ClInclude Include="Utilities\Threading.h" />
     <ClInclude Include="Graphics\Vulkan\VulkanCommonHeaders.h" />
+    <ClInclude Include="Graphics\Vulkan\VulkanCamera.h" />
+    <ClInclude Include="Graphics\Vulkan\VulkanContent.h" />
     <ClInclude Include="Graphics\Vulkan\VulkanCore.h" />
+    <ClInclude Include="Graphics\Vulkan\VulkanGPass.h" />
     <ClInclude Include="Graphics\Vulkan\VulkanHelpers.h" />
     <ClInclude Include="Graphics\Vulkan\VulkanInterface.h" />
+    <ClInclude Include="Graphics\Vulkan\VulkanPostProcess.h" />
     <ClInclude Include="Graphics\Vulkan\VulkanResources.h" />
+    <ClInclude Include="Graphics\Vulkan\VulkanShaders.h" />
+    <ClInclude Include="Graphics\Vulkan\VulkanSharedTypes.h" />
     <ClInclude Include="Graphics\Vulkan\VulkanSurface.h" />
+    <ClInclude Include="Graphics\Vulkan\VulkanUpload.h" />
     <ClInclude Include="ThirdParty\vma\vk_mem_alloc.h" />
   </ItemGroup>
   <ItemGroup>
@@ -84,12 +91,18 @@
     <ClCompile Include="Input\InputWin32.cpp" />
     <ClCompile Include="Graphics\Direct3D12\D3D12LightCulling.cpp" />
     <ClCompile Include="Components\Geometry.cpp" />
+    <ClCompile Include="Graphics\Vulkan\VulkanCamera.cpp" />
+    <ClCompile Include="Graphics\Vulkan\VulkanContent.cpp" />
     <ClCompile Include="Graphics\Vulkan\VulkanCore.cpp" />
+    <ClCompile Include="Graphics\Vulkan\VulkanGPass.cpp" />
     <ClCompile Include="Graphics\Vulkan\VulkanHelpers.cpp" />
     <ClCompile Include="Graphics\Vulkan\VulkanInterface.cpp" />
     <ClCompile Include="Graphics\Vulkan\VulkanMemoryAllocator.cpp" />
+    <ClCompile Include="Graphics\Vulkan\VulkanPostProcess.cpp" />
     <ClCompile Include="Graphics\Vulkan\VulkanResources.cpp" />
+    <ClCompile Include="Graphics\Vulkan\VulkanShaders.cpp" />
     <ClCompile Include="Graphics\Vulkan\VulkanSurface.cpp" />
+    <ClCompile Include="Graphics\Vulkan\VulkanUpload.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

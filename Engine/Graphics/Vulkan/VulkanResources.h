@@ -66,7 +66,7 @@ private:
     std::unique_ptr<u32[]> _free_handles{};
     std::unique_ptr<u8[]> _allocated_slots{};
     utl::vector<u32> _deferred_free_indices[frame_buffer_count]{};
-    std::mutex _mutex{};
+    mutable std::mutex _mutex{}; // also locked by the const write_*() functions
     u32 _capacity{ 0 };
     u32 _size{ 0 };
 };

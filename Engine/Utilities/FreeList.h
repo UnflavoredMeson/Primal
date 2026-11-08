@@ -94,7 +94,8 @@ private:
         {
             u32 i{ sizeof(u32) }; //skip the first 4 bytes.
             const u8 *const p{ (const u8 *const)std::addressof(_array[id]) };
-            while ((p[i] == 0xcc) && (i < sizeof(T))) ++i;
+            // NOTE: test the bound first, p[sizeof(T)] is past the item (past the array for the last one).
+            while ((i < sizeof(T)) && (p[i] == 0xcc)) ++i;
             return i == sizeof(T);
         }
         else

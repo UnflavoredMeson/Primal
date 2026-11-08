@@ -2,6 +2,7 @@
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "VulkanResources.h"
 #include "VulkanCore.h"
+#include "VulkanUpload.h"
 
 namespace primal::graphics::vulkan {
 //// DESCRIPTOR HEAP //////////////////////////////////////////////////////////////////////////////
@@ -179,6 +180,9 @@ descriptor_heap::write(const descriptor_handle& handle, VkDescriptorType type, c
     write.descriptorType = type; // a concrete type: the slot becomes a descriptor of that type
     write.pImageInfo = image;
     write.pBufferInfo = buffer;
+    // Host access to the set must be externally synchronized, and textures are created on several
+    // threads (D3D12's CreateShaderResourceView is free-threaded).
+    std::scoped_lock lock{ _mutex };
     vkUpdateDescriptorSets(core::device(), 1, &write, 0, nullptr);
 }
 
@@ -223,6 +227,8 @@ vulkan_buffer::vulkan_buffer(const vulkan_buffer_init_info& info, bool is_cpu_ac
     VkBufferCreateInfo buffer_info{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
     buffer_info.size = _size;
     buffer_info.usage = info.usage;
+    // GPU-only buffers with initial data are filled by a copy from an upload buffer.
+    if (info.data && !is_cpu_accessible) buffer_info.usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
     buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
     VmaAllocationCreateInfo alloc_info{};
@@ -254,8 +260,11 @@ vulkan_buffer::vulkan_buffer(const vulkan_buffer_init_info& info, bool is_cpu_ac
         }
         else
         {
-            // TODO: copy through upload::vulkan_upload_context.
-            assert(false && "Vulkan: initial data for GPU-only buffers needs the upload module (milestone d).");
+            upload::vulkan_upload_context context{ _size };
+            memcpy(context.cpu_address(), info.data, info.size);
+            const VkBufferCopy region{ 0, 0, info.size };
+            vkCmdCopyBuffer(context.command_buffer(), context.upload_buffer(), _buffer, 1, &region);
+            context.end_upload();
         }
     }
 }

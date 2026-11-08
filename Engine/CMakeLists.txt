@@ -25,12 +25,18 @@ target_sources(Engine PRIVATE
 
 # Vulkan backend (PRIMAL_GRAPHICS_VULKAN, on by default on Linux; see Common/PlatformDetection.h).
 target_sources(Engine PRIVATE
+    Graphics/Vulkan/VulkanCamera.cpp
+    Graphics/Vulkan/VulkanContent.cpp
     Graphics/Vulkan/VulkanCore.cpp
+    Graphics/Vulkan/VulkanGPass.cpp
     Graphics/Vulkan/VulkanHelpers.cpp
     Graphics/Vulkan/VulkanInterface.cpp
     Graphics/Vulkan/VulkanMemoryAllocator.cpp
+    Graphics/Vulkan/VulkanPostProcess.cpp
     Graphics/Vulkan/VulkanResources.cpp
+    Graphics/Vulkan/VulkanShaders.cpp
     Graphics/Vulkan/VulkanSurface.cpp
+    Graphics/Vulkan/VulkanUpload.cpp
 )
 # Vulkan Memory Allocator, vendored (same version on Linux and Windows). SYSTEM: no warnings from it.
 target_include_directories(Engine SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/vma)

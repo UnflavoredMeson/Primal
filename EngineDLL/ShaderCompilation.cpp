@@ -349,6 +349,9 @@ private:
     {
         args.emplace_back(L"-spirv");
         args.emplace_back(L"-fspv-target-env=vulkan1.3");
+        // Every SPIR-V entry point is called "main". Compiled shaders don't store the HLSL function name, and
+        // Vulkan pipelines need the entry point name (VkPipelineShaderStageCreateInfo::pName).
+        args.emplace_back(L"-fspv-entrypoint-name=main");
         // Same buffer layout rules as Direct3D 12, so SharedTypes.h structs match on both backends.
         // Requires the scalarBlockLayout feature (core in Vulkan 1.2).
         args.emplace_back(L"-fvk-use-dx-layout");

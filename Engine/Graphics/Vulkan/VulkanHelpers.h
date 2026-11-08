@@ -98,10 +98,12 @@ constexpr struct
                                       VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
                                       VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL };
     // Depth test without writes, and sampling in the same pass (D3D12_RESOURCE_STATE_DEPTH_READ | *_SHADER_RESOURCE).
+    // READ_ONLY_OPTIMAL (not DEPTH_READ_ONLY_OPTIMAL): it's valid for a read-only depth attachment too, and it's the
+    // layout the depth buffer's SRV descriptor is written with.
     const resource_state depth_read{ VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT |
                                          VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                                      VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
-                                     VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL };
+                                     VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL };
     const resource_state pixel_shader_resource{ VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT,
                                                 VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL };
     const resource_state non_pixel_shader_resource{ VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
@@ -230,7 +232,141 @@ void bind_resource_heap(VkCommandBuffer cmd, VkPipelineBindPoint bind_point, con
 // Loads the device-level functions the helpers use (vkCmdPushDescriptorSetKHR). Called by core.
 void load_device_functions(VkDevice device);
 
-//// MISC /////////////////////////////////////////////////////////////////////////////////////////
+//// PIPELINES //////////////////////////////////////////////////////////////////////////////////
+// Entry point of every SPIR-V module: ShaderCompilation.cpp compiles with -fspv-entrypoint-name=main,
+// because compiled shaders (content::compiled_shader) don't store the HLSL function name.
+constexpr const char* spirv_entry_point{ "main" };
+
+// SPIR-V code of one shader stage (counterpart of D3D12_SHADER_BYTECODE, plus the entry point name).
+struct shader_bytecode
+{
+    const u32* code{ nullptr };
+    u64 size{ 0 }; // in bytes
+    const char* entry_point{ spirv_entry_point };
+
+    [[nodiscard]] constexpr bool is_valid() const { return code && size; }
+};
+
+// Rasterizer, depth and blend presets with the same names and values as d3dx::rasterizer_state,
+// depth_state and blend_state.
+// NOTE: front faces are counter-clockwise like in the D3D12 presets (FrontCounterClockwise = 1).
+//       That holds because every pass uses a negative viewport height (vkx::set_viewport()), which
+//       makes clip space y point up and the framebuffer winding match D3D12's.
+[[nodiscard]] constexpr VkPipelineRasterizationStateCreateInfo
+rasterizer_desc(VkPolygonMode fill_mode, VkCullModeFlags cull_mode)
+{
+    VkPipelineRasterizationStateCreateInfo info{ VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO };
+    info.depthClampEnable = VK_FALSE; // DepthClipEnable = 1
+    info.rasterizerDiscardEnable = VK_FALSE;
+    info.polygonMode = fill_mode;
+    info.cullMode = cull_mode;
+    info.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    info.depthBiasEnable = VK_FALSE;
+    info.lineWidth = 1.f;
+    return info;
+}
+
+constexpr struct
+{
+    const VkPipelineRasterizationStateCreateInfo no_cull{ rasterizer_desc(VK_POLYGON_MODE_FILL, VK_CULL_MODE_NONE) };
+    const VkPipelineRasterizationStateCreateInfo backface_cull{ rasterizer_desc(VK_POLYGON_MODE_FILL, VK_CULL_MODE_BACK_BIT) };
+    const VkPipelineRasterizationStateCreateInfo frontface_cull{ rasterizer_desc(VK_POLYGON_MODE_FILL, VK_CULL_MODE_FRONT_BIT) };
+    // Needs the fillModeNonSolid device feature (not required yet).
+    const VkPipelineRasterizationStateCreateInfo wireframe{ rasterizer_desc(VK_POLYGON_MODE_LINE, VK_CULL_MODE_NONE) };
+} rasterizer_state;
+
+[[nodiscard]] constexpr VkPipelineDepthStencilStateCreateInfo
+depth_desc(bool enable, bool write, VkCompareOp compare)
+{
+    VkPipelineDepthStencilStateCreateInfo info{ VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO };
+    info.depthTestEnable = enable ? VK_TRUE : VK_FALSE;
+    info.depthWriteEnable = write ? VK_TRUE : VK_FALSE;
+    info.depthCompareOp = compare;
+    info.depthBoundsTestEnable = VK_FALSE;
+    info.stencilTestEnable = VK_FALSE;
+    info.minDepthBounds = 0.f;
+    info.maxDepthBounds = 1.f;
+    return info;
+}
+
+constexpr struct
+{
+    const VkPipelineDepthStencilStateCreateInfo disabled{ depth_desc(false, false, VK_COMPARE_OP_LESS_OR_EQUAL) };
+    const VkPipelineDepthStencilStateCreateInfo enabled{ depth_desc(true, true, VK_COMPARE_OP_LESS_OR_EQUAL) };
+    const VkPipelineDepthStencilStateCreateInfo enabled_readonly{ depth_desc(true, false, VK_COMPARE_OP_LESS_OR_EQUAL) };
+    const VkPipelineDepthStencilStateCreateInfo reversed{ depth_desc(true, true, VK_COMPARE_OP_GREATER_OR_EQUAL) };
+    const VkPipelineDepthStencilStateCreateInfo reversed_readonly{ depth_desc(true, false, VK_COMPARE_OP_GREATER_OR_EQUAL) };
+} depth_state;
+
+[[nodiscard]] constexpr VkPipelineColorBlendAttachmentState
+blend_desc(bool enable, VkBlendFactor src, VkBlendFactor dst)
+{
+    VkPipelineColorBlendAttachmentState state{};
+    state.blendEnable = enable ? VK_TRUE : VK_FALSE;
+    state.srcColorBlendFactor = src;
+    state.dstColorBlendFactor = dst;
+    state.colorBlendOp = VK_BLEND_OP_ADD;
+    state.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    state.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    state.alphaBlendOp = VK_BLEND_OP_ADD;
+    state.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    return state;
+}
+
+// One state for all color attachments (D3D12's IndependentBlendEnable = 0).
+constexpr struct
+{
+    const VkPipelineColorBlendAttachmentState disabled{ blend_desc(false, VK_BLEND_FACTOR_SRC_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA) };
+    const VkPipelineColorBlendAttachmentState alpha_blend{ blend_desc(true, VK_BLEND_FACTOR_SRC_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA) };
+    const VkPipelineColorBlendAttachmentState additive{ blend_desc(true, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE) };
+    // NOTE: BlendEnable is 0 in d3dx::blend_state.premultiplied too (kept the same; probably meant to be 1).
+    const VkPipelineColorBlendAttachmentState premultiplied{ blend_desc(false, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA) };
+} blend_state;
+
+// Counterpart of the D3D12 pipeline state stream for graphics PSOs. Viewport and scissor are dynamic
+// state (RSSetViewports / RSSetScissorRects); render target formats are given up front (dynamic rendering).
+struct graphics_pipeline_desc
+{
+    constexpr static u32 max_render_targets{ 8 };
+
+    VkPipelineLayout layout{ VK_NULL_HANDLE };
+    shader_bytecode vs{};
+    shader_bytecode ps{};
+    VkPrimitiveTopology topology{ VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST };
+    VkPipelineRasterizationStateCreateInfo rasterizer{ rasterizer_state.no_cull };
+    VkPipelineDepthStencilStateCreateInfo depth_stencil{ depth_state.disabled };
+    VkPipelineColorBlendAttachmentState blend{ blend_state.disabled };
+    VkFormat render_target_formats[max_render_targets]{};
+    u32 render_target_count{ 0 };
+    VkFormat depth_format{ VK_FORMAT_UNDEFINED };
+    VkSampleCountFlagBits samples{ VK_SAMPLE_COUNT_1_BIT };
+};
+
+[[nodiscard]] VkPipeline create_graphics_pipeline(const graphics_pipeline_desc& desc, const char* name);
+[[nodiscard]] VkPipeline create_compute_pipeline(VkPipelineLayout layout, const shader_bytecode& cs, const char* name);
+
+// D3D12-style viewport: (0, 0) is the top-left corner and clip space y points up. Done with a
+// negative viewport height (core since Vulkan 1.1), so the HLSL shaders and the D3D12 projection
+// matrices work unchanged. Also sets the scissor to the same rectangle.
+void set_viewport(VkCommandBuffer cmd, u32 width, u32 height);
+
+//// MISC ///////////////////////////////////////////////////////////////////////////////////////
+// A texture format: the Vulkan format for a DXGI_FORMAT value (texture assets store DXGI formats) and its
+// texel block size, needed to describe buffer -> image copies.
+struct format_info
+{
+    VkFormat format{ VK_FORMAT_UNDEFINED };
+    u32 block_width{ 1 };  // texels per block (4 for BC formats)
+    u32 block_height{ 1 };
+    u32 block_size{ 0 };   // bytes per block (per texel for uncompressed formats)
+
+    [[nodiscard]] constexpr bool is_valid() const { return format != VK_FORMAT_UNDEFINED; }
+};
+
+// VK_FORMAT_UNDEFINED for DXGI formats that aren't in the table yet.
+[[nodiscard]] format_info dxgi_format_info(u32 dxgi_format);
+
+////////////////////////////////////////////////////////////////////////////////////
 [[nodiscard]] constexpr VkImageAspectFlags
 aspect_flags(VkFormat format)
 {

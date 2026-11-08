@@ -27,6 +27,11 @@ foreach(_test IN LISTS _primal_tests)
 endforeach()
 
 target_link_libraries(EngineTest PRIVATE Engine)
+# The surfaces test compiles the engine shaders. (TestRenderer.cpp still #includes ShaderCompilation.cpp,
+# so the renderer test must not link the library too; Phase 7 switches it over.)
+if(PRIMAL_ENGINE_TEST STREQUAL "SURFACES")
+    target_link_libraries(EngineTest PRIVATE ShaderCompiler)
+endif()
 
 # Same layout as the Windows build (x64/<Config>/) so the relative paths used by the tests
 # (../../x64/<assets>, ../../Engine/Graphics/...) resolve the same way.

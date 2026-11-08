@@ -5,11 +5,12 @@
 #include "../Engine/Platform/PlatformTypes.h"
 #include "../Engine/Platform/Platform.h"
 #include "../Engine/Graphics/Renderer.h"
+#include "../EngineDLL/ShaderCompilation.h"
 #include <cstdio>
 #include <iterator>
 
-// 4 windows, each with a graphics surface that clears to its own color.
-// Only uses surfaces, so it works before the backend has cameras, lights and content.
+// 4 windows, each with a graphics surface. No camera or render items, so each frame is the gpass clear color
+// (gray in debug builds, black in release) shown through post-processing.
 //   Esc: close a window   Space: toggle vsync   F11: restart   Alt+Enter: fullscreen
 // NOTE: Vulkan only for now. The D3D12 backend renders the full scene in render_surface() and
 //       needs a camera, so it isn't usable with this test.
@@ -108,6 +109,14 @@ on_window_event(const platform::window_event& event)
 bool
 test_initialize()
 {
+    // Post-processing needs the engine shaders (compiled only when the sources changed).
+    // NOTE: on Windows, EngineTest.vcxproj always compiles TestRenderer.cpp, which includes ShaderCompilation.cpp.
+    if (!compile_shaders(graphics::graphics_platform::vulkan))
+    {
+        std::fprintf(stderr, "Failed to compile the engine shaders.\n");
+        return false;
+    }
+
     if (!graphics::initialize(graphics::graphics_platform::vulkan)) return false;
 
     platform::window_init_info info[]{

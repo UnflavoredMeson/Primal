@@ -1,9 +1,16 @@
 // Copyright (c) 2026 Charles Smith
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "VulkanCore.h"
+#include "VulkanCamera.h"
+#include "VulkanContent.h"
+#include "VulkanGPass.h"
 #include "VulkanHelpers.h"
+#include "VulkanPostProcess.h"
 #include "VulkanResources.h"
+#include "VulkanShaders.h"
+#include "VulkanSharedTypes.h"
 #include "VulkanSurface.h"
+#include "VulkanUpload.h"
 #include <algorithm>
 #include <cstdarg>
 #include <cstdlib>
@@ -139,10 +146,13 @@ public:
         submit.pCommandBufferInfos = &cmd_info;
         submit.signalSemaphoreInfoCount = (u32)std::size(signal_infos);
         submit.pSignalSemaphoreInfos = &signal_infos[0];
-        VkCall(vkQueueSubmit2(_queue, 1, &submit, VK_NULL_HANDLE));
+        {
+            std::scoped_lock lock{ _queue_mutex };
+            VkCall(vkQueueSubmit2(_queue, 1, &submit, VK_NULL_HANDLE));
 
-        // Presenting swap chain images happens in lockstep with frame buffers.
-        surface.present(_queue);
+            // Presenting swap chain images happens in lockstep with frame buffers.
+            surface.present(_queue);
+        }
 
         frame.fence_value = fence_value;
         _frame_index = (_frame_index + 1) % frame_buffer_count;
@@ -159,7 +169,11 @@ public:
         {
             _cmd_frames[i].wait(_device, _fence);
         }
-        if (_queue) VkCall(vkQueueWaitIdle(_queue));
+        if (_queue)
+        {
+            std::scoped_lock lock{ _queue_mutex };
+            VkCall(vkQueueWaitIdle(_queue));
+        }
         _frame_index = 0;
     }
 
@@ -178,6 +192,14 @@ public:
         _fence_value = 0;
         _queue = VK_NULL_HANDLE;
         _device = VK_NULL_HANDLE;
+    }
+
+    // For other modules (upload) that submit to the same queue, possibly from other threads.
+    // NOTE: a VkQueue must be externally synchronized (submits, presents, wait idle).
+    void submit(const VkSubmitInfo2& submit)
+    {
+        std::scoped_lock lock{ _queue_mutex };
+        VkCall(vkQueueSubmit2(_queue, 1, &submit, VK_NULL_HANDLE));
     }
 
     [[nodiscard]] constexpr VkQueue queue() const { return _queue; }
@@ -226,6 +248,7 @@ private:
 
     VkDevice _device{ VK_NULL_HANDLE };
     VkQueue _queue{ VK_NULL_HANDLE };
+    std::mutex _queue_mutex{};
     u32 _queue_family{ u32_invalid_id };
     VkSemaphore _fence{ VK_NULL_HANDLE };
     u64 _fence_value{ 0 };
@@ -251,9 +274,11 @@ VkDevice main_device{ VK_NULL_HANDLE };
 vulkan_command gfx_command;
 surface_collection surfaces;
 VmaAllocator vma_allocator{ VK_NULL_HANDLE };
+u32 storage_buffer_alignment{ 16 }; // max(16, minStorageBufferOffsetAlignment), set by create_device()
 descriptor_heap srv_desc_heap;
 constant_buffer constant_buffers[frame_buffer_count];
 VkSampler static_samplers[vkx::static_sampler::count]{};
+vkx::vulkan_barrier resource_barriers{};
 
 // Same sizes as the D3D12 backend.
 constexpr u32 srv_heap_capacity{ 4096 };
@@ -397,6 +422,11 @@ create_instance()
     {
         log_message("Vulkan: no supported window system surface extension.\n");
         return false;
+    }
+    // Extra swapchain color spaces (FP16 scRGB like the D3D12 back buffer). Optional.
+    if (has_extension(extensions, VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME))
+    {
+        enabled_extensions.emplace_back(VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME);
     }
 
     const bool validation{ use_validation() && has_layer(layers, validation_layer_name) };
@@ -663,6 +693,10 @@ create_device()
                 VK_API_VERSION_MAJOR(properties.apiVersion), VK_API_VERSION_MINOR(properties.apiVersion),
                 VK_API_VERSION_PATCH(properties.apiVersion));
 
+    // Offsets of storage buffer ranges (root SRVs/UAVs) must be multiples of minStorageBufferOffsetAlignment (4 on
+    // AMD/Mesa, 16 on NVIDIA, at most 256). D3D12 only needs 4.
+    storage_buffer_alignment = std::max((u32)properties.limits.minStorageBufferOffsetAlignment, 16u);
+
     const u32 queue_family{ find_graphics_queue_family(main_physical_device) };
     const f32 priority{ 1.f };
     VkDeviceQueueCreateInfo queue_info{ VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO };
@@ -768,192 +802,63 @@ process_deferred_releases(u32 frame_idx, bool force_release = false)
     objects.clear();
 }
 
-// scaffolding, replaced by gpass + post-process later. Renders each surface
-// into an offscreen HDR target + depth buffer (sized like D3D12's gpass buffers: the largest surface
-// so far), then blits it to the swapchain. Exercises VMA images and views, the resource heap,
-// barriers, the frame's constant buffer, a root signature with push descriptors, and a UAV clear.
-namespace scratch {
-
-// Same as d3d12::gpass::main_buffer_format / depth_buffer_format.
-constexpr VkFormat main_buffer_format{ VK_FORMAT_R16G16B16A16_SFLOAT };
-constexpr VkFormat depth_buffer_format{ VK_FORMAT_D32_SFLOAT };
-
-struct shader_constants
+// Counterpart of d3d12's get_d3d12_frame_info(): fills GlobalShaderData in the frame's constant buffer.
+vulkan_frame_info
+get_vulkan_frame_info(const frame_info& info, constant_buffer& cbuffer, const vulkan_surface& surface, surface_id id,
+                      u32 frame_idx)
 {
-    math::v4 color;
-};
+    hlsl::GlobalShaderData data{};
 
-vulkan_render_texture main_buffer{};
-vulkan_depth_buffer depth_buffer{};
-uav_clearable_buffer uav_buffer{};
-vkx::root_signature root_signature{};
-math::u32v2 dimensions{ 0, 0 };
-u32 frame_counter{ 0 };
-
-bool
-initialize()
-{
-    using param = vkx::root_parameter;
-    const param parameters[]{
-        param::cbv(0), param::cbv(1), param::srv(0), param::uav(0),
-        param::sampler(vkx::static_sampler::point, 0),
-        param::sampler(vkx::static_sampler::linear, 1),
-        param::sampler(vkx::static_sampler::anisotropic, 2),
-    };
-    root_signature = vkx::create_root_signature(&parameters[0], (u32)std::size(parameters), "Scratch Root Signature");
-    uav_buffer = uav_clearable_buffer{ uav_clearable_buffer::get_default_init_info(256) };
-
-    // The offscreen target is blitted to the swapchain.
-    VkFormatProperties properties{};
-    vkGetPhysicalDeviceFormatProperties(main_physical_device, main_buffer_format, &properties);
-    constexpr VkFormatFeatureFlags required{ VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT | VK_FORMAT_FEATURE_BLIT_SRC_BIT |
-                                             VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT };
-    if ((properties.optimalTilingFeatures & required) != required)
+    using namespace DirectX;
+    camera::vulkan_camera* camera{ nullptr };
+    if (id::is_valid(info.camera_id))
     {
-        log_message("Vulkan: R16G16B16A16_SFLOAT can't be rendered to and blitted on this device.\n");
-        return false;
+        camera = &camera::get(info.camera_id);
+        camera->update();
+        XMStoreFloat4x4A(&data.View, camera->view());
+        XMStoreFloat4x4A(&data.Projection, camera->projection());
+        XMStoreFloat4x4A(&data.InvProjection, camera->inverse_projection());
+        XMStoreFloat4x4A(&data.ViewProjection, camera->view_projection());
+        XMStoreFloat4x4A(&data.InvViewProjection, camera->inverse_view_projection());
+        XMStoreFloat3(&data.CameraPosition, camera->position());
+        XMStoreFloat3(&data.CameraDirection, camera->direction());
     }
+    else
+    {
+        // No camera (the SURFACES test): identity matrices; nothing is drawn, post-processing shows the gpass clear color.
+        const XMMATRIX identity{ XMMatrixIdentity() };
+        XMStoreFloat4x4A(&data.View, identity);
+        XMStoreFloat4x4A(&data.Projection, identity);
+        XMStoreFloat4x4A(&data.InvProjection, identity);
+        XMStoreFloat4x4A(&data.ViewProjection, identity);
+        XMStoreFloat4x4A(&data.InvViewProjection, identity);
+        data.CameraDirection = { 0.f, 0.f, -1.f };
+    }
+    // TODO: directional light count and ambient light from info.light_set_key. Until then there are no
+    //       lights (NumDirectionalLights 0) and the ambient light is off (Intensity 0).
+    data.ViewWidth = (f32)surface.width();
+    data.ViewHeight = (f32)surface.height();
+    data.DeltaTime = info.average_frame_time;
+    data.AmbientLight.SpecularSrvIndex = u32_invalid_id;
+    data.AmbientLight.DiffuseSrvIndex = u32_invalid_id;
+    data.AmbientLight.BrdfLutSrvIndex = u32_invalid_id;
 
-    return root_signature.is_valid() && uav_buffer.buffer();
+    // NOTE: be careful not to read from this buffer. Reads are really really slow (write-combined memory).
+    hlsl::GlobalShaderData* const shader_data{ cbuffer.allocate<hlsl::GlobalShaderData>() };
+    // TODO: handle the case when cbuffer is full.
+    assert(shader_data);
+    memcpy(shader_data, &data, sizeof(hlsl::GlobalShaderData));
+
+    vulkan_frame_info vulkan_info{};
+    vulkan_info.info = &info;
+    vulkan_info.camera = camera;
+    vulkan_info.global_shader_data = cbuffer.range(shader_data);
+    vulkan_info.surface_width = surface.width();
+    vulkan_info.surface_height = surface.height();
+    vulkan_info.surface_id = (id::id_type)id;
+    vulkan_info.frame_index = frame_idx;
+    return vulkan_info;
 }
-
-void
-shutdown()
-{
-    main_buffer.release();
-    depth_buffer.release();
-    uav_buffer.release();
-    vkx::release(root_signature);
-    dimensions = { 0, 0 };
-    frame_counter = 0;
-}
-
-// Grows the offscreen buffers to fit a surface (counterpart of d3d12::gpass::set_size()).
-void
-set_size(u32 width, u32 height)
-{
-    math::u32v2& d{ dimensions };
-    if (width <= d.x && height <= d.y && main_buffer.image()) return;
-    d = { std::max(width, d.x), std::max(height, d.y) };
-
-    VkImageCreateInfo image_info{ VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
-    image_info.imageType = VK_IMAGE_TYPE_2D;
-    image_info.extent = { d.x, d.y, 1 };
-    image_info.mipLevels = 1;
-    image_info.arrayLayers = 1;
-    image_info.samples = VK_SAMPLE_COUNT_1_BIT;
-    image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
-    image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-    vulkan_texture_init_info info{};
-    info.image_info = &image_info;
-
-    image_info.format = main_buffer_format;
-    image_info.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-    main_buffer = vulkan_render_texture{ info }; // the old buffers are released after frame_buffer_count frames
-    NAME_VK_OBJECT(main_buffer.image(), VK_OBJECT_TYPE_IMAGE, "Scratch Main Buffer");
-
-    image_info.format = depth_buffer_format;
-    image_info.usage = 0;
-    depth_buffer = vulkan_depth_buffer{ info };
-    NAME_VK_OBJECT(depth_buffer.image(), VK_OBJECT_TYPE_IMAGE, "Scratch Depth Buffer");
-}
-
-void
-record(VkCommandBuffer cmd, const vulkan_surface& surface, surface_id id)
-{
-    ++frame_counter;
-    constexpr f32 colors[][3]{
-        { 0.8f, 0.2f, 0.2f },
-        { 0.2f, 0.8f, 0.2f },
-        { 0.2f, 0.3f, 0.9f },
-        { 0.8f, 0.7f, 0.1f },
-    };
-    const f32* const color{ colors[(u32)(id::id_type)id % std::size(colors)] };
-    const f32 pulse{ 0.6f + 0.4f * (f32)((frame_counter / 4) % 64) / 63.f };
-    const VkExtent2D extent{ surface.extent() };
-
-    // Shader constants for this frame, bound as root CBVs/SRV.
-    constant_buffer& cb{ cbuffer() };
-    shader_constants* const constants{ cb.allocate<shader_constants>() };
-    assert(constants);
-    constants->color = { color[0] * pulse, color[1] * pulse, color[2] * pulse, 1.f };
-    const u32 heap_index{ main_buffer.srv().index };
-    u32* const root_constant{ cb.allocate<u32>() }; // a D3D12 root constant: written to the constant buffer
-    *root_constant = heap_index;
-
-    vkx::root_descriptors root{};
-    root.cbv(0, cb.range(constants));
-    root.cbv(1, cb.range(root_constant));
-    root.srv(0, cb.range(constants));
-    root.uav(0, uav_buffer.range());
-    root.push(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, root_signature);
-    vkx::bind_resource_heap(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, root_signature);
-
-    // UAV clear.
-    const u32 clear_value{ frame_counter };
-    uav_buffer.clear_uav(cmd, &clear_value);
-
-    const auto& states{ vkx::resource_states };
-    // The swapchain image is acquired at the color attachment output stage (end_frame()'s semaphore
-    // wait), so that's where the barrier's first scope must start.
-    constexpr vkx::resource_state acquired{ VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_NONE,
-                                            VK_IMAGE_LAYOUT_UNDEFINED };
-
-    vkx::vulkan_barrier barriers{};
-    barriers.add(uav_buffer.buffer(), states.copy_dest, states.unordered_access);
-    barriers.add(main_buffer.image(), VK_IMAGE_ASPECT_COLOR_BIT, states.undefined, states.render_target);
-    barriers.add(depth_buffer.image(), VK_IMAGE_ASPECT_DEPTH_BIT, states.undefined, states.depth_write);
-    barriers.apply(cmd);
-
-    VkRenderingAttachmentInfo color_attachment{ VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO };
-    color_attachment.imageView = main_buffer.rtv(0);
-    color_attachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    color_attachment.clearValue.color = { { constants->color.x, constants->color.y, constants->color.z, 1.f } };
-
-    VkRenderingAttachmentInfo depth_attachment{ VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO };
-    depth_attachment.imageView = depth_buffer.dsv();
-    depth_attachment.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
-    depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depth_attachment.clearValue.depthStencil = { 0.f, 0 }; // reversed depth, like the D3D12 gpass
-
-    VkRenderingInfo rendering{ VK_STRUCTURE_TYPE_RENDERING_INFO };
-    rendering.renderArea = { { 0, 0 }, extent };
-    rendering.layerCount = 1;
-    rendering.colorAttachmentCount = 1;
-    rendering.pColorAttachments = &color_attachment;
-    rendering.pDepthAttachment = &depth_attachment;
-    vkCmdBeginRendering(cmd, &rendering);
-    vkCmdEndRendering(cmd);
-
-    barriers.add(main_buffer.image(), VK_IMAGE_ASPECT_COLOR_BIT, states.render_target, states.copy_source);
-    barriers.add(surface.image(), VK_IMAGE_ASPECT_COLOR_BIT, acquired, states.copy_dest);
-    barriers.apply(cmd);
-
-    // The main buffer may be larger than the surface: copy the top-left part, like D3D12's viewport.
-    VkImageBlit2 region{ VK_STRUCTURE_TYPE_IMAGE_BLIT_2 };
-    region.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-    region.srcOffsets[1] = { (s32)extent.width, (s32)extent.height, 1 };
-    region.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-    region.dstOffsets[1] = { (s32)extent.width, (s32)extent.height, 1 };
-
-    VkBlitImageInfo2 blit{ VK_STRUCTURE_TYPE_BLIT_IMAGE_INFO_2 };
-    blit.srcImage = main_buffer.image();
-    blit.srcImageLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-    blit.dstImage = surface.image();
-    blit.dstImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-    blit.regionCount = 1;
-    blit.pRegions = &region;
-    blit.filter = VK_FILTER_NEAREST;
-    vkCmdBlitImage2(cmd, &blit);
-
-    vkx::transition_image(cmd, surface.image(), VK_IMAGE_ASPECT_COLOR_BIT, states.copy_dest, states.present);
-}
-
-} // namespace scratch
 
 } // anonymous namespace
 
@@ -986,8 +891,12 @@ initialize()
         NAME_VK_OBJECT_INDEXED(constant_buffers[i].buffer(), VK_OBJECT_TYPE_BUFFER, i, "Global Constant Buffer");
     }
 
-    // TODO: initialize modules (shaders, gpass, fx, upload, content, delight).
-    if (!scratch::initialize()) return failed_init();
+    // initialize modules
+    // TODO: light + delight
+    // NOTE: upload goes first (D3D12: after fx): modules may upload data while they initialize (gpass does).
+    if (!(upload::initialize() && shaders::initialize() && gpass::initialize() && fx::initialize() &&
+          content::initialize()))
+        return failed_init();
     return true;
 }
 
@@ -1001,8 +910,12 @@ shutdown()
         process_deferred_releases(i, true);
     }
 
-    // TODO: shut down modules (in reverse order of initialize()).
-    scratch::shutdown();
+    // shutdown modules
+    content::shutdown();
+    fx::shutdown();
+    gpass::shutdown();
+    shaders::shutdown();
+    upload::shutdown();
 
     for (u32 i{ 0 }; i < frame_buffer_count; ++i)
     {
@@ -1127,6 +1040,12 @@ graphics_queue()
     return gfx_command.queue();
 }
 
+void
+submit_to_graphics_queue(const VkSubmitInfo2& submit)
+{
+    gfx_command.submit(submit);
+}
+
 u32
 graphics_queue_family()
 {
@@ -1149,6 +1068,12 @@ constant_buffer&
 cbuffer()
 {
     return constant_buffers[current_frame_index()];
+}
+
+u32
+storage_buffer_offset_alignment()
+{
+    return storage_buffer_alignment;
 }
 
 VkSampler
@@ -1227,7 +1152,7 @@ surface_height(surface_id id)
 }
 
 void
-render_surface(surface_id id, frame_info)
+render_surface(surface_id id, frame_info info)
 {
     vulkan_surface& surface{ surfaces[id] };
 
@@ -1254,8 +1179,38 @@ render_surface(surface_id id, frame_info)
     // buffer is reset by the next begin_frame().
     if (!surface.acquire_next_image(gfx_command.image_acquired_semaphore())) return;
 
-    scratch::set_size(surface.width(), surface.height());
-    scratch::record(cmd, surface, id);
+    const vulkan_frame_info vulkan_info{ get_vulkan_frame_info(info, cb, surface, id, frame_idx) };
+
+    gpass::set_size({ vulkan_info.surface_width, vulkan_info.surface_height });
+    vkx::vulkan_barrier& barriers{ resource_barriers };
+
+    // Record commands
+    vkx::set_viewport(cmd, vulkan_info.surface_width, vulkan_info.surface_height);
+
+    // Depth prepass
+    gpass::add_transitions_for_depth_prepass(barriers);
+    barriers.apply(cmd);
+    gpass::depth_prepass(cmd, vulkan_info);
+
+    // Geometry and lighting pass
+    // TODO: light::update_light_buffers() and delight::cull_lights().
+    gpass::add_transitions_for_gpass(barriers);
+    barriers.apply(cmd);
+    gpass::render(cmd, vulkan_info);
+
+    // Post-process
+    gpass::add_transitions_for_post_process(barriers);
+    // The swapchain image is acquired at the color attachment output stage (end_frame()'s semaphore
+    // wait), so the barrier's first scope starts there (D3D12: PRESENT -> RENDER_TARGET).
+    constexpr vkx::resource_state acquired{ VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_NONE,
+                                            VK_IMAGE_LAYOUT_UNDEFINED };
+    barriers.add(surface.image(), VK_IMAGE_ASPECT_COLOR_BIT, acquired, vkx::resource_states.render_target);
+    barriers.apply(cmd);
+    // Will write to the current back buffer, so back buffer is a render target
+    fx::post_process(cmd, vulkan_info, surface.image_view(), surface.format());
+    // after post process
+    vkx::transition_image(cmd, surface.image(), VK_IMAGE_ASPECT_COLOR_BIT, vkx::resource_states.render_target,
+                          vkx::resource_states.present);
 
     // Done recording commands. Now submit, present and signal the fence value for this frame.
     gfx_command.end_frame(surface);

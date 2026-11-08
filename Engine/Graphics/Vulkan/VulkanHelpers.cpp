@@ -176,6 +176,170 @@ bind_resource_heap(VkCommandBuffer cmd, VkPipelineBindPoint bind_point, const ro
     vkCmdBindDescriptorSets(cmd, bind_point, signature.layout, resource_heap_set, 1, &set, 0, nullptr);
 }
 
+//// PIPELINES //////////////////////////////////////////////////////////////////////////////////
+namespace {
+
+// Shader modules are only needed while a pipeline is created.
+VkShaderModule
+create_shader_module(VkDevice device, const shader_bytecode& shader)
+{
+    assert(shader.is_valid() && (shader.size & 3) == 0);
+    VkShaderModuleCreateInfo info{ VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
+    info.codeSize = shader.size;
+    info.pCode = shader.code;
+    VkShaderModule module{ VK_NULL_HANDLE };
+    VkCall(vkCreateShaderModule(device, &info, nullptr, &module));
+    return module;
+}
+
+} // anonymous namespace
+
+VkPipeline
+create_graphics_pipeline(const graphics_pipeline_desc& desc, [[maybe_unused]] const char* name)
+{
+    const VkDevice device{ core::device() };
+    assert(device && desc.layout && desc.vs.is_valid());
+    assert(desc.render_target_count <= graphics_pipeline_desc::max_render_targets);
+
+    VkShaderModule modules[2]{};
+    VkPipelineShaderStageCreateInfo stages[2]{};
+    u32 stage_count{ 0 };
+    auto add_stage = [&](const shader_bytecode& shader, VkShaderStageFlagBits stage) {
+        if (!shader.is_valid()) return;
+        modules[stage_count] = create_shader_module(device, shader);
+        VkPipelineShaderStageCreateInfo& info{ stages[stage_count] };
+        info = { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
+        info.stage = stage;
+        info.module = modules[stage_count];
+        info.pName = shader.entry_point;
+        ++stage_count;
+    };
+    add_stage(desc.vs, VK_SHADER_STAGE_VERTEX_BIT);
+    add_stage(desc.ps, VK_SHADER_STAGE_FRAGMENT_BIT);
+
+    // Vertex data comes from structured buffers (vertex pulling), like the D3D12 shaders.
+    const VkPipelineVertexInputStateCreateInfo vertex_input{ VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO };
+
+    VkPipelineInputAssemblyStateCreateInfo input_assembly{ VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO };
+    input_assembly.topology = desc.topology;
+
+    VkPipelineViewportStateCreateInfo viewport{ VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO };
+    viewport.viewportCount = 1;
+    viewport.scissorCount = 1;
+
+    VkPipelineMultisampleStateCreateInfo multisample{ VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO };
+    multisample.rasterizationSamples = desc.samples;
+
+    VkPipelineColorBlendAttachmentState blend_attachments[graphics_pipeline_desc::max_render_targets]{};
+    for (u32 i{ 0 }; i < desc.render_target_count; ++i) blend_attachments[i] = desc.blend;
+    VkPipelineColorBlendStateCreateInfo blend{ VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO };
+    blend.attachmentCount = desc.render_target_count;
+    blend.pAttachments = &blend_attachments[0];
+
+    constexpr VkDynamicState dynamic_states[]{ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+    VkPipelineDynamicStateCreateInfo dynamic{ VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO };
+    dynamic.dynamicStateCount = (u32)std::size(dynamic_states);
+    dynamic.pDynamicStates = &dynamic_states[0];
+
+    VkPipelineRenderingCreateInfo rendering{ VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO };
+    rendering.colorAttachmentCount = desc.render_target_count;
+    rendering.pColorAttachmentFormats = &desc.render_target_formats[0];
+    rendering.depthAttachmentFormat = desc.depth_format;
+
+    VkGraphicsPipelineCreateInfo info{ VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO };
+    info.pNext = &rendering;
+    info.stageCount = stage_count;
+    info.pStages = &stages[0];
+    info.pVertexInputState = &vertex_input;
+    info.pInputAssemblyState = &input_assembly;
+    info.pViewportState = &viewport;
+    info.pRasterizationState = &desc.rasterizer;
+    info.pMultisampleState = &multisample;
+    info.pDepthStencilState = &desc.depth_stencil;
+    info.pColorBlendState = &blend;
+    info.pDynamicState = &dynamic;
+    info.layout = desc.layout;
+
+    VkPipeline pipeline{ VK_NULL_HANDLE };
+    // TODO: pipeline cache.
+    VkCall(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &info, nullptr, &pipeline));
+    for (u32 i{ 0 }; i < stage_count; ++i) vkDestroyShaderModule(device, modules[i], nullptr);
+    NAME_VK_OBJECT(pipeline, VK_OBJECT_TYPE_PIPELINE, name);
+    return pipeline;
+}
+
+VkPipeline
+create_compute_pipeline(VkPipelineLayout layout, const shader_bytecode& cs, [[maybe_unused]] const char* name)
+{
+    const VkDevice device{ core::device() };
+    assert(device && layout && cs.is_valid());
+
+    VkComputePipelineCreateInfo info{ VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO };
+    info.stage = { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
+    info.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+    info.stage.module = create_shader_module(device, cs);
+    info.stage.pName = cs.entry_point;
+    info.layout = layout;
+
+    VkPipeline pipeline{ VK_NULL_HANDLE };
+    VkCall(vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &info, nullptr, &pipeline));
+    vkDestroyShaderModule(device, info.stage.module, nullptr);
+    NAME_VK_OBJECT(pipeline, VK_OBJECT_TYPE_PIPELINE, name);
+    return pipeline;
+}
+
+void
+set_viewport(VkCommandBuffer cmd, u32 width, u32 height)
+{
+    const VkViewport viewport{ 0.f, (f32)height, (f32)width, -(f32)height, 0.f, 1.f };
+    const VkRect2D scissor{ { 0, 0 }, { width, height } };
+    vkCmdSetViewport(cmd, 0, 1, &viewport);
+    vkCmdSetScissor(cmd, 0, 1, &scissor);
+}
+
+//// FORMATS ////////////////////////////////////////////////////////////////////////////////////
+format_info
+dxgi_format_info(u32 dxgi_format)
+{
+    // DXGI_FORMAT values (dxgiformat.h). Only formats that textures use, or are likely to use.
+    switch (dxgi_format)
+    {
+    case 2: return { VK_FORMAT_R32G32B32A32_SFLOAT, 1, 1, 16 };       // R32G32B32A32_FLOAT (IBL cube maps)
+    case 6: return { VK_FORMAT_R32G32B32_SFLOAT, 1, 1, 12 };          // R32G32B32_FLOAT
+    case 10: return { VK_FORMAT_R16G16B16A16_SFLOAT, 1, 1, 8 };       // R16G16B16A16_FLOAT
+    case 11: return { VK_FORMAT_R16G16B16A16_UNORM, 1, 1, 8 };        // R16G16B16A16_UNORM
+    case 16: return { VK_FORMAT_R32G32_SFLOAT, 1, 1, 8 };             // R32G32_FLOAT
+    case 24: return { VK_FORMAT_A2B10G10R10_UNORM_PACK32, 1, 1, 4 };  // R10G10B10A2_UNORM (R in the low bits)
+    case 26: return { VK_FORMAT_B10G11R11_UFLOAT_PACK32, 1, 1, 4 };   // R11G11B10_FLOAT (R in the low bits)
+    case 28: return { VK_FORMAT_R8G8B8A8_UNORM, 1, 1, 4 };            // R8G8B8A8_UNORM
+    case 29: return { VK_FORMAT_R8G8B8A8_SRGB, 1, 1, 4 };             // R8G8B8A8_UNORM_SRGB
+    case 34: return { VK_FORMAT_R16G16_SFLOAT, 1, 1, 4 };             // R16G16_FLOAT (BRDF LUT)
+    case 35: return { VK_FORMAT_R16G16_UNORM, 1, 1, 4 };              // R16G16_UNORM
+    case 41: return { VK_FORMAT_R32_SFLOAT, 1, 1, 4 };                // R32_FLOAT
+    case 49: return { VK_FORMAT_R8G8_UNORM, 1, 1, 2 };                // R8G8_UNORM
+    case 54: return { VK_FORMAT_R16_SFLOAT, 1, 1, 2 };                // R16_FLOAT
+    case 56: return { VK_FORMAT_R16_UNORM, 1, 1, 2 };                 // R16_UNORM
+    case 61: return { VK_FORMAT_R8_UNORM, 1, 1, 1 };                  // R8_UNORM
+    case 71: return { VK_FORMAT_BC1_RGBA_UNORM_BLOCK, 4, 4, 8 };      // BC1_UNORM
+    case 72: return { VK_FORMAT_BC1_RGBA_SRGB_BLOCK, 4, 4, 8 };       // BC1_UNORM_SRGB
+    case 74: return { VK_FORMAT_BC2_UNORM_BLOCK, 4, 4, 16 };          // BC2_UNORM
+    case 75: return { VK_FORMAT_BC2_SRGB_BLOCK, 4, 4, 16 };           // BC2_UNORM_SRGB
+    case 77: return { VK_FORMAT_BC3_UNORM_BLOCK, 4, 4, 16 };          // BC3_UNORM
+    case 78: return { VK_FORMAT_BC3_SRGB_BLOCK, 4, 4, 16 };           // BC3_UNORM_SRGB
+    case 80: return { VK_FORMAT_BC4_UNORM_BLOCK, 4, 4, 8 };           // BC4_UNORM
+    case 81: return { VK_FORMAT_BC4_SNORM_BLOCK, 4, 4, 8 };           // BC4_SNORM
+    case 83: return { VK_FORMAT_BC5_UNORM_BLOCK, 4, 4, 16 };          // BC5_UNORM
+    case 84: return { VK_FORMAT_BC5_SNORM_BLOCK, 4, 4, 16 };          // BC5_SNORM
+    case 87: return { VK_FORMAT_B8G8R8A8_UNORM, 1, 1, 4 };            // B8G8R8A8_UNORM
+    case 91: return { VK_FORMAT_B8G8R8A8_SRGB, 1, 1, 4 };             // B8G8R8A8_UNORM_SRGB
+    case 95: return { VK_FORMAT_BC6H_UFLOAT_BLOCK, 4, 4, 16 };        // BC6H_UF16
+    case 96: return { VK_FORMAT_BC6H_SFLOAT_BLOCK, 4, 4, 16 };        // BC6H_SF16
+    case 98: return { VK_FORMAT_BC7_UNORM_BLOCK, 4, 4, 16 };          // BC7_UNORM
+    case 99: return { VK_FORMAT_BC7_SRGB_BLOCK, 4, 4, 16 };           // BC7_UNORM_SRGB
+    default: return {};
+    }
+}
+
 void
 load_device_functions(VkDevice device)
 {
