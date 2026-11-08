@@ -42,6 +42,8 @@ public:
     [[nodiscard]] constexpr u32 height() const { return _extent.height; }
     [[nodiscard]] constexpr VkExtent2D extent() const { return _extent; }
     [[nodiscard]] constexpr VkFormat format() const { return _format; }
+    // The surface's light culler (delight), like d3d12_surface.
+    [[nodiscard]] constexpr id::id_type light_culling_id() const { return _light_culling_id; }
     [[nodiscard]] constexpr VkImage image() const { return _images[_image_index]; }
     [[nodiscard]] constexpr VkImageView image_view() const { return _image_views[_image_index]; }
     // Signaled by the frame's submit, waited on by present. One per image: a semaphore can only be
@@ -65,6 +67,7 @@ private:
     VkFormat _format{ VK_FORMAT_UNDEFINED };
     VkColorSpaceKHR _color_space{ VK_COLOR_SPACE_SRGB_NONLINEAR_KHR };
     VkPresentModeKHR _present_mode{ VK_PRESENT_MODE_FIFO_KHR };
+    id::id_type _light_culling_id{ id::invalid_id };
     bool _vsync{ true };
     bool _out_of_date{ false };
 };

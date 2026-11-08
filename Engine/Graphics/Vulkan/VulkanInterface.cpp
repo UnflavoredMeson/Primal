@@ -5,6 +5,7 @@
 #include "VulkanCore.h"
 #include "VulkanCamera.h"
 #include "VulkanContent.h"
+#include "VulkanLight.h"
 #include "Graphics/GraphicsPlatformInterface.h"
 
 namespace primal::graphics::vulkan {
@@ -38,7 +39,12 @@ get_platform_interface(platform_interface& pi)
     pi.camera.set_parameter = camera::set_parameter;
     pi.camera.get_parameter = camera::get_parameter;
 
-    // TODO: lights. Until then those entries stay null.
+    pi.light.create_light_set = light::create_light_set;
+    pi.light.remove_light_set = light::remove_light_set;
+    pi.light.create = light::create;
+    pi.light.remove = light::remove;
+    pi.light.set_parameter = light::set_parameter;
+    pi.light.get_parameter = light::get_parameter;
 
     pi.platform = graphics_platform::vulkan;
 }

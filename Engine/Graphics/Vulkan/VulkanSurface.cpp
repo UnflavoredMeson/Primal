@@ -2,6 +2,7 @@
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "VulkanSurface.h" // first: includes Windows.h with NOMINMAX (VulkanCommonHeaders.h)
 #include "VulkanCore.h"
+#include "VulkanLightCulling.h"
 #include "Platform/PlatformTypes.h"
 #include <algorithm>
 
@@ -131,6 +132,9 @@ vulkan_surface::create()
     assert(_surface == VK_NULL_HANDLE);
     const platform::native_window_handle* const native{ _window.handle() };
     assert(native);
+
+    assert(!id::is_valid(_light_culling_id));
+    _light_culling_id = delight::add_culler();
 
     // The platform layer must stop drawing to the window before a swapchain presents to it.
     _window.set_has_graphics_surface(true);
@@ -329,6 +333,12 @@ vulkan_surface::release_swapchain_resources()
 void
 vulkan_surface::release()
 {
+    if (id::is_valid(_light_culling_id))
+    {
+        delight::remove_culler(_light_culling_id);
+        _light_culling_id = id::invalid_id;
+    }
+
     if (_surface == VK_NULL_HANDLE) return;
 
     release_swapchain_resources();

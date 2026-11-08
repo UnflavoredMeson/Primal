@@ -6,6 +6,8 @@
 #include "VulkanCamera.h"
 #include "VulkanContent.h"
 #include "VulkanCore.h"
+#include "VulkanLight.h"
+#include "VulkanLightCulling.h"
 #include "VulkanResources.h"
 #include "VulkanSharedTypes.h"
 
@@ -42,12 +44,6 @@ struct opaque_register
         light_index_list = 6,    // t6
     };
 };
-
-// TODO: the light buffers and the light culling grid. Until then t3-t6 are bound to this zeroed buffer
-//       (big enough for a light grid of a 4K surface: 120 x 68 tiles of uint2), and NumDirectionalLights is 0, so
-//       the shaders find no lights. Also bound for t1 when a mesh has no element buffer (position-only vertices).
-constexpr u32 placeholder_buffer_size{ 256 * 1024 };
-vulkan_buffer placeholder_buffer{};
 
 // Per-frame render item data (counterpart of d3d12's gpass_cache; separate arrays instead of one packed buffer).
 struct gpass_cache
@@ -158,20 +154,6 @@ create_buffers(math::u32v2 size)
     return gpass_main_buffer.image() && gpass_depth_buffer.image();
 }
 
-bool
-create_placeholder_buffer()
-{
-    const std::unique_ptr<u8[]> zeros{ std::make_unique<u8[]>(placeholder_buffer_size) }; // value-initialized
-    vulkan_buffer_init_info info{};
-    info.data = zeros.get();
-    info.size = placeholder_buffer_size;
-    info.alignment = sizeof(math::v4);
-    info.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-    placeholder_buffer = vulkan_buffer{ info, false };
-    NAME_VK_OBJECT(placeholder_buffer.buffer(), VK_OBJECT_TYPE_BUFFER, "GPass Placeholder Buffer (lights)");
-    return placeholder_buffer.buffer() != VK_NULL_HANDLE;
-}
-
 void
 fill_per_object_data(const vulkan_frame_info& vulkan_info)
 {
@@ -274,7 +256,8 @@ add_per_item_root_parameters(vkx::root_descriptors& root, u32 cache_index)
         using reg = opaque_register;
         const vkx::buffer_range& elements{ cache.element_buffers[cache_index] };
         root.srv(reg::position_buffer, cache.position_buffers[cache_index]);
-        root.srv(reg::element_buffer, elements.is_valid() ? elements : placeholder_buffer.range());
+        // Position-only meshes have no element buffer (their vertex shaders don't read t1). D3D12 binds address 0.
+        root.srv(reg::element_buffer, elements.is_valid() ? elements : core::zero_buffer());
         root.cbv(reg::per_object_data, cache.per_object_data[cache_index]);
         root.srv(reg::material_data, cache.material_data[cache_index]);
     }
@@ -297,7 +280,7 @@ draw_item(VkCommandBuffer cmd, u32 cache_index)
 bool
 initialize()
 {
-    return create_buffers(initial_dimensions) && create_placeholder_buffer();
+    return create_buffers(initial_dimensions);
 }
 
 void
@@ -305,7 +288,6 @@ shutdown()
 {
     gpass_main_buffer.release();
     gpass_depth_buffer.release();
-    placeholder_buffer.release();
     dimensions = initial_dimensions;
 }
 
@@ -415,7 +397,8 @@ render(VkCommandBuffer cmd, const vulkan_frame_info& vulkan_info)
 
     VkPipelineLayout current_layout{ VK_NULL_HANDLE };
     VkPipeline current_pipeline{ VK_NULL_HANDLE };
-    const vkx::buffer_range lights{ placeholder_buffer.range() };
+    const u32 frame_index{ vulkan_info.frame_index };
+    const id::id_type light_culling_id{ vulkan_info.light_culling_id };
 
     for (u32 i{ 0 }; i < items_count; ++i)
     {
@@ -426,12 +409,10 @@ render(VkCommandBuffer cmd, const vulkan_frame_info& vulkan_info)
             using reg = opaque_register;
             current_layout = signature.layout;
             root.cbv(reg::global_shader_data, vulkan_info.global_shader_data);
-            // TODO: light::non_cullable_light_buffer(), light::cullable_light_buffer(),
-            //       delight::light_grid_opaque(), delight::light_index_list_opaque().
-            root.srv(reg::directional_lights, lights);
-            root.srv(reg::cullable_lights, lights);
-            root.srv(reg::light_grid, lights);
-            root.srv(reg::light_index_list, lights);
+            root.srv(reg::directional_lights, light::non_cullable_light_buffer(frame_index));
+            root.srv(reg::cullable_lights, light::cullable_light_buffer(frame_index));
+            root.srv(reg::light_grid, delight::light_grid_opaque(light_culling_id, frame_index));
+            root.srv(reg::light_index_list, delight::light_index_list_opaque(light_culling_id, frame_index));
             vkx::bind_resource_heap(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, signature);
         }
 

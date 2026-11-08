@@ -31,6 +31,8 @@ target_sources(Engine PRIVATE
     Graphics/Vulkan/VulkanGPass.cpp
     Graphics/Vulkan/VulkanHelpers.cpp
     Graphics/Vulkan/VulkanInterface.cpp
+    Graphics/Vulkan/VulkanLight.cpp
+    Graphics/Vulkan/VulkanLightCulling.cpp
     Graphics/Vulkan/VulkanMemoryAllocator.cpp
     Graphics/Vulkan/VulkanPostProcess.cpp
     Graphics/Vulkan/VulkanResources.cpp

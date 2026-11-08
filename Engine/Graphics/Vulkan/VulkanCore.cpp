@@ -4,6 +4,8 @@
 #include "VulkanCamera.h"
 #include "VulkanContent.h"
 #include "VulkanGPass.h"
+#include "VulkanLight.h"
+#include "VulkanLightCulling.h"
 #include "VulkanHelpers.h"
 #include "VulkanPostProcess.h"
 #include "VulkanResources.h"
@@ -274,6 +276,7 @@ VkDevice main_device{ VK_NULL_HANDLE };
 vulkan_command gfx_command;
 surface_collection surfaces;
 VmaAllocator vma_allocator{ VK_NULL_HANDLE };
+vulkan_buffer zero_buffer_object{};
 u32 storage_buffer_alignment{ 16 }; // max(16, minStorageBufferOffsetAlignment), set by create_device()
 descriptor_heap srv_desc_heap;
 constant_buffer constant_buffers[frame_buffer_count];
@@ -734,6 +737,24 @@ create_allocator()
     return VkCall(vmaCreateAllocator(&info, &vma_allocator));
 }
 
+// A zeroed GPU buffer bound wherever a root SRV has no buffer yet (D3D12 binds address 0 there): light buffers before
+// a light set has lights, element buffers of position-only meshes. 256 KB covers a 4K surface's light grid (120 x 68
+// tiles of uint2).
+bool
+create_zero_buffer()
+{
+    constexpr u32 size{ 256 * 1024 };
+    const std::unique_ptr<u8[]> zeros{ std::make_unique<u8[]>(size) }; // value-initialized
+    vulkan_buffer_init_info info{};
+    info.data = zeros.get();
+    info.size = size;
+    info.alignment = sizeof(math::v4);
+    info.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+    zero_buffer_object = vulkan_buffer{ info, false };
+    NAME_VK_OBJECT(zero_buffer_object.buffer(), VK_OBJECT_TYPE_BUFFER, "Zero Buffer");
+    return zero_buffer_object.buffer() != VK_NULL_HANDLE;
+}
+
 bool
 create_static_samplers()
 {
@@ -822,6 +843,9 @@ get_vulkan_frame_info(const frame_info& info, constant_buffer& cbuffer, const vu
         XMStoreFloat4x4A(&data.InvViewProjection, camera->inverse_view_projection());
         XMStoreFloat3(&data.CameraPosition, camera->position());
         XMStoreFloat3(&data.CameraDirection, camera->direction());
+        // A scene (camera) needs a light set, like in D3D12 (light::* assert that it exists).
+        data.NumDirectionalLights = light::non_cullable_light_count(info.light_set_key);
+        data.AmbientLight = light::ambient_light(info.light_set_key);
     }
     else
     {
@@ -833,15 +857,12 @@ get_vulkan_frame_info(const frame_info& info, constant_buffer& cbuffer, const vu
         XMStoreFloat4x4A(&data.ViewProjection, identity);
         XMStoreFloat4x4A(&data.InvViewProjection, identity);
         data.CameraDirection = { 0.f, 0.f, -1.f };
+        // No lights (NumDirectionalLights 0) and no ambient light (what light::ambient_light() returns without one).
+        data.AmbientLight = { -1.f, u32_invalid_id, u32_invalid_id, u32_invalid_id };
     }
-    // TODO: directional light count and ambient light from info.light_set_key. Until then there are no
-    //       lights (NumDirectionalLights 0) and the ambient light is off (Intensity 0).
     data.ViewWidth = (f32)surface.width();
     data.ViewHeight = (f32)surface.height();
     data.DeltaTime = info.average_frame_time;
-    data.AmbientLight.SpecularSrvIndex = u32_invalid_id;
-    data.AmbientLight.DiffuseSrvIndex = u32_invalid_id;
-    data.AmbientLight.BrdfLutSrvIndex = u32_invalid_id;
 
     // NOTE: be careful not to read from this buffer. Reads are really really slow (write-combined memory).
     hlsl::GlobalShaderData* const shader_data{ cbuffer.allocate<hlsl::GlobalShaderData>() };
@@ -856,6 +877,7 @@ get_vulkan_frame_info(const frame_info& info, constant_buffer& cbuffer, const vu
     vulkan_info.surface_width = surface.width();
     vulkan_info.surface_height = surface.height();
     vulkan_info.surface_id = (id::id_type)id;
+    vulkan_info.light_culling_id = surface.light_culling_id();
     vulkan_info.frame_index = frame_idx;
     return vulkan_info;
 }
@@ -894,8 +916,8 @@ initialize()
     // initialize modules
     // TODO: light + delight
     // NOTE: upload goes first (D3D12: after fx): modules may upload data while they initialize (gpass does).
-    if (!(upload::initialize() && shaders::initialize() && gpass::initialize() && fx::initialize() &&
-          content::initialize()))
+    if (!(upload::initialize() && create_zero_buffer() && shaders::initialize() && gpass::initialize() &&
+          fx::initialize() && content::initialize() && delight::initialize()))
         return failed_init();
     return true;
 }
@@ -911,10 +933,12 @@ shutdown()
     }
 
     // shutdown modules
+    delight::shutdown();
     content::shutdown();
     fx::shutdown();
     gpass::shutdown();
     shaders::shutdown();
+    zero_buffer_object.release();
     upload::shutdown();
 
     for (u32 i{ 0 }; i < frame_buffer_count; ++i)
@@ -1070,6 +1094,12 @@ cbuffer()
     return constant_buffers[current_frame_index()];
 }
 
+vkx::buffer_range
+zero_buffer()
+{
+    return zero_buffer_object.range();
+}
+
 u32
 storage_buffer_offset_alignment()
 {
@@ -1193,8 +1223,13 @@ render_surface(surface_id id, frame_info info)
     gpass::depth_prepass(cmd, vulkan_info);
 
     // Geometry and lighting pass
-    // TODO: light::update_light_buffers() and delight::cull_lights().
     gpass::add_transitions_for_gpass(barriers);
+    if (vulkan_info.camera)
+    {
+        // No camera (SURFACES test): nothing is drawn, so there's no light set or culling either.
+        light::update_light_buffers(vulkan_info);
+        delight::cull_lights(cmd, vulkan_info, barriers);
+    }
     barriers.apply(cmd);
     gpass::render(cmd, vulkan_info);
 

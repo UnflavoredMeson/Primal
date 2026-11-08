@@ -114,6 +114,8 @@ void submit_to_graphics_queue(const VkSubmitInfo2& submit);
 // Alignment for the offset of a buffer range bound as a root SRV/UAV: max(16, minStorageBufferOffsetAlignment).
 // D3D12 root SRVs only need 4 bytes, so data packed for D3D12 (mesh assets) is repacked with this alignment.
 [[nodiscard]] u32 storage_buffer_offset_alignment();
+// A zeroed storage buffer (256 KB) for root SRVs that have no buffer yet (D3D12 binds address 0 there).
+[[nodiscard]] vkx::buffer_range zero_buffer();
 // The D3D12 static samplers as immutable samplers (vkx::root_parameter::sampler).
 [[nodiscard]] VkSampler static_sampler(vkx::static_sampler::type type);
 [[nodiscard]] u32 current_frame_index();

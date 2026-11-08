@@ -4,6 +4,7 @@
 #include "VulkanCore.h"
 #include "VulkanGPass.h"
 #include "VulkanHelpers.h"
+#include "VulkanLightCulling.h"
 #include "VulkanResources.h"
 #include "VulkanShaders.h"
 
@@ -39,7 +40,7 @@ create_fx_root_signature()
     const param parameters[]{
         param::cbv(0, pixel), // GlobalData
         param::cbv(1, pixel), // ShaderParams (D3D12 root constants)
-        // TODO: Frustums and LightGridOpaque for the light culling visualizations.
+        // TODO: temporary for visualizing light culling (Frustums, LightGridOpaque). Remove later.
         param::srv(0, pixel),
         param::srv(1, pixel),
         param::sampler(vkx::static_sampler::point, 0, pixel),
@@ -113,6 +114,9 @@ post_process(VkCommandBuffer cmd, const vulkan_frame_info& vulkan_info, VkImageV
     vkx::root_descriptors root{};
     root.cbv(0, vulkan_info.global_shader_data);
     root.cbv(1, cbuffer.range(constants));
+    // TODO: temporary for visualizing light culling (Frustums, LightGridOpaque). Remove later (same as D3D12).
+    root.srv(0, delight::frustums(vulkan_info.light_culling_id, vulkan_info.frame_index));
+    root.srv(1, delight::light_grid_opaque(vulkan_info.light_culling_id, vulkan_info.frame_index));
     root.push(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, fx_root_sig);
     vkx::bind_resource_heap(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, fx_root_sig);
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);

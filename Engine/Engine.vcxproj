@@ -62,6 +62,8 @@
     <ClInclude Include="Graphics\Vulkan\VulkanGPass.h" />
     <ClInclude Include="Graphics\Vulkan\VulkanHelpers.h" />
     <ClInclude Include="Graphics\Vulkan\VulkanInterface.h" />
+    <ClInclude Include="Graphics\Vulkan\VulkanLight.h" />
+    <ClInclude Include="Graphics\Vulkan\VulkanLightCulling.h" />
     <ClInclude Include="Graphics\Vulkan\VulkanPostProcess.h" />
     <ClInclude Include="Graphics\Vulkan\VulkanResources.h" />
     <ClInclude Include="Graphics\Vulkan\VulkanShaders.h" />
@@ -113,6 +115,8 @@
     <ClCompile Include="Graphics\Vulkan\VulkanGPass.cpp" Condition="'$(PrimalVulkan)' == 'true'" />
     <ClCompile Include="Graphics\Vulkan\VulkanHelpers.cpp" Condition="'$(PrimalVulkan)' == 'true'" />
     <ClCompile Include="Graphics\Vulkan\VulkanInterface.cpp" Condition="'$(PrimalVulkan)' == 'true'" />
+    <ClCompile Include="Graphics\Vulkan\VulkanLight.cpp" Condition="'$(PrimalVulkan)' == 'true'" />
+    <ClCompile Include="Graphics\Vulkan\VulkanLightCulling.cpp" Condition="'$(PrimalVulkan)' == 'true'" />
     <ClCompile Include="Graphics\Vulkan\VulkanMemoryAllocator.cpp" Condition="'$(PrimalVulkan)' == 'true'" />
     <ClCompile Include="Graphics\Vulkan\VulkanPostProcess.cpp" Condition="'$(PrimalVulkan)' == 'true'" />
     <ClCompile Include="Graphics\Vulkan\VulkanResources.cpp" Condition="'$(PrimalVulkan)' == 'true'" />
