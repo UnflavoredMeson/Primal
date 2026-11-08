@@ -16,6 +16,7 @@
 #include "Utilities/IOStream.h"
 
 #include <cstdio>
+#include <cstdlib>
 #include <fstream>
 #include <filesystem>
 #include <iterator>
@@ -487,6 +488,31 @@ compile_shader(shader_file_info info, const char* file_path, utl::vector<std::ws
     // NOTE: according to marcelolr (https://github.com/Microsoft/DirectXShaderCompiler/issues/79)
     //       "creating compiler instances is pretty cheap, so it's probably not worth the hassle of caching / sharing them."
     return pack_compiled_shader(shader_compiler{ platform }.compile(info, full_path, extra_args), include_errors_and_disassembly);
+}
+
+graphics::graphics_platform
+selected_graphics_platform()
+{
+    constexpr const char* name{ "PRIMAL_GRAPHICS" };
+    std::string value;
+#ifdef _MSC_VER
+    // std::getenv is deprecated by MSVC (C4996).
+    char* env{ nullptr };
+    size_t size{ 0 };
+    if (_dupenv_s(&env, &size, name) == 0 && env)
+    {
+        value = env;
+        std::free(env);
+    }
+#else
+    if (const char* const env{ std::getenv(name) }) value = env;
+#endif
+
+    if (value.empty()) return default_shader_platform;
+    if (value == "vulkan") return graphics::graphics_platform::vulkan;
+    if (value == "d3d12") return graphics::graphics_platform::direct3d12;
+    fprintf(stderr, "PRIMAL_GRAPHICS=%s is not \"vulkan\" or \"d3d12\"; using the default backend.\n", value.c_str());
+    return default_shader_platform;
 }
 
 bool

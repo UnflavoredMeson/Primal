@@ -162,14 +162,15 @@ GetEngineVersion(int* major, int* minor, int* revision)
 EDITOR_INTERFACE engine_init_error::error_code
 InitializeEngine()
 {
-    while (!compile_shaders())
+    const graphics::graphics_platform platform{ selected_graphics_platform() };
+    while (!compile_shaders(platform))
     {
         // Pop up a message box allowing the user to retry compilation.
         if (MessageBoxA(nullptr, "Failed to compile engine shaders.", "Shader Compilation Error", MB_RETRYCANCEL) != IDRETRY)
             return engine_init_error::shader_compilation;
     }
 
-    if (!graphics::initialize(graphics::graphics_platform::direct3d12))
+    if (!graphics::initialize(platform))
     {
         return engine_init_error::graphics;
     }

@@ -97,6 +97,8 @@ load_shaders()
     info.type = graphics::shader_type::vertex;
 
     const char* shader_path{ "../../EngineTest/" };
+    // Same backend as graphics::initialize() (DXIL for Direct3D 12, SPIR-V for Vulkan).
+    const graphics::graphics_platform platform{ selected_graphics_platform() };
 
     std::wstring defines[]{ L"ELEMENTS_TYPE=0", L"ELEMENTS_TYPE=1", L"ELEMENTS_TYPE=3" };
     utl::vector<u32> keys;
@@ -112,7 +114,7 @@ load_shaders()
         extra_args.clear();
         extra_args.emplace_back(L"-D");
         extra_args.emplace_back(defines[i]);
-        vertex_shaders.emplace_back(compile_shader(info, shader_path, extra_args));
+        vertex_shaders.emplace_back(compile_shader(info, shader_path, extra_args, false, platform));
         assert(vertex_shaders.back().get());
         vertex_shader_pointers.emplace_back(vertex_shaders.back().get());
     }
@@ -122,14 +124,14 @@ load_shaders()
     info.type = graphics::shader_type::pixel;
     utl::vector<std::unique_ptr<u8[]>> pixel_shaders;
 
-    pixel_shaders.emplace_back(compile_shader(info, shader_path, extra_args));
+    pixel_shaders.emplace_back(compile_shader(info, shader_path, extra_args, false, platform));
     assert(pixel_shaders.back().get());
 
     defines[0] = L"TEXTURED_MTL=1";
     extra_args.emplace_back(L"-D");
     extra_args.emplace_back(defines[0]);
 
-    pixel_shaders.emplace_back(compile_shader(info, shader_path, extra_args));
+    pixel_shaders.emplace_back(compile_shader(info, shader_path, extra_args, false, platform));
     assert(pixel_shaders.back().get());
 
     vs_id = content::add_shader_group(vertex_shader_pointers.data(), (u32)vertex_shader_pointers.size(), keys.data());

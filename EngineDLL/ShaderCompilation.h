@@ -27,3 +27,7 @@ std::unique_ptr<u8[]> compile_shader(shader_file_info info, const char* file_pat
                                      bool include_errors_and_disassembly = false,
                                      primal::graphics::graphics_platform platform = default_shader_platform);
 bool compile_shaders(primal::graphics::graphics_platform platform = default_shader_platform);
+
+// Graphics backend to run on: the PRIMAL_GRAPHICS environment variable ("vulkan" or "d3d12"),
+// else default_shader_platform. Unknown values are reported on stderr and ignored.
+primal::graphics::graphics_platform selected_graphics_platform();

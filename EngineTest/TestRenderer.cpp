@@ -242,14 +242,15 @@ destroy_camera_surface(camera_surface& surface)
 bool
 test_initialize()
 {
-    while (!compile_shaders())
+    const graphics::graphics_platform platform{ selected_graphics_platform() };
+    while (!compile_shaders(platform))
     {
         // Pop up a message box allowing the user to retry compilation.
         if (MessageBox(nullptr, L"Failed to compile engine shaders.", L"Shader Compilation Error", MB_RETRYCANCEL) != IDRETRY)
             return false;
     }
 
-    if (!graphics::initialize(graphics::graphics_platform::direct3d12)) return false;
+    if (!graphics::initialize(platform)) return false;
 
     platform::window_init_info info[]
     {

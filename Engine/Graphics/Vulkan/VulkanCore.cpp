@@ -510,6 +510,9 @@ create_instance()
         if (validation)
         {
             const auto create_messenger{ (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(vk_instance, "vkCreateDebugUtilsMessengerEXT") };
+            // messenger_info was part of the vkCreateInstance pNext chain (pNext may point at settings_info);
+            // vkCreateDebugUtilsMessengerEXT requires pNext == nullptr.
+            messenger_info.pNext = nullptr;
             if (create_messenger) VkCall(create_messenger(vk_instance, &messenger_info, nullptr, &debug_messenger));
         }
     }
