@@ -15,7 +15,7 @@ content::compiled_shader_ptr engine_shaders[engine_shader::count]{};
 // NOTE: in shaders.bin the records are packed back to back, so a record's u64 size is only 8-byte aligned
 //       when the previous byte code sizes happen to be multiples of 8 (they're multiples of 4). Reading a
 //       misaligned compiled_shader is undefined behavior (UBSan reports it), so the records are copied to
-//       8-byte aligned offsets in this blob. (D3D12Shaders.cpp reads the file in place.)
+//       8-byte aligned offsets in this blob. (D3D12Shaders.cpp uses the same loader.)
 std::unique_ptr<u8[]> engine_shaders_blob{};
 
 bool
