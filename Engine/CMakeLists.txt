@@ -56,7 +56,7 @@ target_link_libraries(Engine PUBLIC
     Vulkan::Vulkan
 )
 
-# Shader compiler (HLSL -> DXIL/SPIR-V via DXC). Reusable by EngineTest and, later, a Linux EngineDLL.
+# Shader compiler (HLSL -> DXIL/SPIR-V via DXC). Used by ShaderCompilerTool, EngineTest and, later, a Linux EngineDLL.
 # NOTE: on Windows the .vcxproj files compile EngineDLL/ShaderCompilation.cpp directly.
 find_library(DXCOMPILER_LIBRARY NAMES dxcompiler REQUIRED)
 add_library(ShaderCompiler STATIC ${PROJECT_SOURCE_DIR}/EngineDLL/ShaderCompilation.cpp)

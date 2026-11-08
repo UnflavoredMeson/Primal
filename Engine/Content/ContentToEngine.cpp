@@ -376,6 +376,37 @@ remove_shader_group(id::id_type id)
     shader_groups.remove(id);
 }
 
+bool
+get_engine_shaders(const u8 *const blob, u64 size, compiled_shader_ptr *const shaders, u32 shader_count)
+{
+    assert(blob && shaders && shader_count);
+    assert(((uintptr_t)blob % engine_shaders_header::record_alignment) == 0);
+    if (size < sizeof(engine_shaders_header)) return false;
+
+    engine_shaders_header header{};
+    memcpy(&header, blob, sizeof(header));
+    if (header.magic != engine_shaders_header::magic_value || header.version != engine_shaders_header::current_version ||
+        header.shader_count != shader_count)
+    {
+        return false;
+    }
+
+    constexpr u64 alignment{ engine_shaders_header::record_alignment };
+    constexpr u64 record_header_size{ compiled_shader::buffer_size(0) };
+    u64 offset{ sizeof(engine_shaders_header) };
+    for (u32 i{ 0 }; i < shader_count; ++i)
+    {
+        assert(offset % alignment == 0);
+        if (offset + record_header_size > size) return false;
+        const compiled_shader_ptr shader{ reinterpret_cast<compiled_shader_ptr>(&blob[offset]) };
+        if (!shader->byte_code_size() || shader->byte_code_size() > size - offset - record_header_size) return false;
+        shaders[i] = shader;
+        offset = math::align_size_up<alignment>(offset + shader->buffer_size());
+    }
+
+    return offset == size;
+}
+
 compiled_shader_ptr
 get_shader(id::id_type id, u32 shader_key)
 {

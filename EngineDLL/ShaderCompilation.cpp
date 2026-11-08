@@ -46,9 +46,9 @@ shader_log(const char* message)
 {
 #if PRIMAL_PLATFORM_WINDOWS
     OutputDebugStringA(message);
-#else
-    std::fputs(message, stderr);
 #endif
+    // Also on Windows: PrimalShaderCompiler runs as a build step, where only stderr reaches the build output.
+    std::fputs(message, stderr);
 }
 
 } // anonymous namespace
@@ -425,8 +425,9 @@ engine_shaders_file_path(graphics::graphics_platform platform)
     return std::filesystem::path{ graphics::get_engine_shaders_path(platform) };
 }
 
-// Bump when the shaders.bin layout or anything else that affects the output (but isn't a compiler argument) changes.
-constexpr u32 compiled_shaders_format_version{ 1 };
+// Bump content::engine_shaders_header::current_version when the shaders.bin layout changes, and this when anything
+// else that affects the output (but isn't a compiler argument) changes. Both are part of the key.
+constexpr u32 compiled_shaders_key_version{ 1 };
 
 // Arguments for the engine shaders that aren't the same for every shader.
 utl::vector<std::wstring>
@@ -448,7 +449,8 @@ engine_shader_extra_args(engine_shader::id id)
 std::string
 compiled_shaders_key(shader_compiler& compiler)
 {
-    std::string text{ "format " + std::to_string(compiled_shaders_format_version) + "\ndxc " + compiler.version() + "\n" };
+    std::string text{ "format " + std::to_string(content::engine_shaders_header::current_version) + "." +
+                      std::to_string(compiled_shaders_key_version) + "\ndxc " + compiler.version() + "\n" };
     for (const auto& file : engine_shader_files)
     {
         utl::vector<std::wstring> extra_args{ engine_shader_extra_args(file.id) };
@@ -534,6 +536,15 @@ save_compiled_shaders(utl::vector<dxc_compiled_shader>& shaders, graphics::graph
             return false;
         }
 
+        // Layout: see content::engine_shaders_header.
+        content::engine_shaders_header header{};
+        header.magic = content::engine_shaders_header::magic_value;
+        header.version = content::engine_shaders_header::current_version;
+        header.shader_count = (u32)shaders.size();
+        file.write((const char*)&header, sizeof(header));
+
+        constexpr u64 alignment{ content::engine_shaders_header::record_alignment };
+        constexpr char padding[alignment]{};
         for (const auto& shader : shaders)
         {
             void *const byte_code{ shader.byte_code->GetBufferPointer() };
@@ -541,6 +552,8 @@ save_compiled_shaders(utl::vector<dxc_compiled_shader>& shaders, graphics::graph
             file.write((char*)&byte_code_length, sizeof(byte_code_length));
             file.write((char*)&shader.hash[0], shader_hash_length);
             file.write((char*)byte_code, byte_code_length);
+            const u64 record_size{ content::compiled_shader::buffer_size(byte_code_length) };
+            file.write(padding, (std::streamsize)(math::align_size_up<alignment>(record_size) - record_size));
         }
         if (!file.flush()) return false;
     }

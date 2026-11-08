@@ -45,6 +45,21 @@ private:
     u8          _byte_code;
 } const *compiled_shader_ptr;
 
+// Layout of shaders.bin (written by EngineDLL/ShaderCompilation.cpp, read by both graphics backends):
+// an engine_shaders_header, then shader_count compiled_shader records. Every record starts at an 8-byte aligned
+// offset (zero padding after the byte code, also after the last record), so the records can be used in place.
+struct engine_shaders_header
+{
+    static constexpr u32 magic_value{ 0x42485350 };   // "PSHB" (little endian)
+    static constexpr u32 current_version{ 2 };        // 1 = the old layout without header, records packed back to back
+    static constexpr u64 record_alignment{ sizeof(u64) };
+    u32 magic;
+    u32 version;
+    u32 shader_count;
+    u32 reserved;
+};
+static_assert(sizeof(engine_shaders_header) % engine_shaders_header::record_alignment == 0);
+
 struct lod_offset
 {
     u16 offset;
@@ -57,6 +72,10 @@ void destroy_resource(id::id_type id, asset_type::type type);
 id::id_type add_shader_group(const u8 *const * shaders, u32 num_shaders, const u32 *const keys);
 void remove_shader_group(id::id_type id);
 compiled_shader_ptr get_shader(id::id_type id, u32 shader_key);
+// Finds the shader_count records in the contents of a shaders.bin file. Returns false if the blob isn't a complete
+// shaders.bin of the current version with exactly shader_count shaders. The blob must be 8-byte aligned and must
+// outlive the returned pointers.
+bool get_engine_shaders(const u8 *const blob, u64 size, compiled_shader_ptr *const shaders, u32 shader_count);
 
 void get_submesh_gpu_ids(id::id_type geometry_content_id, u32 id_count, id::id_type *const gpu_ids);
 void get_lod_offsets(const id::id_type *const geometry_ids, const f32 *const thresholds, u32 id_count, utl::vector<lod_offset>& offsets);

@@ -28,4 +28,5 @@ include(PrimalDependencies)
 include(PrimalBuildSettings)
 
 add_subdirectory(Engine)
+add_subdirectory(ShaderCompilerTool)
 add_subdirectory(EngineTest)
