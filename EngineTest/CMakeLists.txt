@@ -27,9 +27,9 @@ foreach(_test IN LISTS _primal_tests)
 endforeach()
 
 target_link_libraries(EngineTest PRIVATE Engine)
-# The surfaces test compiles the engine shaders. (TestRenderer.cpp still #includes ShaderCompilation.cpp,
-# so the renderer test must not link the library too; Phase 7 switches it over.)
-if(PRIMAL_ENGINE_TEST STREQUAL "SURFACES")
+# The surfaces and renderer tests compile the engine shaders. (EngineTest.vcxproj compiles
+# ../EngineDLL/ShaderCompilation.cpp into the test instead.)
+if(PRIMAL_ENGINE_TEST STREQUAL "SURFACES" OR PRIMAL_ENGINE_TEST STREQUAL "RENDERER")
     target_link_libraries(EngineTest PRIVATE ShaderCompiler)
 endif()
 

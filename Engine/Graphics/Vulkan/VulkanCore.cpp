@@ -1168,6 +1168,9 @@ remove_surface(surface_id id)
 void
 resize_surface(surface_id id, u32, u32)
 {
+    // NOTE: SDL sends a resize event when a window is first shown, at the size the swapchain was just created with.
+    //       Skip the flush + recreate then (render_surface() checks again every frame anyway).
+    if (!surfaces[id].needs_resize()) return;
     gfx_command.flush();
     surfaces[id].resize();
 }

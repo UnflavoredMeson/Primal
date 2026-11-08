@@ -319,6 +319,9 @@ create_resource(const void *const data, asset_type::type type)
     case asset_type::mesh:	id = create_geometry_resource(data); break;
     case asset_type::skeleton: break;
     case asset_type::texture: id = create_texture_resource(data); break;
+    default:
+        assert(false);
+        break;
     }
 
     assert(id::is_valid(id));

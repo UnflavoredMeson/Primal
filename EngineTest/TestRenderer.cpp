@@ -11,7 +11,7 @@
 #include "Input/Input.h"
 #include "TestRenderer.h"
 #include "../EngineDLL/ShaderCompilation.h"
-#include "../EngineDLL/ShaderCompilation.cpp"
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -69,6 +69,7 @@ time_it timer{};
 
 bool resized{ false };
 bool is_restarting{ false };
+bool is_graphics_initialized{ false };
 
 utl::vector<id::id_type> render_item_id_cache;
 
@@ -245,12 +246,18 @@ test_initialize()
     const graphics::graphics_platform platform{ selected_graphics_platform() };
     while (!compile_shaders(platform))
     {
+#if PRIMAL_PLATFORM_WINDOWS
         // Pop up a message box allowing the user to retry compilation.
         if (MessageBox(nullptr, L"Failed to compile engine shaders.", L"Shader Compilation Error", MB_RETRYCANCEL) != IDRETRY)
             return false;
+#else
+        std::fprintf(stderr, "Failed to compile the engine shaders.\n");
+        return false;
+#endif
     }
 
     if (!graphics::initialize(platform)) return false;
+    is_graphics_initialized = true;
 
     platform::window_init_info info[]
     {
@@ -312,6 +319,10 @@ test_initialize()
 void
 test_shutdown()
 {
+    // NOTE: shader compilation or graphics::initialize() failed: nothing was created.
+    if (!is_graphics_initialized) return;
+    is_graphics_initialized = false;
+
     input::unbind(std::hash<std::string>()("move"));
     destroy_render_items();
     remove_lights();
@@ -332,7 +343,7 @@ engine_test::initialize()
 void
 engine_test::run()
 {
-    static u32 counter{ 0 };
+    [[maybe_unused]] static u32 counter{ 0 }; // used by the commented-out light set switch below
     static u32 light_set_key{ 0 };
     ++counter;
     //if ((counter % 90) == 0) light_set_key = (light_set_key + 1) % 2;

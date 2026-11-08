@@ -53,7 +53,8 @@ public:
         assert(id < _array.size() && !already_removed(id, false));
         T& item{ _array[id] };
         item.~T();
-        DEBUG_OP(memset(std::addressof(_array[id]), 0xcc, sizeof(T)));
+        // Fill the destroyed item's storage with a debug pattern (void* cast: T needn't be trivially copyable).
+        DEBUG_OP(memset((void*)std::addressof(_array[id]), 0xcc, sizeof(T)));
         *(u32 *const)std::addressof(_array[id]) = _next_free_index;
         _next_free_index = id;
         --_size;

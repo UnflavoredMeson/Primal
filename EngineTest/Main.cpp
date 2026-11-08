@@ -26,7 +26,8 @@ run_test()
 {
     primal::platform::set_current_directory_to_executable_path();
     engine_test test{};
-    if (test.initialize())
+    const bool initialized{ test.initialize() };
+    if (initialized)
     {
 #if TEST_ENTITY_COMPONENTS
         test.run(); // runs its own console loop
@@ -38,7 +39,7 @@ run_test()
 #endif
     }
     test.shutdown();
-    return 0;
+    return initialized ? 0 : 1;
 }
 
 #if PRIMAL_PLATFORM_WINDOWS

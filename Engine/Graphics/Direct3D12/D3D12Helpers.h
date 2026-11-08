@@ -212,7 +212,7 @@ constexpr struct {
         0,                                              // IndependentBlendEnable
         {
             {
-               0,                                       // BlendEnable
+               1,                                       // BlendEnable
                0,                                       // LogicOpEnable
                D3D12_BLEND_ONE,                         // SrcBlend
                D3D12_BLEND_INV_SRC_ALPHA,               // DestBlend

@@ -19,6 +19,13 @@
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <!-- Which test to build (same choices as CMake's PRIMAL_ENGINE_TEST): ENTITY_COMPONENTS, WINDOW, RENDERER or SURFACES.
+       Override with msbuild /p:PrimalEngineTest=WINDOW (or change the default here). -->
+  <PropertyGroup>
+    <PrimalEngineTest Condition="'$(PrimalEngineTest)'==''">RENDERER</PrimalEngineTest>
+    <PrimalTestDefines>TEST_ENTITY_COMPONENTS=0;TEST_WINDOW=0;TEST_RENDERER=0;TEST_SURFACES=0</PrimalTestDefines>
+    <PrimalTestDefines>$(PrimalTestDefines.Replace('TEST_$(PrimalEngineTest)=0', 'TEST_$(PrimalEngineTest)=1'))</PrimalTestDefines>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
@@ -45,7 +52,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;$(PrimalTestDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(SolutionDir)Engine\Common\;$(SolutionDir)Engine\</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpplatest</LanguageStandard>
@@ -68,7 +75,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;$(PrimalTestDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(SolutionDir)Engine\Common\;$(SolutionDir)Engine\</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpplatest</LanguageStandard>
@@ -88,11 +95,18 @@
     </Manifest>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="Lights.cpp" />
     <ClCompile Include="Main.cpp" />
+  </ItemGroup>
+  <!-- Only the renderer test uses these (like EngineTest/CMakeLists.txt). -->
+  <ItemGroup Condition="'$(PrimalEngineTest)'=='RENDERER'">
+    <ClCompile Include="Lights.cpp" />
     <ClCompile Include="RenderItem.cpp" />
     <ClCompile Include="Scripts.cpp" />
     <ClCompile Include="TestRenderer.cpp" />
+  </ItemGroup>
+  <!-- The renderer and surfaces tests compile the engine shaders. -->
+  <ItemGroup Condition="'$(PrimalEngineTest)'=='RENDERER' Or '$(PrimalEngineTest)'=='SURFACES'">
+    <ClCompile Include="..\EngineDLL\ShaderCompilation.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Test.h" />
@@ -122,6 +136,9 @@
 	<!-- A file that only exists after a successful extract – used for incremental builds -->
 	<ExtractMarker>$(ExtractDir)\.extracted</ExtractMarker>
   </PropertyGroup>
+  <Target Name="CheckPrimalEngineTest" BeforeTargets="PrepareForBuild">
+    <Error Condition="'$(PrimalEngineTest)'!='ENTITY_COMPONENTS' And '$(PrimalEngineTest)'!='WINDOW' And '$(PrimalEngineTest)'!='RENDERER' And '$(PrimalEngineTest)'!='SURFACES'" Text="PrimalEngineTest must be ENTITY_COMPONENTS, WINDOW, RENDERER or SURFACES (got '$(PrimalEngineTest)')." />
+  </Target>
   <Target Name="DownloadAndUnpackDropbox" BeforeTargets="PrepareForBuild" Condition="!Exists('$(ExtractMarker)')">
     <Message Text="Downloading models and textures for EngineTest ..." Importance="high" />
     <Message Text="This may take a minute. Please wait ..." Importance="high" />

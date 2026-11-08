@@ -1,13 +1,13 @@
 // Copyright (c) Arash Khatami
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include <filesystem>
+#include <iterator>
 #include "CommonHeaders.h"
 #include "Content/ContentToEngine.h"
 #include "Graphics/Renderer.h"
 #include "../EngineDLL/ShaderCompilation.h"
 #include "Components/Entity.h"
 #include "Components/Geometry.h"
-#include "../ContentTools/Geometry.h"
 #include "Test.h"
 
 #if TEST_RENDERER
@@ -102,14 +102,16 @@ load_shaders()
 
     std::wstring defines[]{ L"ELEMENTS_TYPE=0", L"ELEMENTS_TYPE=1", L"ELEMENTS_TYPE=3" };
     utl::vector<u32> keys;
-    keys.emplace_back(tools::elements::elements_type::position_only);
-    keys.emplace_back(tools::elements::elements_type::static_normal);
-    keys.emplace_back(tools::elements::elements_type::static_normal_texture);
+    // Values of tools::elements::elements_type (ContentTools/Geometry.h, which includes Windows-only headers):
+    // position_only = 0, static_normal = 1, static_normal_texture = 3. Must match the ELEMENTS_TYPE defines above.
+    keys.emplace_back(0u);
+    keys.emplace_back(1u);
+    keys.emplace_back(3u);
 
     utl::vector<std::wstring> extra_args{};
     utl::vector<std::unique_ptr<u8[]>> vertex_shaders;
     utl::vector<const u8*> vertex_shader_pointers;
-    for (u32 i{ 0 }; i < _countof(defines); ++i)
+    for (u32 i{ 0 }; i < std::size(defines); ++i)
     {
         extra_args.clear();
         extra_args.emplace_back(L"-D");
@@ -154,7 +156,7 @@ create_material()
     default_mtl_id = content::create_resource(&info, content::asset_type::material);
 
     memset(pbr_mtl_ids, 0xff, sizeof(pbr_mtl_ids));
-    math::v2 metal_rough[_countof(pbr_mtl_ids)]{
+    math::v2 metal_rough[std::size(pbr_mtl_ids)]{
         {0.f, 0.0f}, {0.f, 0.2f}, {0.f, 0.4f}, {0.f, 0.6f}, {0.f, 0.8f}, {0.f, 1.f},
         {1.f, 0.0f}, {1.f, 0.2f}, {1.f, 0.4f}, {1.f, 0.6f}, {1.f, 0.8f}, {1.f, 1.f},
     };
@@ -163,7 +165,7 @@ create_material()
     s.emissive[0] = 255;  s.emissive[1] = 172; s.emissive[2] = 0;
     s.emissive_intensity = (u16)(0.f * (65535.f / 10000.f));
 
-    for (u32 i{ 0 }; i < _countof(pbr_mtl_ids); ++i)
+    for (u32 i{ 0 }; i < std::size(pbr_mtl_ids); ++i)
     {
         s.metallic = (u8)(255 * metal_rough[i].x);
         s.roughness = (u8)(255 * metal_rough[i].y);
@@ -212,7 +214,7 @@ create_render_items()
     assert(std::filesystem::exists("../../x64/int_model.model"));
     assert(std::filesystem::exists("../../x64/fembot_model.model"));
 
-    memset(&texture_ids[0], 0xff, sizeof(id::id_type) * _countof(texture_ids));
+    memset(&texture_ids[0], 0xff, sizeof(id::id_type) * std::size(texture_ids));
 
     std::thread threads[]{
         std::thread{ [] { texture_ids[texture_usage::ambient_occlusion] = load_texture("../../x64/ambient_occlusion.texture"); }},
@@ -221,10 +223,10 @@ create_render_items()
         std::thread{ [] { texture_ids[texture_usage::metal_rough] = load_texture("../../x64/metal_rough.texture"); }},
         std::thread{ [] { texture_ids[texture_usage::normal] = load_texture("../../x64/normal.texture"); }},
 
-        std::thread{ [] { ibl_brdf_lut_id = load_texture("../../x64/ibl/brdf_lut.texture"); } },
+        std::thread{ [] { ibl_brdf_lut_id = load_texture("../../x64/IBL/brdf_lut.texture"); } },
 
-        std::thread{ [] { ibl_diffuse_id = load_texture("../../x64/ibl/set4/diffuse.texture"); } },
-        std::thread{ [] { ibl_specular_id = load_texture("../../x64/ibl/set4/specular.texture"); } },
+        std::thread{ [] { ibl_diffuse_id = load_texture("../../x64/IBL/Set4/diffuse.texture"); } },
+        std::thread{ [] { ibl_specular_id = load_texture("../../x64/IBL/Set4/specular.texture"); } },
 
         std::thread{ [] { lab_model_id = load_model("../../x64/lab_model.model"); } },
         std::thread{ [] { fan_model_id = load_model("../../x64/fan_model.model"); } },
@@ -247,7 +249,7 @@ create_render_items()
     id::id_type fembot_materials[]{ fembot_mtl_id, fembot_mtl_id };
 
     geometry::init_info geometry_info{};
-    geometry_info.material_count = _countof(materials);
+    geometry_info.material_count = std::size(materials);
     geometry_info.material_ids = &materials[0];
 
     geometry_info.geometry_content_id = lab_model_id;
@@ -260,13 +262,13 @@ create_render_items()
     int_entity_id = create_one_game_entity({ 0.f, 1.3f, -6.6f }, {}, &geometry_info, "wibbly_wobbly_script").get_id();
     
     geometry_info.geometry_content_id = fembot_model_id;
-    geometry_info.material_count = _countof(fembot_materials);
+    geometry_info.material_count = std::size(fembot_materials);
     geometry_info.material_ids = &fembot_materials[0];
     fembot_entity_id = create_one_game_entity({ -6.f, 0.f, 10.f }, { 0.f, math::pi, 0.f }, &geometry_info, "rotator_script").get_id();
 
     geometry_info.geometry_content_id = sphere_model_id;
     geometry_info.material_count = 1;
-    for (u32 i{ 0 }; i < _countof(sphere_entity_ids); ++i)
+    for (u32 i{ 0 }; i < std::size(sphere_entity_ids); ++i)
     {
         id::id_type id{ pbr_mtl_ids[i] };
         id::id_type sphere_mtls[]{ id };
@@ -286,7 +288,7 @@ destroy_render_items()
     remove_game_entity(int_entity_id);
     remove_game_entity(fembot_entity_id);
 
-    for (u32 i{ 0 }; i < _countof(sphere_entity_ids); ++i)
+    for (u32 i{ 0 }; i < std::size(sphere_entity_ids); ++i)
     {
         remove_game_entity(sphere_entity_ids[i]);
     }

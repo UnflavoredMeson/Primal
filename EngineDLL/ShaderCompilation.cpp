@@ -168,6 +168,39 @@ public:
 
     DISABLE_COPY_AND_MOVE(shader_compiler);
 
+    bool is_valid() const { return _compiler && _utils && _include_handler; }
+
+    // Full DXC argument list for a shader (used for the compiled shaders' up-to-date key).
+    utl::vector<std::wstring> arguments(const shader_file_info& info, utl::vector<std::wstring>& extra_args)
+    {
+        return get_args(info, extra_args);
+    }
+
+    // "major.minor[.commit_count+commit_hash]" of the loaded DXC, or empty if it doesn't say.
+    std::string version() const
+    {
+        std::string result;
+        com_ptr<IDxcVersionInfo> info{ nullptr };
+        if (SUCCEEDED(_compiler->QueryInterface(IID_PPV_ARGS(&info))) && info)
+        {
+            u32 major{ 0 }, minor{ 0 };
+            if (SUCCEEDED(info->GetVersion(&major, &minor)))
+                result = std::to_string(major) + "." + std::to_string(minor);
+        }
+        com_ptr<IDxcVersionInfo2> info2{ nullptr };
+        if (SUCCEEDED(_compiler->QueryInterface(IID_PPV_ARGS(&info2))) && info2)
+        {
+            u32 commit_count{ 0 };
+            char* commit_hash{ nullptr };
+            if (SUCCEEDED(info2->GetCommitInfo(&commit_count, &commit_hash)) && commit_hash)
+            {
+                result += "." + std::to_string(commit_count) + "+" + commit_hash;
+                CoTaskMemFree(commit_hash);
+            }
+        }
+        return result;
+    }
+
     dxc_compiled_shader compile(u8* data, u32 data_size, graphics::shader_type::type type, const char* function, utl::vector<std::wstring>& extra_args)
     {
         assert(_compiler && _utils && _include_handler);
@@ -392,47 +425,130 @@ engine_shaders_file_path(graphics::graphics_platform platform)
     return std::filesystem::path{ graphics::get_engine_shaders_path(platform) };
 }
 
-bool
-compiled_shaders_are_up_to_date(graphics::graphics_platform platform)
-{
-    auto engine_shaders_path = engine_shaders_file_path(platform);
-    if (!std::filesystem::exists(engine_shaders_path)) return false;
-    auto shaders_compilation_time = std::filesystem::last_write_time(engine_shaders_path);
+// Bump when the shaders.bin layout or anything else that affects the output (but isn't a compiler argument) changes.
+constexpr u32 compiled_shaders_format_version{ 1 };
 
-    for (const auto& entry : std::filesystem::directory_iterator{ shaders_source_path })
+// Arguments for the engine shaders that aren't the same for every shader.
+utl::vector<std::wstring>
+engine_shader_extra_args(engine_shader::id id)
+{
+    utl::vector<std::wstring> extra_args{};
+    if (id == engine_shader::grid_frustums_cs || id == engine_shader::light_culling_cs)
     {
-        if (entry.last_write_time() > shaders_compilation_time)
+        // TODO: get TILE_SIZE value from d3d12::delight
+        extra_args.emplace_back(L"-D");
+        extra_args.emplace_back(L"TILE_SIZE=32");
+    }
+    return extra_args;
+}
+
+// Identifies everything besides the sources that determines the compiled engine shaders: format version, DXC version
+// and the full argument list of every shader. Stored next to shaders.bin (".key"); a mismatch means recompile.
+// (Source changes are caught by timestamps.)
+std::string
+compiled_shaders_key(shader_compiler& compiler)
+{
+    std::string text{ "format " + std::to_string(compiled_shaders_format_version) + "\ndxc " + compiler.version() + "\n" };
+    for (const auto& file : engine_shader_files)
+    {
+        utl::vector<std::wstring> extra_args{ engine_shader_extra_args(file.id) };
+        for (const auto& arg : compiler.arguments(file.info, extra_args))
         {
-            return false;
+            for (const wchar_t c : arg) text += (char)c; // arguments are ASCII
+            text += ' ';
         }
+        text += '\n';
+    }
+
+    u8 hash[shader_hash_length]{};
+    hash_byte_code((const u8*)text.data(), text.size(), hash);
+    std::string key;
+    for (const u8 b : hash)
+    {
+        char hex[3]{};
+        snprintf(hex, sizeof(hex), "%02x", (u32)b);
+        key += hex;
+    }
+    return key;
+}
+
+std::filesystem::path
+compiled_shaders_key_path(graphics::graphics_platform platform)
+{
+    std::filesystem::path path{ engine_shaders_file_path(platform) };
+    path += ".key";
+    return path;
+}
+
+// NOTE: uses the error_code overloads of std::filesystem throughout: a missing source folder (executable started from
+//       another directory) must fail compile_shaders(), not throw.
+bool
+compiled_shaders_are_up_to_date(graphics::graphics_platform platform, const std::string& key)
+{
+    std::error_code ec;
+    const auto engine_shaders_path = engine_shaders_file_path(platform);
+    const auto shaders_compilation_time = std::filesystem::last_write_time(engine_shaders_path, ec);
+    if (ec) return false; // no shaders.bin yet
+
+    {
+        std::ifstream key_file{ compiled_shaders_key_path(platform) };
+        std::string stored_key;
+        if (!key_file || !std::getline(key_file, stored_key) || stored_key != key) return false;
+    }
+
+    std::filesystem::directory_iterator it{ shaders_source_path, ec };
+    if (ec) return false; // let compile_shaders() report the missing sources
+    for (const std::filesystem::directory_iterator end{}; it != end; it.increment(ec))
+    {
+        if (ec) return false;
+        const auto source_time = it->last_write_time(ec);
+        if (ec || source_time > shaders_compilation_time) return false;
     }
 
     return true;
 }
 
 bool
-save_compiled_shaders(utl::vector<dxc_compiled_shader>& shaders, graphics::graphics_platform platform)
+save_compiled_shaders(utl::vector<dxc_compiled_shader>& shaders, graphics::graphics_platform platform, const std::string& key)
 {
-    auto engine_shaders_path = engine_shaders_file_path(platform);
-    std::filesystem::create_directories(engine_shaders_path.parent_path());
-    std::ofstream file(engine_shaders_path, std::ios::out | std::ios::binary);
-    if (!file || !std::filesystem::exists(engine_shaders_path))
+    const auto engine_shaders_path = engine_shaders_file_path(platform);
+    const auto key_path = compiled_shaders_key_path(platform);
+    std::error_code ec;
+    std::filesystem::remove(key_path, ec); // a stale key must not survive a failed write
+    std::filesystem::create_directories(engine_shaders_path.parent_path(), ec);
+    if (ec)
     {
-        file.close();
+        shader_log("Can't create the compiled shaders folder: ");
+        shader_log(engine_shaders_path.parent_path().string().c_str());
+        shader_log("\n");
         return false;
     }
 
-    for (const auto& shader : shaders)
     {
-        void *const byte_code{ shader.byte_code->GetBufferPointer() };
-        const u64 byte_code_length{ shader.byte_code->GetBufferSize() };
-        file.write((char*)&byte_code_length, sizeof(byte_code_length));
-        file.write((char*)&shader.hash[0], shader_hash_length);
-        file.write((char*)byte_code, byte_code_length);
+        std::ofstream file(engine_shaders_path, std::ios::out | std::ios::binary);
+        if (!file)
+        {
+            shader_log("Can't write ");
+            shader_log(engine_shaders_path.string().c_str());
+            shader_log("\n");
+            return false;
+        }
+
+        for (const auto& shader : shaders)
+        {
+            void *const byte_code{ shader.byte_code->GetBufferPointer() };
+            const u64 byte_code_length{ shader.byte_code->GetBufferSize() };
+            file.write((char*)&byte_code_length, sizeof(byte_code_length));
+            file.write((char*)&shader.hash[0], shader_hash_length);
+            file.write((char*)byte_code, byte_code_length);
+        }
+        if (!file.flush()) return false;
     }
 
-    file.close();
-    return true;
+    // Written last: the key only exists next to a complete shaders.bin.
+    std::ofstream key_file{ key_path };
+    key_file << key << '\n';
+    return (bool)key_file.flush();
 }
 
 std::unique_ptr<u8[]>
@@ -483,7 +599,8 @@ compile_shader(shader_file_info info, const char* file_path, utl::vector<std::ws
 {
     std::filesystem::path full_path{ file_path };
     full_path += info.file_name;
-    if (!std::filesystem::exists(full_path)) return {};
+    std::error_code ec;
+    if (!std::filesystem::exists(full_path, ec)) return {};
 
     // NOTE: according to marcelolr (https://github.com/Microsoft/DirectXShaderCompiler/issues/79)
     //       "creating compiler instances is pretty cheap, so it's probably not worth the hassle of caching / sharing them."
@@ -518,29 +635,28 @@ selected_graphics_platform()
 bool
 compile_shaders(graphics::graphics_platform platform/*=default_shader_platform*/)
 {
-    if (compiled_shaders_are_up_to_date(platform)) return true;
-
     shader_compiler compiler{ platform };
+    if (!compiler.is_valid()) return false;
+    const std::string key{ compiled_shaders_key(compiler) };
+    if (compiled_shaders_are_up_to_date(platform, key)) return true;
+
     utl::vector<dxc_compiled_shader> shaders;
     std::filesystem::path full_path{};
 
-    for (u32 i{ 0 }; i < engine_shader::count; ++i)
+    for (const auto& file : engine_shader_files)
     {
-        auto& file = engine_shader_files[i];
-
         full_path = shaders_source_path;
         full_path += file.info.file_name;
-        if (!std::filesystem::exists(full_path)) return false;
-        utl::vector<std::wstring> extra_args{};
-
-        if (file.id == engine_shader::grid_frustums_cs ||
-            file.id == engine_shader::light_culling_cs)
+        std::error_code ec;
+        if (!std::filesystem::exists(full_path, ec))
         {
-            // TODO: get TILE_SIZE value from d3d12::delight
-            extra_args.emplace_back(L"-D");
-            extra_args.emplace_back(L"TILE_SIZE=32");
+            shader_log("Engine shader source not found: ");
+            shader_log(full_path.string().c_str());
+            shader_log("\n");
+            return false;
         }
 
+        utl::vector<std::wstring> extra_args{ engine_shader_extra_args(file.id) };
         dxc_compiled_shader compiled_shader{ compiler.compile(file.info, full_path, extra_args) };
         if (compiled_shader.byte_code && compiled_shader.byte_code->GetBufferPointer() && compiled_shader.byte_code->GetBufferSize())
         {
@@ -552,5 +668,5 @@ compile_shaders(graphics::graphics_platform platform/*=default_shader_platform*/
         }
     }
 
-    return save_compiled_shaders(shaders, platform);
+    return save_compiled_shaders(shaders, platform, key);
 }

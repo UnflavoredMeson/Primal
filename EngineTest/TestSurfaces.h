@@ -110,7 +110,6 @@ bool
 test_initialize()
 {
     // Post-processing needs the engine shaders (compiled only when the sources changed).
-    // NOTE: on Windows, EngineTest.vcxproj always compiles TestRenderer.cpp, which includes ShaderCompilation.cpp.
     if (!compile_shaders(graphics::graphics_platform::vulkan))
     {
         std::fprintf(stderr, "Failed to compile the engine shaders.\n");

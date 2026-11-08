@@ -319,8 +319,7 @@ constexpr struct
     const VkPipelineColorBlendAttachmentState disabled{ blend_desc(false, VK_BLEND_FACTOR_SRC_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA) };
     const VkPipelineColorBlendAttachmentState alpha_blend{ blend_desc(true, VK_BLEND_FACTOR_SRC_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA) };
     const VkPipelineColorBlendAttachmentState additive{ blend_desc(true, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE) };
-    // NOTE: BlendEnable is 0 in d3dx::blend_state.premultiplied too (kept the same; probably meant to be 1).
-    const VkPipelineColorBlendAttachmentState premultiplied{ blend_desc(false, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA) };
+    const VkPipelineColorBlendAttachmentState premultiplied{ blend_desc(true, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA) };
 } blend_state;
 
 // Counterpart of the D3D12 pipeline state stream for graphics PSOs. Viewport and scissor are dynamic
