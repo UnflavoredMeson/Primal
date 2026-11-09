@@ -48,10 +48,14 @@ auto get_from_handle(HWND handle) -> WindowInfo &
 auto to_wide(const char *utf8) -> std::wstring
 {
     if (!utf8 || !*utf8)
+    {
         return {};
+    }
     const int length{::MultiByteToWideChar(CP_UTF8, 0, utf8, -1, nullptr, 0)};
     if (length <= 0)
+    {
         return {};
+    }
     std::wstring wide((size_t)length, L'\0');
     ::MultiByteToWideChar(CP_UTF8, 0, utf8, -1, wide.data(), length);
     wide.resize((size_t)length - 1); // drop the terminating null
@@ -98,7 +102,9 @@ LRESULT CALLBACK internal_window_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM
             info.is_closed = true;
             ::ShowWindow(hwnd, SW_HIDE);
             if (info.callback)
+            {
                 info.callback({WindowEvent::closed, get_id_from_handle(hwnd)});
+            }
             return 0;
         }
         case WM_DESTROY: get_from_handle(hwnd).is_closed = true; break;
@@ -149,12 +155,9 @@ LRESULT CALLBACK internal_window_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM
     const window_event_callback callback{has_event ? get_from_handle(hwnd).callback : nullptr};
 
     LRESULT result{0};
-    if (msg == WM_SYSCOMMAND && wparam == SC_KEYMENU)
-    {
-        // Don't activate the (non-existent) window menu when Alt is pressed.
-        result = 0;
-    }
-    else if (msg == WM_SYSCHAR && wparam == VK_RETURN && (HIWORD(lparam) & KF_ALTDOWN))
+    // Don't activate the (non-existent) window menu when Alt is pressed, and don't beep on Alt+Enter.
+    if ((msg == WM_SYSCOMMAND && wparam == SC_KEYMENU) ||
+        (msg == WM_SYSCHAR && wparam == VK_RETURN && (HIWORD(lparam) & KF_ALTDOWN)))
     {
         result = 0;
     }
@@ -164,7 +167,9 @@ LRESULT CALLBACK internal_window_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM
     }
 
     if (callback)
+    {
         callback(event);
+    }
     return result;
 }
 
@@ -243,14 +248,14 @@ auto get_window_handle(WindowId id) -> window_handle
 
 auto set_window_caption(WindowId id, const char *caption) -> void
 {
-    WindowInfo &info{get_from_id(id)};
+    const WindowInfo &info{get_from_id(id)};
     ::SetWindowTextW(info.hwnd, to_wide(caption).c_str());
 }
 
 auto get_window_size(WindowId id) -> math::u32v4
 {
-    WindowInfo &info{get_from_id(id)};
-    RECT &area{info.is_fullscreen ? info.fullscreen_area : info.client_area};
+    const WindowInfo &info{get_from_id(id)};
+    const RECT &area{info.is_fullscreen ? info.fullscreen_area : info.client_area};
     return {(u32)area.left, (u32)area.top, (u32)area.right, (u32)area.bottom};
 }
 
@@ -283,13 +288,13 @@ auto create_window(const WindowInitInfo *init_info /* = nullptr */) -> Window
     wc.lpfnWndProc = internal_window_proc;
     wc.cbClsExtra = 0;
     wc.cbWndExtra = 0;
-    wc.hInstance = 0;
-    wc.hIcon = ::LoadIcon(NULL, IDI_APPLICATION);
-    wc.hCursor = ::LoadCursor(NULL, IDC_ARROW);
+    wc.hInstance = nullptr;
+    wc.hIcon = ::LoadIcon(nullptr, IDI_APPLICATION);
+    wc.hCursor = ::LoadCursor(nullptr, IDC_ARROW);
     wc.hbrBackground = ::CreateSolidBrush(RGB(26, 48, 76));
-    wc.lpszMenuName = NULL;
+    wc.lpszMenuName = nullptr;
     wc.lpszClassName = L"PrimalWindow";
-    wc.hIconSm = ::LoadIcon(NULL, IDI_APPLICATION);
+    wc.hIconSm = ::LoadIcon(nullptr, IDI_APPLICATION);
 
     // Register the window class
     ::RegisterClassExW(&wc);
@@ -322,11 +327,11 @@ auto create_window(const WindowInitInfo *init_info /* = nullptr */) -> Window
         left,
         top, // initial window position
         width,
-        height, // initial window dimensions
-        parent, // handle to parent window
-        NULL,   // handle to menu
-        NULL,   // intance of this application
-        NULL);  // extra creation parameters
+        height,   // initial window dimensions
+        parent,   // handle to parent window
+        nullptr,  // handle to menu
+        nullptr,  // intance of this application
+        nullptr); // extra creation parameters
 
     if (info.hwnd)
     {
@@ -335,7 +340,7 @@ auto create_window(const WindowInitInfo *init_info /* = nullptr */) -> Window
         ::ShowWindow(info.hwnd, SW_SHOWNORMAL);
         ::UpdateWindow(info.hwnd);
 
-        WindowId id{get_id_from_handle(info.hwnd)};
+        const WindowId id{get_id_from_handle(info.hwnd)};
         windows[id] = info;
 
         return Window{id};
@@ -345,7 +350,7 @@ auto create_window(const WindowInitInfo *init_info /* = nullptr */) -> Window
 
 auto remove_window(WindowId id) -> void
 {
-    WindowInfo &info{get_from_id(id)};
+    const WindowInfo &info{get_from_id(id)};
     ::DestroyWindow(info.hwnd);
     windows.remove(id);
 }
@@ -353,25 +358,31 @@ auto remove_window(WindowId id) -> void
 auto set_current_directory_to_executable_path() -> std::filesystem::path
 {
     wchar_t path[MAX_PATH]{};
-    const u32 length{::GetModuleFileNameW(0, &path[0], MAX_PATH)};
+    const u32 length{::GetModuleFileNameW(nullptr, &path[0], MAX_PATH)};
     if (!length || ::GetLastError() == ERROR_INSUFFICIENT_BUFFER)
+    {
         return {};
+    }
     std::error_code ec;
     std::filesystem::current_path(std::filesystem::path{path}.parent_path(), ec);
     if (ec)
+    {
         return {};
+    }
     return std::filesystem::current_path();
 }
 
 auto pump_events() -> bool
 {
     MSG msg{};
-    while (::PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE))
+    while (::PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE))
     {
         ::TranslateMessage(&msg);
         ::DispatchMessageW(&msg);
         if (msg.message == WM_QUIT)
+        {
             quit_requested = true;
+        }
     }
 
     return !quit_requested;
@@ -386,4 +397,4 @@ auto post_quit() -> void
 
 #include "IncludeWindowCpp.h"
 
-#endif // PRIMAL_PLATFORM_WINDOWS
+#endif

@@ -60,7 +60,9 @@ namespace detail
 inline auto check_result(VkResult result, const char *call, const char *file, u32 line) -> bool
 {
     if (result >= 0)
+    {
         return true;
+    }
     log_message("Vulkan error %d in: %s\nLine: %u\n%s\n", (s32)result, file, line, call);
 #ifdef _DEBUG
     PRIMAL_VK_DEBUG_BREAK();
@@ -89,4 +91,4 @@ inline auto check_result(VkResult result, const char *call, const char *file, u3
 #else
 #define NAME_VK_OBJECT(handle, type, name)
 #define NAME_VK_OBJECT_INDEXED(handle, type, n, name)
-#endif // _DEBUG
+#endif

@@ -57,13 +57,17 @@ auto get_fx_pipeline(VkFormat format) -> VkPipeline
     for (const FormatPipeline &entry : fx_pipelines)
     {
         if (entry.format == format)
+        {
             return entry.pipeline;
+        }
     }
 
     for (FormatPipeline &entry : fx_pipelines)
     {
         if (entry.format != VK_FORMAT_UNDEFINED)
+        {
             continue;
+        }
 
         vkx::GraphicsPipelineDesc desc{};
         desc.layout = fx_root_sig.layout;
@@ -75,7 +79,9 @@ auto get_fx_pipeline(VkFormat format) -> VkPipeline
 
         entry.pipeline = vkx::create_graphics_pipeline(desc, "Post-process FX Pipeline");
         if (entry.pipeline)
+        {
             entry.format = format;
+        }
         return entry.pipeline;
     }
 
@@ -108,13 +114,17 @@ auto post_process(
 {
     const VkPipeline pipeline{get_fx_pipeline(target_format)};
     if (!pipeline)
+    {
         return;
+    }
 
     ConstantBuffer &cbuffer{core::cbuffer()};
     ShaderConstants *const constants{cbuffer.allocate<ShaderConstants>()};
     assert(constants);
     if (!constants)
+    {
         return;
+    }
     constants->gpass_main_buffer_index = gpass::main_buffer().srv().index;
     constants->gpass_depth_buffer_index = gpass::depth_buffer().srv().index;
 

@@ -62,8 +62,8 @@ class Surface
 
 struct RenderSurface
 {
-    platform::Window window{};
-    primal::graphics::Surface surface{};
+    platform::Window window;
+    primal::graphics::Surface surface;
 };
 
 struct DirectionalLightParams

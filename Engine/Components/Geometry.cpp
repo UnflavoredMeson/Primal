@@ -23,8 +23,7 @@ auto exists(GeometryId id) -> bool
     assert(id::is_valid(id));
     const id::id_type index{id::index(id)};
     assert(
-        index < generations.size() &&
-        !(id::is_valid(id_mapping[index]) && id_mapping[index] >= render_item_ids.size()));
+        index < generations.size() && (!id::is_valid(id_mapping[index]) || id_mapping[index] < render_item_ids.size()));
     assert(generations[index] == id::generation(id));
     return (generations[index] == id::generation(id)) && id::is_valid(id_mapping[index]) &&
            id::is_valid(render_item_ids[id_mapping[index]]);

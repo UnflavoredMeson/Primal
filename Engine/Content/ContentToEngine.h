@@ -36,22 +36,22 @@ struct TextureFlags
     };
 };
 
-typedef struct CompiledShader
+struct CompiledShader
 {
     static constexpr u32 hash_length{16};
     constexpr auto byte_code_size() const -> u64
     {
         return _byte_code_size;
     }
-    constexpr auto hash() const -> const u8 *const
+    constexpr auto hash() const -> const u8 *
     {
         return &_hash[0];
     }
-    constexpr auto byte_code() const -> const u8 *const
+    constexpr auto byte_code() const -> const u8 *
     {
         return &_byte_code;
     }
-    constexpr auto buffer_size() const -> const u64
+    constexpr auto buffer_size() const -> u64
     {
         return sizeof(_byte_code_size) + hash_length + _byte_code_size;
     }
@@ -64,7 +64,8 @@ typedef struct CompiledShader
     u64 _byte_code_size;
     u8 _hash[hash_length];
     u8 _byte_code;
-} const *compiled_shader_ptr;
+};
+using compiled_shader_ptr = const CompiledShader *;
 
 // Layout of shaders.bin (written by EngineDLL/ShaderCompilation.cpp, read by both graphics backends):
 // an engine_shaders_header, then shader_count compiled_shader records. Every record starts at an 8-byte aligned

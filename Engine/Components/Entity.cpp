@@ -23,7 +23,9 @@ auto create(EntityInfo info) -> Entity
 {
     assert(info.transform); // All game entities must have a transform component
     if (!info.transform)
+    {
         return {};
+    }
 
     EntityId id{};
 
@@ -55,7 +57,9 @@ auto create(EntityInfo info) -> Entity
     transforms[index] = transform::create(*info.transform, new_entity);
     assert(transforms[index].get_id() == id);
     if (!transforms[index].is_valid())
+    {
         return {};
+    }
 
     // Create script component
     if (info.script && info.script->script_creator)
@@ -106,8 +110,10 @@ auto update_component(EntityId id, EntityInfo info, ComponentType::Type type) ->
 {
     assert(is_alive(id) && type != ComponentType::transform);
     if (type == ComponentType::transform)
+    {
         return false;
-    Entity entity{id};
+    }
+    const Entity entity{id};
     const id::id_type index{id::index(id)};
 
     if (type == ComponentType::script)
@@ -120,7 +126,7 @@ auto update_component(EntityId id, EntityInfo info, ComponentType::Type type) ->
 
         if (info.script && info.script->script_creator)
         {
-            script::Component new_script{script::create(*info.script, entity)};
+            const script::Component new_script{script::create(*info.script, entity)};
             assert(new_script.is_valid());
 
             if (new_script.is_valid())
@@ -140,7 +146,7 @@ auto update_component(EntityId id, EntityInfo info, ComponentType::Type type) ->
 
         if (info.geometry)
         {
-            geometry::Component new_geometry{geometry::create(*info.geometry, entity)};
+            const geometry::Component new_geometry{geometry::create(*info.geometry, entity)};
             assert(new_geometry.is_valid());
 
             if (new_geometry.is_valid())

@@ -26,7 +26,7 @@ struct DescriptorHandle
 #ifdef _DEBUG
   private:
     friend class DescriptorHeap;
-    DescriptorHeap *container{nullptr};
+    DescriptorHeap *_container{nullptr};
 #endif
 };
 
@@ -62,7 +62,7 @@ class DescriptorHeap
     {
         return _gpu_start;
     }
-    [[nodiscard]] constexpr auto heap() const -> ID3D12DescriptorHeap *const
+    [[nodiscard]] constexpr auto heap() const -> ID3D12DescriptorHeap *
     {
         return _heap;
     }
@@ -87,10 +87,10 @@ class DescriptorHeap
     ID3D12DescriptorHeap *_heap{nullptr};
     D3D12_CPU_DESCRIPTOR_HANDLE _cpu_start{};
     D3D12_GPU_DESCRIPTOR_HANDLE _gpu_start{};
-    std::unique_ptr<u32[]> _free_handles{};
-    std::unique_ptr<u8[]> _allocated_slots{};
+    std::unique_ptr<u32[]> _free_handles;
+    std::unique_ptr<u8[]> _allocated_slots;
     utl::vector<u32> _deferred_free_indices[frame_buffer_count]{};
-    std::mutex _mutex{};
+    std::mutex _mutex;
     u32 _capacity{0};
     u32 _size{0};
     u32 _descriptor_size{};
@@ -114,7 +114,7 @@ class D3D12Buffer
     D3D12Buffer() = default;
     explicit D3D12Buffer(const D3D12BufferInitInfo &info, bool is_cpu_accessible);
     DISABLE_COPY(D3D12Buffer);
-    constexpr D3D12Buffer(D3D12Buffer &&o)
+    constexpr D3D12Buffer(D3D12Buffer &&o) noexcept
         : _buffer{o._buffer}
         , _gpu_address{o._gpu_address}
         , _size{o._size}
@@ -122,7 +122,7 @@ class D3D12Buffer
         o.reset();
     }
 
-    constexpr auto operator=(D3D12Buffer &&o) -> D3D12Buffer &
+    constexpr auto operator=(D3D12Buffer &&o) noexcept -> D3D12Buffer &
     {
         assert(this != &o);
         if (this != &o)
@@ -140,7 +140,7 @@ class D3D12Buffer
     }
 
     auto release() -> void;
-    [[nodiscard]] constexpr auto buffer() const -> ID3D12Resource *const
+    [[nodiscard]] constexpr auto buffer() const -> ID3D12Resource *
     {
         return _buffer;
     }
@@ -196,15 +196,15 @@ class ConstantBuffer
     {
         _cpu_offset = 0;
     }
-    [[nodiscard]] auto allocate(u32 size) -> u8 *const;
+    [[nodiscard]] auto allocate(u32 size) -> u8 *;
 
     template <typename T>
-    [[nodiscard]] constexpr auto allocate() -> T *const
+    [[nodiscard]] constexpr auto allocate() -> T *
     {
-        return (T *const)allocate(sizeof(T));
+        return (T *)allocate(sizeof(T));
     }
 
-    [[nodiscard]] constexpr auto buffer() const -> ID3D12Resource *const
+    [[nodiscard]] constexpr auto buffer() const -> ID3D12Resource *
     {
         return _buffer.buffer();
     }
@@ -216,7 +216,7 @@ class ConstantBuffer
     {
         return _buffer.size();
     }
-    [[nodiscard]] constexpr auto cpu_address() const -> u8 *const
+    [[nodiscard]] constexpr auto cpu_address() const -> u8 *
     {
         return _cpu_address;
     }
@@ -224,11 +224,13 @@ class ConstantBuffer
     template <typename T>
     [[nodiscard]] constexpr auto gpu_address(T *const allocation) -> D3D12_GPU_VIRTUAL_ADDRESS
     {
-        std::lock_guard lock{_mutex};
-        assert(_cpu_address);
-        if (!_cpu_address)
+        const std::scoped_lock lock{_mutex};
+        assert(_cpu_address && allocation);
+        if (!_cpu_address || !allocation)
+        {
             return {};
-        const u8 *const address{(const u8 *const)allocation};
+        }
+        const u8 *const address{(const u8 *)allocation};
         assert(address <= _cpu_address + _cpu_offset);
         assert(address >= _cpu_address);
         const u64 offset{(u64)(address - _cpu_address)};
@@ -245,10 +247,10 @@ class ConstantBuffer
     }
 
   private:
-    D3D12Buffer _buffer{};
+    D3D12Buffer _buffer;
     u8 *_cpu_address{nullptr};
     u32 _cpu_offset{0};
-    std::mutex _mutex{};
+    std::mutex _mutex;
 };
 
 class UavClearableBuffer
@@ -257,7 +259,7 @@ class UavClearableBuffer
     UavClearableBuffer() = default;
     explicit UavClearableBuffer(const D3D12BufferInitInfo &info);
     DISABLE_COPY(UavClearableBuffer);
-    constexpr UavClearableBuffer(UavClearableBuffer &&o)
+    constexpr UavClearableBuffer(UavClearableBuffer &&o) noexcept
         : _buffer{std::move(o._buffer)}
         , _uav{o._uav}
         , _uav_shader_visible{o._uav_shader_visible}
@@ -265,7 +267,7 @@ class UavClearableBuffer
         o.reset();
     }
 
-    constexpr auto operator=(UavClearableBuffer &&o) -> UavClearableBuffer &
+    constexpr auto operator=(UavClearableBuffer &&o) noexcept -> UavClearableBuffer &
     {
         assert(this != &o);
         if (this != &o)
@@ -344,7 +346,7 @@ class UavClearableBuffer
         _uav_shader_visible = {};
     }
 
-    D3D12Buffer _buffer{};
+    D3D12Buffer _buffer;
     DescriptorHandle _uav{};
     DescriptorHandle _uav_shader_visible{};
 };
@@ -367,14 +369,14 @@ class D3D12Texture
     D3D12Texture() = default;
     explicit D3D12Texture(D3D12TextureInitInfo info);
     DISABLE_COPY(D3D12Texture);
-    constexpr D3D12Texture(D3D12Texture &&o)
+    constexpr D3D12Texture(D3D12Texture &&o) noexcept
         : _resource{o._resource}
         , _srv{o._srv}
     {
         o.reset();
     }
 
-    constexpr auto operator=(D3D12Texture &&o) -> D3D12Texture &
+    constexpr auto operator=(D3D12Texture &&o) noexcept -> D3D12Texture &
     {
         assert(this != &o);
         if (this != &o)
@@ -391,7 +393,7 @@ class D3D12Texture
     }
 
     auto release() -> void;
-    [[nodiscard]] constexpr auto resource() const -> ID3D12Resource *const
+    [[nodiscard]] constexpr auto resource() const -> ID3D12Resource *
     {
         return _resource;
     }
@@ -424,16 +426,18 @@ class D3D12RenderTexture
     D3D12RenderTexture() = default;
     explicit D3D12RenderTexture(D3D12TextureInitInfo info);
     DISABLE_COPY(D3D12RenderTexture);
-    constexpr D3D12RenderTexture(D3D12RenderTexture &&o)
+    constexpr D3D12RenderTexture(D3D12RenderTexture &&o) noexcept
         : _texture{std::move(o._texture)}
         , _mip_count{o._mip_count}
     {
         for (u32 i{0}; i < _mip_count; ++i)
+        {
             _rtv[i] = o._rtv[i];
+        }
         o.reset();
     }
 
-    constexpr auto operator=(D3D12RenderTexture &&o) -> D3D12RenderTexture &
+    constexpr auto operator=(D3D12RenderTexture &&o) noexcept -> D3D12RenderTexture &
     {
         assert(this != &o);
         if (this != &o)
@@ -463,7 +467,7 @@ class D3D12RenderTexture
     {
         return _texture.srv();
     }
-    [[nodiscard]] constexpr auto resource() const -> ID3D12Resource *const
+    [[nodiscard]] constexpr auto resource() const -> ID3D12Resource *
     {
         return _texture.resource();
     }
@@ -474,18 +478,22 @@ class D3D12RenderTexture
         _texture = std::move(o._texture);
         _mip_count = o._mip_count;
         for (u32 i{0}; i < _mip_count; ++i)
+        {
             _rtv[i] = o._rtv[i];
+        }
         o.reset();
     }
 
     constexpr auto reset() -> void
     {
         for (u32 i{0}; i < _mip_count; ++i)
+        {
             _rtv[i] = {};
+        }
         _mip_count = 0;
     }
 
-    D3D12Texture _texture{};
+    D3D12Texture _texture;
     DescriptorHandle _rtv[D3D12Texture::max_mips]{};
     u32 _mip_count{0};
 };
@@ -496,14 +504,14 @@ class D3D12DepthBuffer
     D3D12DepthBuffer() = default;
     explicit D3D12DepthBuffer(D3D12TextureInitInfo info);
     DISABLE_COPY(D3D12DepthBuffer);
-    constexpr D3D12DepthBuffer(D3D12DepthBuffer &&o)
+    constexpr D3D12DepthBuffer(D3D12DepthBuffer &&o) noexcept
         : _texture{std::move(o._texture)}
         , _dsv{o._dsv}
     {
         o._dsv = {};
     }
 
-    constexpr auto operator=(D3D12DepthBuffer &&o) -> D3D12DepthBuffer &
+    constexpr auto operator=(D3D12DepthBuffer &&o) noexcept -> D3D12DepthBuffer &
     {
         assert(this != &o);
         if (this != &o)
@@ -529,13 +537,13 @@ class D3D12DepthBuffer
     {
         return _texture.srv();
     }
-    [[nodiscard]] constexpr auto resource() const -> ID3D12Resource *const
+    [[nodiscard]] constexpr auto resource() const -> ID3D12Resource *
     {
         return _texture.resource();
     }
 
   private:
-    D3D12Texture _texture{};
+    D3D12Texture _texture;
     DescriptorHandle _dsv{};
 };
 }

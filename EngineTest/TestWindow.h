@@ -9,7 +9,7 @@
 
 using namespace primal;
 
-platform::Window _windows[4];
+platform::Window windows[4];
 
 auto on_window_event(const platform::WindowEvent &event) -> void
 {
@@ -19,9 +19,9 @@ auto on_window_event(const platform::WindowEvent &event) -> void
         case WindowEvent::closed:
         {
             bool all_closed{true};
-            for (u32 i{0}; i < std::size(_windows); ++i)
+            for (u32 i{0}; i < std::size(windows); ++i)
             {
-                if (!_windows[i].is_closed())
+                if (!windows[i].is_closed())
                 {
                     all_closed = false;
                 }
@@ -55,19 +55,21 @@ class EngineTest : public Test
   public:
     auto initialize() -> bool override
     {
-        platform::WindowInitInfo info[]{
+        const platform::WindowInitInfo info[]{
             {&::on_window_event, nullptr, "Test window 1", 100, 100, 400, 800},
             {&::on_window_event, nullptr, "Test window 2", 150, 150, 800, 400},
             {&::on_window_event, nullptr, "Test window 3", 200, 200, 400, 400},
             {&::on_window_event, nullptr, "Test window 4", 250, 250, 800, 600},
         };
-        static_assert(std::size(info) == std::size(_windows));
+        static_assert(std::size(info) == std::size(windows));
 
-        for (u32 i{0}; i < std::size(_windows); ++i)
+        for (u32 i{0}; i < std::size(windows); ++i)
         {
-            _windows[i] = platform::create_window(&info[i]);
-            if (!_windows[i].is_valid())
+            windows[i] = platform::create_window(&info[i]);
+            if (!windows[i].is_valid())
+            {
                 return false;
+            }
         }
         return true;
     }
@@ -79,10 +81,12 @@ class EngineTest : public Test
 
     auto shutdown() -> void override
     {
-        for (u32 i{0}; i < std::size(_windows); ++i)
+        for (u32 i{0}; i < std::size(windows); ++i)
         {
-            if (_windows[i].is_valid())
-                platform::remove_window(_windows[i].get_id());
+            if (windows[i].is_valid())
+            {
+                platform::remove_window(windows[i].get_id());
+            }
         }
     }
 };

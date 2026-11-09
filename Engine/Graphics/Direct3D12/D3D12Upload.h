@@ -18,15 +18,15 @@ class D3D12UploadContext
 
     auto end_upload() -> void;
 
-    [[nodiscard]] constexpr auto command_list() const -> id3d12_graphics_command_list *const
+    [[nodiscard]] constexpr auto command_list() const -> id3d12_graphics_command_list *
     {
         return _cmd_list;
     }
-    [[nodiscard]] constexpr auto upload_buffer() const -> ID3D12Resource *const
+    [[nodiscard]] constexpr auto upload_buffer() const -> ID3D12Resource *
     {
         return _upload_buffer;
     }
-    [[nodiscard]] constexpr auto cpu_address() const -> void *const
+    [[nodiscard]] constexpr auto cpu_address() const -> void *
     {
         return _cpu_address;
     }

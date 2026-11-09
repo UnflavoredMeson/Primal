@@ -60,7 +60,7 @@ auto unbind(InputSource::Type type, InputCode::Code code) -> void
         }
     }
 
-    if (!sources.size())
+    if (sources.empty())
     {
         assert(!source_binding_map.count(key));
         input_bindings.erase(binding_key);
@@ -74,7 +74,7 @@ auto unbind(u64 binding) -> void
         return;
     }
 
-    utl::vector<InputSource> &sources{input_bindings[binding].sources};
+    const utl::vector<InputSource> &sources{input_bindings[binding].sources};
     for (const auto &source : sources)
     {
         assert(source.binding == binding);
@@ -140,7 +140,7 @@ auto get(u64 binding, InputValue &value) -> void
         return;
     }
 
-    utl::vector<InputSource> &sources{input_binding.sources};
+    const utl::vector<InputSource> &sources{input_binding.sources};
     InputValue sub_value{};
     InputValue result{};
 

@@ -286,7 +286,9 @@ auto cull_lights(VkCommandBuffer cmd, const VulkanFrameInfo &vulkan_info, vkx::V
     // NOTE: we update culler.has_lights after this statement, so the light culling shader
     //       will run once to clear the buffers when there're no lights.
     if (!params.NumLights && !culler.has_lights)
+    {
         return;
+    }
 
     culler.has_lights = params.NumLights > 0;
 

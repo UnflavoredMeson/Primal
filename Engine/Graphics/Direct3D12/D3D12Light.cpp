@@ -1,6 +1,8 @@
 // Copyright (c) Arash Khatami
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "D3D12Light.h"
+
+#include <algorithm>
 #include "D3D12Core.h"
 #include "Graphics/Shaders/SharedTypes.h"
 #include "EngineAPI/GameEntity.h"
@@ -73,7 +75,7 @@ class LightSet
             params.Color = info.color;
             params.Intensity = info.intensity;
 
-            LightOwner owner{game_entity::EntityId{info.entity_id}, index, info.type, info.is_enabled};
+            const LightOwner owner{game_entity::EntityId{info.entity_id}, index, info.type, info.is_enabled};
             const LightId id{_owners.add(owner)};
             _non_cullable_owners[index] = id;
 
@@ -91,7 +93,7 @@ class LightSet
             _ambient_light.SpecularSrvIndex = indices[1];
             _ambient_light.BrdfLutSrvIndex = indices[2];
 
-            LightOwner owner{game_entity::EntityId{info.entity_id}, u32_invalid_id, info.type, info.is_enabled};
+            const LightOwner owner{game_entity::EntityId{info.entity_id}, u32_invalid_id, info.type, info.is_enabled};
             _ambient_light_id = LightId{_owners.add(owner)};
             return graphics::Light{_ambient_light_id, info.light_set_key};
         }
@@ -171,7 +173,9 @@ class LightSet
         for (const auto &id : _non_cullable_owners)
         {
             if (!id::is_valid(id))
+            {
                 continue;
+            }
 
             const LightOwner &owner{_owners[id]};
             if (owner.is_enabled)
@@ -186,7 +190,9 @@ class LightSet
 
         const u32 count{_enabled_light_count};
         if (!count)
+        {
             return;
+        }
 
         assert(_cullable_entity_ids.size() >= count);
         _transform_flags_cache.resize(count);
@@ -247,8 +253,7 @@ class LightSet
 
     constexpr auto intensity(LightId id, f32 intensity) -> void
     {
-        if (intensity < 0.f)
-            intensity = 0.f;
+        intensity = std::max(intensity, 0.f);
 
         const LightOwner &owner{_owners[id]};
         const u32 index{owner.data_index};
@@ -461,7 +466,9 @@ class LightSet
         for (const auto &id : _non_cullable_owners)
         {
             if (id::is_valid(id) && _owners[id].is_enabled)
+            {
                 ++count;
+            }
         }
 
         return count;
@@ -489,7 +496,9 @@ class LightSet
         for (u32 i{0}; i < count; ++i)
         {
             if (!id::is_valid(_non_cullable_owners[i]))
+            {
                 continue;
+            }
 
             const LightOwner &owner{_owners[_non_cullable_owners[i]]};
             if (owner.is_enabled)
@@ -508,7 +517,7 @@ class LightSet
 
     constexpr auto has_lights() const -> bool
     {
-        return _owners.size() > 0;
+        return !_owners.empty();
     }
 
   private:
@@ -516,8 +525,8 @@ class LightSet
     {
         using namespace DirectX;
 
-        XMVECTOR tip{XMLoadFloat3(&params.Position)};
-        XMVECTOR direction{XMLoadFloat3(&params.Direction)};
+        const XMVECTOR tip{XMLoadFloat3(&params.Position)};
+        const XMVECTOR direction{XMLoadFloat3(&params.Direction)};
         const f32 cone_cos{params.CosPenumbra};
         assert(cone_cos > -0.001f); // use a small negative value, so cos(180) wouldn't trigger the assertion.
 
@@ -701,7 +710,7 @@ class D3D12LightBuffer
             }
 
             set.non_cullable_lights(
-                (hlsl::DirectionalLightParameters *const)_buffers[LightBuffer::non_cullable_light].cpu_address,
+                (hlsl::DirectionalLightParameters *)_buffers[LightBuffer::non_cullable_light].cpu_address,
                 _buffers[LightBuffer::non_cullable_light].buffer.size());
         }
 
@@ -817,7 +826,7 @@ class D3D12LightBuffer
             count
         };
 
-        D3D12Buffer buffer{};
+        D3D12Buffer buffer;
         u8 *cpu_address{nullptr};
     };
 
@@ -826,7 +835,9 @@ class D3D12LightBuffer
         assert(type < LightBuffer::count);
         if (!size ||
             _buffers[type].buffer.size() >= math::align_size_up<D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT>(size))
+        {
             return;
+        }
 
         _buffers[type].buffer = D3D12Buffer{ConstantBuffer::get_default_init_info(size), true};
         NAME_D3D12_OBJECT_INDEXED(
@@ -837,7 +848,7 @@ class D3D12LightBuffer
             : type == LightBuffer::culling_info     ? L"Light Culling Info Buffer"
                                                     : L"Bounding Spheres Buffer");
 
-        D3D12_RANGE range{};
+        const D3D12_RANGE range{};
         DXCall(_buffers[type].buffer.buffer()->Map(0, &range, (void **)(&_buffers[type].cpu_address)));
         assert(_buffers[type].cpu_address);
     }
@@ -851,112 +862,112 @@ D3D12LightBuffer light_buffers[frame_buffer_count];
 
 constexpr auto set_is_enabled(LightSet &set, LightId id, const void *const data, [[maybe_unused]] u32 size) -> void
 {
-    bool is_enabled{*(bool *)data};
+    const bool is_enabled{*(bool *)data};
     assert(sizeof(is_enabled) == size);
     set.enable(id, is_enabled);
 }
 
 constexpr auto set_intensity(LightSet &set, LightId id, const void *const data, [[maybe_unused]] u32 size) -> void
 {
-    f32 intensity{*(f32 *)data};
+    const f32 intensity{*(f32 *)data};
     assert(sizeof(intensity) == size);
     set.intensity(id, intensity);
 }
 
 constexpr auto set_color(LightSet &set, LightId id, const void *const data, [[maybe_unused]] u32 size) -> void
 {
-    math::v3 color{*(math::v3 *)data};
+    const math::v3 color{*(math::v3 *)data};
     assert(sizeof(color) == size);
     set.color(id, color);
 }
 
 CONSTEXPR auto set_attenuation(LightSet &set, LightId id, const void *const data, [[maybe_unused]] u32 size) -> void
 {
-    math::v3 attenuation{*(math::v3 *)data};
+    const math::v3 attenuation{*(math::v3 *)data};
     assert(sizeof(attenuation) == size);
     set.attenuation(id, attenuation);
 }
 
 CONSTEXPR auto set_range(LightSet &set, LightId id, const void *const data, [[maybe_unused]] u32 size) -> void
 {
-    f32 range{*(f32 *)data};
+    const f32 range{*(f32 *)data};
     assert(sizeof(range) == size);
     set.range(id, range);
 }
 
 auto set_umbra(LightSet &set, LightId id, const void *const data, [[maybe_unused]] u32 size) -> void
 {
-    f32 umbra{*(f32 *)data};
+    const f32 umbra{*(f32 *)data};
     assert(sizeof(umbra) == size);
     set.umbra(id, umbra);
 }
 
 auto set_penumbra(LightSet &set, LightId id, const void *const data, [[maybe_unused]] u32 size) -> void
 {
-    f32 penumbra{*(f32 *)data};
+    const f32 penumbra{*(f32 *)data};
     assert(sizeof(penumbra) == size);
     set.penumbra(id, penumbra);
 }
 
 constexpr auto get_is_enabled(const LightSet &set, LightId id, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    bool *const is_enabled{(bool *const)data};
+    bool *const is_enabled{(bool *)data};
     assert(sizeof(bool) == size);
     *is_enabled = set.is_enabled(id);
 }
 
 constexpr auto get_intensity(const LightSet &set, LightId id, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    f32 *const intensity{(f32 *const)data};
+    f32 *const intensity{(f32 *)data};
     assert(sizeof(f32) == size);
     *intensity = set.intensity(id);
 }
 
 constexpr auto get_color(const LightSet &set, LightId id, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    math::v3 *const color{(math::v3 *const)data};
+    math::v3 *const color{(math::v3 *)data};
     assert(sizeof(math::v3) == size);
     *color = set.color(id);
 }
 
 CONSTEXPR auto get_attenuation(const LightSet &set, LightId id, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    math::v3 *const attenuation{(math::v3 *const)data};
+    math::v3 *const attenuation{(math::v3 *)data};
     assert(sizeof(math::v3) == size);
     *attenuation = set.attenuation(id);
 }
 
 CONSTEXPR auto get_range(const LightSet &set, LightId id, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    f32 *const range{(f32 *const)data};
+    f32 *const range{(f32 *)data};
     assert(sizeof(f32) == size);
     *range = set.range(id);
 }
 
 auto get_umbra(const LightSet &set, LightId id, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    f32 *const umbra{(f32 *const)data};
+    f32 *const umbra{(f32 *)data};
     assert(sizeof(f32) == size);
     *umbra = set.umbra(id);
 }
 
 auto get_penumbra(const LightSet &set, LightId id, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    f32 *const penumbra{(f32 *const)data};
+    f32 *const penumbra{(f32 *)data};
     assert(sizeof(f32) == size);
     *penumbra = set.penumbra(id);
 }
 
 constexpr auto get_type(const LightSet &set, LightId id, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    graphics::Light::Type *const type{(graphics::Light::Type *const)data};
+    graphics::Light::Type *const type{(graphics::Light::Type *)data};
     assert(sizeof(graphics::Light::Type) == size);
     *type = set.type(id);
 }
 
 constexpr auto get_entity_id(const LightSet &set, LightId id, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    id::id_type *const entity_id{(id::id_type *const)data};
+    id::id_type *const entity_id{(id::id_type *)data};
     assert(sizeof(id::id_type) == size);
     *entity_id = set.entity_id(id);
 }
@@ -1067,7 +1078,9 @@ auto update_light_buffers(const D3D12FrameInfo &d3d12_info) -> void
     assert(light_sets.count(light_set_key));
     LightSet &set{light_sets[light_set_key]};
     if (!set.has_lights())
+    {
         return;
+    }
 
     set.update_transforms();
     const u32 frame_index{d3d12_info.frame_index};

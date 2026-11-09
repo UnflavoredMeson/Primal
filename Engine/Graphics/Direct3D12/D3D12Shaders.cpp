@@ -36,7 +36,9 @@ auto load_engine_shaders() -> bool
             "D3D12: shaders/d3d12/shaders.bin is corrupt or from another version (delete it to recompile).\n");
         engine_shaders_blob.reset();
         for (auto &shader : engine_shaders)
+        {
             shader = {};
+        }
         return false;
     }
 

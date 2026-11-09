@@ -228,7 +228,7 @@ auto create_root_signature(MaterialType::Type type, ShaderFlags::Flags flags) ->
     assert(type < MaterialType::count);
     static_assert(sizeof(type) == sizeof(u32) && sizeof(flags) == sizeof(u32));
     const u64 key{((u64)type << 32) | flags};
-    auto pair = mtl_rs_map.find(key);
+    const auto pair = mtl_rs_map.find(key);
     if (pair != mtl_rs_map.end())
     {
         assert(pair->first == key);
@@ -308,8 +308,8 @@ auto create_pso_if_needed(const vkx::GraphicsPipelineDesc &desc, bool is_depth) 
     const u64 key{math::calc_crc32_u64((const u8 *)&desc, sizeof(desc))};
 
     { // Lock scope to check if PSO already exists
-        std::scoped_lock lock{pso_mutex};
-        auto pair = pso_map.find(key);
+        const std::scoped_lock lock{pso_mutex};
+        const auto pair = pso_map.find(key);
 
         if (pair != pso_map.end())
         {
@@ -324,9 +324,9 @@ auto create_pso_if_needed(const vkx::GraphicsPipelineDesc &desc, bool is_depth) 
     assert(pipeline);
 
     { // Lock scope to add the new pipeline and its id
-        std::scoped_lock lock{pso_mutex};
+        const std::scoped_lock lock{pso_mutex};
         // Another thread may have created the same pipeline in the meantime. Ours was never used.
-        auto pair = pso_map.find(key);
+        const auto pair = pso_map.find(key);
         if (pair != pso_map.end())
         {
             ::vkDestroyPipeline(core::device(), pipeline, nullptr);
@@ -370,7 +370,7 @@ auto create_pso(id::id_type material_id, VkPrimitiveTopology primitive_topology,
     vkx::ShaderBytecode depth_prepass_vertex_shader{};
 
     { // Lock materials
-        std::scoped_lock lock{material_mutex};
+        const std::scoped_lock lock{material_mutex};
         const VulkanMaterialStream material{materials[material_id].get()};
 
         desc.render_target_formats[0] = gpass::main_buffer_format;
@@ -562,13 +562,17 @@ auto create_resource_from_texture_data(const u8 *const data) -> VulkanTexture
     image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     // The default SRV view is a cube (array) for cube-compatible images with a multiple of 6 layers.
     if (flags & primal::content::TextureFlags::is_cube_map)
+    {
         image_info.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+    }
 
     VulkanTextureInitInfo info{};
     info.image_info = &image_info;
     VulkanTexture texture{info};
     if (!texture.image())
+    {
         return {};
+    }
 
     assert(upload_size && upload_size <= u32_invalid_id);
     upload::VulkanUploadContext context{(u32)upload_size};
@@ -698,7 +702,9 @@ auto add(const u8 *const data, id::id_type *const ids, u32 count) -> void
             l.src_offsets[part] = src_offset;
             l.dst_offsets[part] = dst_offset;
             if (l.sizes[part])
+            {
                 regions.emplace_back(VkBufferCopy{src_offset, dst_offset, l.sizes[part]});
+            }
             src_offset += math::align_size_up<asset_alignment>(l.sizes[part]);
             dst_offset += l.sizes[part];
         }
@@ -725,7 +731,7 @@ auto add(const u8 *const data, id::id_type *const ids, u32 count) -> void
         context.end_upload();
     }
 
-    std::scoped_lock lock{mesh_mutex};
+    const std::scoped_lock lock{mesh_mutex};
 
     const u32 resource_id{mesh_buffers.add(std::move(buffer))};
 
@@ -756,7 +762,7 @@ auto add(const u8 *const data, id::id_type *const ids, u32 count) -> void
 auto remove(const id::id_type *const ids, u32 count) -> void
 {
     assert(ids && count);
-    std::scoped_lock lock{mesh_mutex};
+    const std::scoped_lock lock{mesh_mutex};
     const u32 resource_id{submesh_views[ids[0]].resource_index};
     assert(resource_id != u32_invalid_id);
 
@@ -776,7 +782,7 @@ auto get_views(const id::id_type *const gpu_ids, u32 id_count, const ViewsCache 
         cache.position_buffers && cache.element_buffers && cache.index_buffer_views && cache.primitive_topologies &&
         cache.elements_types);
 
-    std::scoped_lock lock{mesh_mutex};
+    const std::scoped_lock lock{mesh_mutex};
     for (u32 i{0}; i < id_count; ++i)
     {
         const SubmeshView &view{submesh_views[gpu_ids[i]]};
@@ -804,7 +810,7 @@ auto add(const u8 *const data) -> id::id_type
     assert(data);
     VulkanTexture texture{create_resource_from_texture_data(data)};
 
-    std::scoped_lock lock{texture_mutex};
+    const std::scoped_lock lock{texture_mutex};
     const id::id_type id{textures.add(std::move(texture))};
     descriptor_indices.add(textures[id].srv().index);
     return id;
@@ -812,7 +818,7 @@ auto add(const u8 *const data) -> id::id_type
 
 auto remove(id::id_type id) -> void
 {
-    std::scoped_lock lock{texture_mutex};
+    const std::scoped_lock lock{texture_mutex};
     textures.remove(id);
     descriptor_indices.remove(id);
 }
@@ -820,7 +826,7 @@ auto remove(id::id_type id) -> void
 auto get_descriptor_indices(const id::id_type *const texture_ids, u32 id_count, u32 *const indices) -> void
 {
     assert(texture_ids && id_count && indices);
-    std::scoped_lock lock{texture_mutex};
+    const std::scoped_lock lock{texture_mutex};
     for (u32 i{0}; i < id_count; ++i)
     {
         assert(id::is_valid(texture_ids[i]));
@@ -846,15 +852,15 @@ namespace material
 auto add(MaterialInitInfo info) -> id::id_type
 {
     std::unique_ptr<u8[]> buffer;
-    std::scoped_lock lock{material_mutex};
-    VulkanMaterialStream stream{buffer, info};
+    const std::scoped_lock lock{material_mutex};
+    const VulkanMaterialStream stream{buffer, info};
     assert(buffer);
     return materials.add(std::move(buffer));
 }
 
 auto remove(id::id_type id) -> void
 {
-    std::scoped_lock lock{material_mutex};
+    const std::scoped_lock lock{material_mutex};
     materials.remove(id);
 }
 
@@ -866,7 +872,7 @@ auto get_materials(
 {
     assert(material_ids && material_count);
     assert(cache.root_signatures && cache.material_types);
-    std::scoped_lock lock{material_mutex};
+    const std::scoped_lock lock{material_mutex};
 
     u32 total_index_count{0};
 
@@ -933,14 +939,15 @@ auto add(
         item.entity_id = entity_id;
         item.submesh_gpu_id = gpu_ids[i];
         item.material_id = material_ids[i];
-        PsoId id_pair{create_pso(item.material_id, views_cache.primitive_topologies[i], views_cache.elements_types[i])};
+        const PsoId id_pair{
+            create_pso(item.material_id, views_cache.primitive_topologies[i], views_cache.elements_types[i])};
         item.pso_id = id_pair.gpass_pso_id;
         item.depth_pso_id = id_pair.depth_pso_id;
 
         assert(id::is_valid(item.submesh_gpu_id) && id::is_valid(item.material_id));
     }
 
-    std::scoped_lock lock{render_item_mutex};
+    const std::scoped_lock lock{render_item_mutex};
 
     for (u32 i{0}; i < material_count; ++i)
     {
@@ -955,7 +962,7 @@ auto add(
 
 auto remove(id::id_type id) -> void
 {
-    std::scoped_lock lock{render_item_mutex};
+    const std::scoped_lock lock{render_item_mutex};
     const id::id_type *const item_ids{&render_item_ids[id][1]};
 
     // NOTE: the last element in the list of ids is always an invalid id.
@@ -976,7 +983,7 @@ auto get_vulkan_render_item_ids(const FrameInfo &info, utl::vector<id::id_type> 
     frame_cache.geometry_ids.clear();
     const u32 count{info.render_item_count};
 
-    std::scoped_lock lock{render_item_mutex};
+    const std::scoped_lock lock{render_item_mutex};
 
     for (u32 i{0}; i < count; ++i)
     {
@@ -1017,7 +1024,7 @@ auto get_items(const id::id_type *const vulkan_render_item_ids, u32 id_count, co
         cache.entity_ids && cache.submesh_gpu_ids && cache.material_ids && cache.gpass_pipelines &&
         cache.depth_pipelines);
 
-    std::scoped_lock lock{render_item_mutex, pso_mutex};
+    const std::scoped_lock lock{render_item_mutex, pso_mutex};
 
     for (u32 i{0}; i < id_count; ++i)
     {

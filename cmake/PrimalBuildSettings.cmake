@@ -14,9 +14,20 @@ target_compile_features(primal_build_settings INTERFACE cxx_std_23)
 target_compile_options(primal_build_settings INTERFACE
     -msse4.2 -mavx2 -mfma -mf16c
     -ffp-contract=fast -fno-math-errno
-    -Wall
+    # Warnings: -Wmissing-field-initializers is off: partial aggregate initializers that zero the
+    # remaining members ({ a, b }) are intended throughout the engine (Vulkan/D3D12 structs, init infos).
+    -Wall -Wextra -Wpedantic
+    -Wconversion-null -Wpointer-arith -Wvla -Wwrite-strings -Wunused-result -Wvarargs -Woverlength-strings
+    -Wunused-local-typedefs
+    -Wno-missing-field-initializers
     -Wno-unknown-pragmas  # MSVC-only pragmas (#pragma warning, #pragma comment, ...)
 )
+
+# Warnings are errors. Turn off to build with a newer compiler that adds warnings.
+option(PRIMAL_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" ON)
+if(PRIMAL_WARNINGS_AS_ERRORS)
+    target_compile_options(primal_build_settings INTERFACE -Werror)
+endif()
 
 target_compile_definitions(primal_build_settings INTERFACE
     $<$<CONFIG:Debug>:_DEBUG>

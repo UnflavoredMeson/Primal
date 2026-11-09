@@ -43,7 +43,7 @@ class free_list
         {
             id = _next_free_index;
             assert(id < _array.size() && already_removed(id, true));
-            _next_free_index = *(const u32 *const)std::addressof(_array[id]);
+            _next_free_index = *(const u32 *)std::addressof(_array[id]);
             new (std::addressof(_array[id])) T(std::forward<params>(p)...);
         }
         ++_size;
@@ -57,7 +57,7 @@ class free_list
         item.~T();
         // Fill the destroyed item's storage with a debug pattern (void* cast: T needn't be trivially copyable).
         DEBUG_OP(std::memset((void *)std::addressof(_array[id]), 0xcc, sizeof(T)));
-        *(u32 *const)std::addressof(_array[id]) = _next_free_index;
+        *(u32 *)std::addressof(_array[id]) = _next_free_index;
         _next_free_index = id;
         --_size;
     }
@@ -96,10 +96,12 @@ class free_list
         if constexpr (sizeof(T) > sizeof(u32))
         {
             u32 i{sizeof(u32)}; // skip the first 4 bytes.
-            const u8 *const p{(const u8 *const)std::addressof(_array[id])};
+            const u8 *const p{(const u8 *)std::addressof(_array[id])};
             // NOTE: test the bound first, p[sizeof(T)] is past the item (past the array for the last one).
             while ((i < sizeof(T)) && (p[i] == 0xcc))
+            {
                 ++i;
+            }
             return i == sizeof(T);
         }
         else

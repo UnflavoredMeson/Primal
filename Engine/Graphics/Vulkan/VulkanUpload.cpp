@@ -26,7 +26,9 @@ struct UploadFrame
     {
         wait_and_reset();
         if (cmd_pool)
+        {
             ::vkDestroyCommandPool(core::device(), cmd_pool, nullptr);
+        }
         cmd_pool = VK_NULL_HANDLE;
         cmd_buffer = VK_NULL_HANDLE;
     }
@@ -57,7 +59,9 @@ auto UploadFrame::wait_and_reset() -> void
 
     // The GPU is done with the staging buffer, so it can be destroyed right away (no deferred release).
     if (upload_buffer)
+    {
         ::vmaDestroyBuffer(core::allocator(), upload_buffer, allocation);
+    }
     upload_buffer = VK_NULL_HANDLE;
     allocation = VK_NULL_HANDLE;
     cpu_address = nullptr;
@@ -69,7 +73,7 @@ auto get_available_upload_frame(std::unique_lock<std::mutex> &frame_lock) -> u32
     assert(frame_lock.owns_lock());
     u32 index{u32_invalid_id};
     const u32 count{upload_frame_count};
-    UploadFrame *const frames{&upload_frames[0]};
+    UploadFrame const *const frames{&upload_frames[0]};
 
     for (u32 i{0}; i < count; ++i)
     {
@@ -171,7 +175,7 @@ auto VulkanUploadContext::end_upload() -> void
 
     {
         // The fence value must increase in submission order, so the submit is in the same lock.
-        std::scoped_lock lock{fence_mutex};
+        const std::scoped_lock lock{fence_mutex};
         frame.fence_value = ++upload_fence_value;
 
         VkSemaphoreSubmitInfo signal_info{VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO};
@@ -191,7 +195,7 @@ auto VulkanUploadContext::end_upload() -> void
     // Wait for the copy to finish. Then release the upload buffer.
     frame.wait_and_reset();
     {
-        std::scoped_lock lock{frame_mutex};
+        const std::scoped_lock lock{frame_mutex};
         frame.in_use = false;
     }
     // This instance of upload context is now expired. Make sure we don't use it again.
@@ -213,14 +217,18 @@ auto initialize() -> bool
         pool_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
         pool_info.queueFamilyIndex = core::graphics_queue_family();
         if (!VkCall(::vkCreateCommandPool(device, &pool_info, nullptr, &frame.cmd_pool)))
+        {
             return init_failed();
+        }
 
         VkCommandBufferAllocateInfo alloc_info{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
         alloc_info.commandPool = frame.cmd_pool;
         alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
         alloc_info.commandBufferCount = 1;
         if (!VkCall(::vkAllocateCommandBuffers(device, &alloc_info, &frame.cmd_buffer)))
+        {
             return init_failed();
+        }
 
         NAME_VK_OBJECT_INDEXED(frame.cmd_pool, VK_OBJECT_TYPE_COMMAND_POOL, i, "Upload Command Pool");
         NAME_VK_OBJECT_INDEXED(frame.cmd_buffer, VK_OBJECT_TYPE_COMMAND_BUFFER, i, "Upload Command Buffer");
@@ -231,7 +239,9 @@ auto initialize() -> bool
     VkSemaphoreCreateInfo semaphore_info{VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
     semaphore_info.pNext = &timeline_info;
     if (!VkCall(::vkCreateSemaphore(device, &semaphore_info, nullptr, &upload_fence)))
+    {
         return init_failed();
+    }
     NAME_VK_OBJECT(upload_fence, VK_OBJECT_TYPE_SEMAPHORE, "Upload Fence (timeline)");
 
     return true;
@@ -247,7 +257,9 @@ auto shutdown() -> void
     }
 
     if (upload_fence)
+    {
         ::vkDestroySemaphore(core::device(), upload_fence, nullptr);
+    }
     upload_fence = VK_NULL_HANDLE;
     upload_fence_value = 0;
 }

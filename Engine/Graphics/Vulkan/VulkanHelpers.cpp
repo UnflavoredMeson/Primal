@@ -25,7 +25,9 @@ auto VulkanBarrier::add(
     assert(image);
     assert(_image_count < max_barriers);
     if (_image_count >= max_barriers)
+    {
         return;
+    }
 
     VkImageMemoryBarrier2 &barrier{_image_barriers[_image_count++]};
     barrier = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2};
@@ -47,7 +49,9 @@ auto VulkanBarrier::add(VkBuffer buffer, const ResourceState &before, const Reso
     assert(buffer);
     assert(_buffer_count < max_barriers);
     if (_buffer_count >= max_barriers)
+    {
         return;
+    }
 
     VkBufferMemoryBarrier2 &barrier{_buffer_barriers[_buffer_count++]};
     barrier = {VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2};
@@ -124,7 +128,9 @@ auto create_root_signature(const RootParameter *parameters, u32 count, [[maybe_u
     set_info.bindingCount = count;
     set_info.pBindings = &bindings[0];
     if (!VkCall(::vkCreateDescriptorSetLayout(device, &set_info, nullptr, &signature.root_set_layout)))
+    {
         return {};
+    }
     NAME_VK_OBJECT(signature.root_set_layout, VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, name);
 
     const VkDescriptorSetLayout set_layouts[]{signature.root_set_layout, core::srv_heap().set_layout()};
@@ -155,7 +161,9 @@ auto RootDescriptors::add(VkDescriptorType type, u32 binding, const BufferRange 
     assert(range.is_valid());
     assert(_count < max_root_parameters);
     if (_count >= max_root_parameters)
+    {
         return;
+    }
 
     VkDescriptorBufferInfo &buffer{_buffers[_count]};
     buffer.buffer = range.buffer;
@@ -175,7 +183,9 @@ auto RootDescriptors::push(VkCommandBuffer cmd, VkPipelineBindPoint bind_point, 
 {
     assert(cmd_push_descriptor_set && signature.is_valid());
     if (_count)
+    {
         cmd_push_descriptor_set(cmd, bind_point, signature.layout, root_descriptor_set, _count, &_writes[0]);
+    }
     _count = 0;
 }
 
@@ -214,10 +224,12 @@ auto create_graphics_pipeline(const GraphicsPipelineDesc &desc, [[maybe_unused]]
     VkShaderModule modules[2]{};
     VkPipelineShaderStageCreateInfo stages[2]{};
     u32 stage_count{0};
-    auto add_stage = [&](const ShaderBytecode &shader, VkShaderStageFlagBits stage)
+    const auto add_stage = [&](const ShaderBytecode &shader, VkShaderStageFlagBits stage)
     {
         if (!shader.is_valid())
+        {
             return;
+        }
         modules[stage_count] = create_shader_module(device, shader);
         VkPipelineShaderStageCreateInfo &info{stages[stage_count]};
         info = {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
@@ -244,7 +256,9 @@ auto create_graphics_pipeline(const GraphicsPipelineDesc &desc, [[maybe_unused]]
 
     VkPipelineColorBlendAttachmentState blend_attachments[GraphicsPipelineDesc::max_render_targets]{};
     for (u32 i{0}; i < desc.render_target_count; ++i)
+    {
         blend_attachments[i] = desc.blend;
+    }
     VkPipelineColorBlendStateCreateInfo blend{VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
     blend.attachmentCount = desc.render_target_count;
     blend.pAttachments = &blend_attachments[0];
@@ -277,7 +291,9 @@ auto create_graphics_pipeline(const GraphicsPipelineDesc &desc, [[maybe_unused]]
     // TODO: pipeline cache.
     VkCall(::vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &info, nullptr, &pipeline));
     for (u32 i{0}; i < stage_count; ++i)
+    {
         ::vkDestroyShaderModule(device, modules[i], nullptr);
+    }
     NAME_VK_OBJECT(pipeline, VK_OBJECT_TYPE_PIPELINE, name);
     return pipeline;
 }

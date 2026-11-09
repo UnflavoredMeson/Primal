@@ -14,7 +14,7 @@ using namespace DirectX;
 
 auto mikk_get_num_faces(const SMikkTSpaceContext *context) -> s32
 {
-    const Mesh &m{*(Mesh *)(context->m_pUserData)};
+    const Mesh &m{*(Mesh *)context->m_pUserData};
     return (s32)m.indices.size() / 3;
 }
 
@@ -27,7 +27,7 @@ auto mikk_get_num_vertices_of_face([[maybe_unused]] const SMikkTSpaceContext *co
 
 auto mikk_get_position(const SMikkTSpaceContext *context, f32 position[3], s32 face_index, s32 vert_index) -> void
 {
-    const Mesh &m{*(Mesh *)(context->m_pUserData)};
+    const Mesh &m{*(Mesh *)context->m_pUserData};
     const u32 index{m.indices[face_index * 3 + vert_index]};
     const math::v3 &p{m.vertices[index].position};
     position[0] = p.x;
@@ -37,7 +37,7 @@ auto mikk_get_position(const SMikkTSpaceContext *context, f32 position[3], s32 f
 
 auto mikk_get_normal(const SMikkTSpaceContext *context, f32 normal[3], s32 face_index, s32 vert_index) -> void
 {
-    const Mesh &m{*(Mesh *)(context->m_pUserData)};
+    const Mesh &m{*(Mesh *)context->m_pUserData};
     const u32 index{m.indices[face_index * 3 + vert_index]};
     const math::v3 &n{m.vertices[index].normal};
     normal[0] = n.x;
@@ -47,7 +47,7 @@ auto mikk_get_normal(const SMikkTSpaceContext *context, f32 normal[3], s32 face_
 
 auto mikk_get_tex_coord(const SMikkTSpaceContext *context, f32 texture[2], s32 face_index, s32 vert_index) -> void
 {
-    const Mesh &m{*(Mesh *)(context->m_pUserData)};
+    const Mesh &m{*(Mesh *)context->m_pUserData};
     const u32 index{m.indices[face_index * 3 + vert_index]};
     const math::v2 &uv{m.vertices[index].uv};
     texture[0] = uv.x;
@@ -61,7 +61,7 @@ auto mikk_set_tspace_basic(
     s32 face_index,
     s32 vert_index) -> void
 {
-    Mesh &m{*(Mesh *)(context->m_pUserData)};
+    Mesh &m{*(Mesh *)context->m_pUserData};
     const u32 index{m.indices[face_index * 3 + vert_index]};
     math::v4 &t{m.vertices[index].tangent};
     t.x = tangent[0];
@@ -128,7 +128,9 @@ auto calculate_tangents(Mesh &m) -> void
 
         f32 det{duv1.x * duv2.y - duv1.y * duv2.x};
         if (std::abs(det) < math::epsilon)
+        {
             det = math::epsilon;
+        }
 
         const f32 inv_det{1.f / det};
         const XMVECTOR t{(dp1 * duv2.y - dp2 * duv1.y) * inv_det};
@@ -171,13 +173,13 @@ auto recalculate_normals(Mesh &m) -> void
         const u32 i1{m.raw_indices[++i]};
         const u32 i2{m.raw_indices[++i]};
 
-        XMVECTOR v0{XMLoadFloat3(&m.positions[i0])};
-        XMVECTOR v1{XMLoadFloat3(&m.positions[i1])};
-        XMVECTOR v2{XMLoadFloat3(&m.positions[i2])};
+        const XMVECTOR v0{XMLoadFloat3(&m.positions[i0])};
+        const XMVECTOR v1{XMLoadFloat3(&m.positions[i1])};
+        const XMVECTOR v2{XMLoadFloat3(&m.positions[i2])};
 
-        XMVECTOR e0{v1 - v0};
-        XMVECTOR e1{v2 - v0};
-        XMVECTOR n{XMVector3Normalize(XMVector3Cross(e0, e1))};
+        const XMVECTOR e0{v1 - v0};
+        const XMVECTOR e1{v2 - v0};
+        const XMVECTOR n{XMVector3Normalize(XMVector3Cross(e0, e1))};
 
         XMStoreFloat3(&m.normals[i], n);
         m.normals[i - 1] = m.normals[i];
@@ -198,7 +200,9 @@ auto process_normals(Mesh &m, f32 smoothing_angle) -> void
 
     utl::vector<utl::vector<u32>> idx_ref(num_vertices);
     for (u32 i{0}; i < num_indices; ++i)
+    {
         idx_ref[m.raw_indices[i]].emplace_back(i);
+    }
 
     for (u32 i{0}; i < num_vertices; ++i)
     {
@@ -217,7 +221,7 @@ auto process_normals(Mesh &m, f32 smoothing_angle) -> void
                 {
                     // this value represents the cosine of the angle between normals.
                     f32 cos_theta{0.f};
-                    XMVECTOR n2{XMLoadFloat3(&m.normals[refs[k]])};
+                    const XMVECTOR n2{XMLoadFloat3(&m.normals[refs[k]])};
                     if (!is_soft_edge)
                     {
                         // NOTE: we're accounting for the length of n1 in this calculation because
@@ -256,7 +260,9 @@ auto process_uvs(Mesh &m) -> void
 
     utl::vector<utl::vector<u32>> idx_ref(num_vertices);
     for (u32 i{0}; i < num_indices; ++i)
+    {
         idx_ref[old_indices[i]].emplace_back(i);
+    }
 
     for (u32 i{0}; i < num_vertices; ++i)
     {
@@ -271,7 +277,7 @@ auto process_uvs(Mesh &m) -> void
 
             for (u32 k{j + 1}; k < num_refs; ++k)
             {
-                math::v2 &uv1{m.uv_sets[0][refs[k]]};
+                const math::v2 &uv1{m.uv_sets[0][refs[k]]};
                 if (XMScalarNearEqual(v.uv.x, uv1.x, math::epsilon) && XMScalarNearEqual(v.uv.y, uv1.y, math::epsilon))
                 {
                     m.indices[refs[k]] = m.indices[refs[j]];
@@ -302,7 +308,9 @@ auto process_tangents(Mesh &m) -> void
 
     utl::vector<utl::vector<u32>> idx_ref(num_vertices);
     for (u32 i{0}; i < num_indices; ++i)
+    {
         idx_ref[old_indices[i]].emplace_back(i);
+    }
 
     for (u32 i{0}; i < num_vertices; ++i)
     {
@@ -317,11 +325,11 @@ auto process_tangents(Mesh &m) -> void
             m.indices[refs[j]] = (u32)m.vertices.size();
             m.vertices.emplace_back(v);
 
-            XMVECTOR xm_tj{XMLoadFloat4(&tj)};
-            XMVECTOR xm_epsilon{XMVectorReplicate(math::epsilon)};
+            const XMVECTOR xm_tj{XMLoadFloat4(&tj)};
+            const XMVECTOR xm_epsilon{XMVectorReplicate(math::epsilon)};
             for (u32 k{j + 1}; k < num_refs; ++k)
             {
-                XMVECTOR xm_tangent{XMLoadFloat4(&m.tangents[refs[k]])};
+                const XMVECTOR xm_tangent{XMLoadFloat4(&m.tangents[refs[k]])};
                 if (XMVector4NearEqual(xm_tj, xm_tangent, xm_epsilon))
                 {
                     m.indices[refs[k]] = m.indices[refs[j]];
@@ -359,7 +367,7 @@ auto pack_vertices(Mesh &m) -> void
     assert(num_vertices);
 
     m.position_buffer.resize(sizeof(math::v3) * num_vertices);
-    math::v3 *const position_buffer{(math::v3 *const)m.position_buffer.data()};
+    math::v3 *const position_buffer{(math::v3 *)m.position_buffer.data()};
 
     for (u32 i{0}; i < num_vertices; ++i)
     {
@@ -385,7 +393,7 @@ auto pack_vertices(Mesh &m) -> void
         // normals only
         for (u32 i{0}; i < num_vertices; ++i)
         {
-            Vertex &v{m.vertices[i]};
+            const Vertex &v{m.vertices[i]};
             t_signs[i] = (u8)((v.normal.z > 0.f) << 2);
             normals[i] = {
                 (u16)math::pack_float<16>(v.normal.x, -1.f, 1.f), (u16)math::pack_float<16>(v.normal.y, -1.f, 1.f)};
@@ -396,7 +404,7 @@ auto pack_vertices(Mesh &m) -> void
             // full T-space
             for (u32 i{0}; i < num_vertices; ++i)
             {
-                Vertex &v{m.vertices[i]};
+                const Vertex &v{m.vertices[i]};
                 t_signs[i] |= (u8)((v.tangent.w > 0.f) | ((v.tangent.z > 0.f) << 1));
                 tangents[i] = {
                     (u16)math::pack_float<16>(v.tangent.x, -1.f, 1.f),
@@ -409,7 +417,7 @@ auto pack_vertices(Mesh &m) -> void
     {
         for (u32 i{0}; i < num_vertices; ++i)
         {
-            Vertex &v{m.vertices[i]};
+            const Vertex &v{m.vertices[i]};
             // pack joint weights (from [0.0, 1.0] to [0..255])
             joint_weights[i] = {
                 (u8)math::pack_unit_float<8>(v.joint_weights.x),
@@ -427,7 +435,7 @@ auto pack_vertices(Mesh &m) -> void
     {
         case ElementsType::static_color:
         {
-            StaticColor *const element_buffer{(StaticColor *const)m.element_buffer.data()};
+            StaticColor *const element_buffer{(StaticColor *)m.element_buffer.data()};
             for (u32 i{0}; i < num_vertices; ++i)
             {
                 Vertex &v{m.vertices[i]};
@@ -437,7 +445,7 @@ auto pack_vertices(Mesh &m) -> void
         break;
         case ElementsType::static_normal:
         {
-            StaticNormal *const element_buffer{(StaticNormal *const)m.element_buffer.data()};
+            StaticNormal *const element_buffer{(StaticNormal *)m.element_buffer.data()};
             for (u32 i{0}; i < num_vertices; ++i)
             {
                 Vertex &v{m.vertices[i]};
@@ -447,7 +455,7 @@ auto pack_vertices(Mesh &m) -> void
         break;
         case ElementsType::static_normal_texture:
         {
-            StaticNormalTexture *const element_buffer{(StaticNormalTexture *const)m.element_buffer.data()};
+            StaticNormalTexture *const element_buffer{(StaticNormalTexture *)m.element_buffer.data()};
             for (u32 i{0}; i < num_vertices; ++i)
             {
                 Vertex &v{m.vertices[i]};
@@ -462,10 +470,10 @@ auto pack_vertices(Mesh &m) -> void
         break;
         case ElementsType::skeletal:
         {
-            Skeletal *const element_buffer{(Skeletal *const)m.element_buffer.data()};
+            Skeletal *const element_buffer{(Skeletal *)m.element_buffer.data()};
             for (u32 i{0}; i < num_vertices; ++i)
             {
-                Vertex &v{m.vertices[i]};
+                const Vertex &v{m.vertices[i]};
                 const u16 indices[4]{
                     (u16)v.joint_indices.x, (u16)v.joint_indices.y, (u16)v.joint_indices.z, (u16)v.joint_indices.w};
                 element_buffer[i] = {
@@ -477,7 +485,7 @@ auto pack_vertices(Mesh &m) -> void
         break;
         case ElementsType::skeletal_color:
         {
-            SkeletalColor *const element_buffer{(SkeletalColor *const)m.element_buffer.data()};
+            SkeletalColor *const element_buffer{(SkeletalColor *)m.element_buffer.data()};
             for (u32 i{0}; i < num_vertices; ++i)
             {
                 Vertex &v{m.vertices[i]};
@@ -494,10 +502,10 @@ auto pack_vertices(Mesh &m) -> void
         break;
         case ElementsType::skeletal_normal:
         {
-            SkeletalNormal *const element_buffer{(SkeletalNormal *const)m.element_buffer.data()};
+            SkeletalNormal *const element_buffer{(SkeletalNormal *)m.element_buffer.data()};
             for (u32 i{0}; i < num_vertices; ++i)
             {
-                Vertex &v{m.vertices[i]};
+                const Vertex &v{m.vertices[i]};
                 const u16 indices[4]{
                     (u16)v.joint_indices.x, (u16)v.joint_indices.y, (u16)v.joint_indices.z, (u16)v.joint_indices.w};
                 element_buffer[i] = {
@@ -510,7 +518,7 @@ auto pack_vertices(Mesh &m) -> void
         break;
         case ElementsType::skeletal_normal_color:
         {
-            SkeletalNormalColor *const element_buffer{(SkeletalNormalColor *const)m.element_buffer.data()};
+            SkeletalNormalColor *const element_buffer{(SkeletalNormalColor *)m.element_buffer.data()};
             for (u32 i{0}; i < num_vertices; ++i)
             {
                 Vertex &v{m.vertices[i]};
@@ -528,10 +536,10 @@ auto pack_vertices(Mesh &m) -> void
         break;
         case ElementsType::skeletal_normal_texture:
         {
-            SkeletalNormalTexture *const element_buffer{(SkeletalNormalTexture *const)m.element_buffer.data()};
+            SkeletalNormalTexture *const element_buffer{(SkeletalNormalTexture *)m.element_buffer.data()};
             for (u32 i{0}; i < num_vertices; ++i)
             {
-                Vertex &v{m.vertices[i]};
+                const Vertex &v{m.vertices[i]};
                 const u16 indices[4]{
                     (u16)v.joint_indices.x, (u16)v.joint_indices.y, (u16)v.joint_indices.z, (u16)v.joint_indices.w};
                 element_buffer[i] = {
@@ -546,8 +554,7 @@ auto pack_vertices(Mesh &m) -> void
         break;
         case ElementsType::skeletal_normal_texture_color:
         {
-            SkeletalNormalTextureColor *const element_buffer{
-                (SkeletalNormalTextureColor *const)m.element_buffer.data()};
+            SkeletalNormalTextureColor *const element_buffer{(SkeletalNormalTextureColor *)m.element_buffer.data()};
             for (u32 i{0}; i < num_vertices; ++i)
             {
                 Vertex &v{m.vertices[i]};
@@ -573,9 +580,9 @@ auto determine_elements_type(const Mesh &m) -> elements::ElementsType::Type
     using namespace elements;
     ElementsType::Type type{};
 
-    if (m.normals.size())
+    if (!m.normals.empty())
     {
-        if (m.uv_sets.size() && m.uv_sets[0].size())
+        if (!m.uv_sets.empty() && !m.uv_sets[0].empty())
         {
             type = ElementsType::static_normal_texture;
         }
@@ -584,7 +591,7 @@ auto determine_elements_type(const Mesh &m) -> elements::ElementsType::Type
             type = ElementsType::static_normal;
         }
     }
-    else if (m.colors.size())
+    else if (!m.colors.empty())
     {
         type = ElementsType::static_color;
     }
@@ -718,7 +725,9 @@ auto pack_mesh_data(const Mesh &m, utl::BlobStreamWriter &blob) -> void
     {
         indices.resize(num_indices);
         for (u32 i{0}; i < num_indices; ++i)
+        {
             indices[i] = (u16)m.indices[i];
+        }
         data = (const u8 *)indices.data();
     }
     blob.write(data, index_buffer_size);
@@ -739,7 +748,9 @@ auto split_meshes_by_material(u32 material_idx, const Mesh &m, Mesh &submesh) ->
     {
         const u32 mtl_idx{m.material_indices[i]};
         if (mtl_idx != material_idx)
+        {
             continue;
+        }
 
         const u32 index{i * 3};
         for (u32 j = index; j < index + 3; ++j)
@@ -756,19 +767,19 @@ auto split_meshes_by_material(u32 material_idx, const Mesh &m, Mesh &submesh) ->
                 submesh.positions.emplace_back(m.positions[v_idx]);
             }
 
-            if (m.normals.size())
+            if (!m.normals.empty())
             {
                 submesh.normals.emplace_back(m.normals[j]);
             }
 
-            if (m.tangents.size())
+            if (!m.tangents.empty())
             {
                 submesh.tangents.emplace_back(m.tangents[j]);
             }
 
             for (u32 k{0}; k < m.uv_sets.size(); ++k)
             {
-                if (m.uv_sets[k].size())
+                if (!m.uv_sets[k].empty())
                 {
                     submesh.uv_sets[k].emplace_back(m.uv_sets[k][j]);
                 }
@@ -820,7 +831,9 @@ template <typename T>
 auto append_to_vector_pod(utl::vector<T> &dst, const utl::vector<T> &src) -> void
 {
     if (src.empty())
+    {
         return;
+    }
     const u32 num_elements{(u32)dst.size()};
     dst.resize(dst.size() + src.size());
     std::memcpy(&dst[num_elements], src.data(), src.size() * sizeof(T));
@@ -834,11 +847,13 @@ auto process_scene(Scene &scene, const GeometryImportSettings &settings, Progres
     split_meshes_by_material(scene, progression);
 
     for (auto &lod : scene.lod_groups)
+    {
         for (auto &m : lod.meshes)
         {
             process_vertices(m, settings);
             progression->callback(progression->value() + 1, progression->max_value());
         }
+    }
 }
 
 auto pack_data(const Scene &scene, SceneData &data) -> void
@@ -875,7 +890,7 @@ auto pack_data(const Scene &scene, SceneData &data) -> void
 
 auto coalesce_meshes(const LodGroup &lod, Mesh &combined_mesh, Progression *const progression) -> bool
 {
-    assert(lod.meshes.size());
+    assert(!lod.meshes.empty());
     const Mesh &first_mesh{lod.meshes[0]};
     combined_mesh.name = first_mesh.name;
     combined_mesh.elements_type = determine_elements_type(first_mesh);

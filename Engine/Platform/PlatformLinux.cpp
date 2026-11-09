@@ -47,10 +47,14 @@ auto get_id_from_sdl(SDL_WindowID sdl_id, WindowId &id) -> bool
 {
     SDL_Window *const sdl_window{::SDL_GetWindowFromID(sdl_id)};
     if (!sdl_window)
+    {
         return false;
+    }
     const s64 value{::SDL_GetNumberProperty(::SDL_GetWindowProperties(sdl_window), window_id_property, -1)};
     if (value < 0)
+    {
         return false;
+    }
     id = WindowId{static_cast<id::id_type>(value)};
     return true;
 }
@@ -58,7 +62,9 @@ auto get_id_from_sdl(SDL_WindowID sdl_id, WindowId &id) -> bool
 auto init_video() -> bool
 {
     if (::SDL_WasInit(SDL_INIT_VIDEO))
+    {
         return true;
+    }
 
     // Like Win32: closing the last window doesn't quit. The application decides (post_quit()).
     ::SDL_SetHint(SDL_HINT_QUIT_ON_LAST_WINDOW_CLOSE, "0");
@@ -117,10 +123,14 @@ auto query_native_handle(SDL_Window *sdl_window, NativeWindowHandle &handle) -> 
 auto paint_background(const WindowInfo &info) -> void
 {
     if (info.has_graphics_surface)
+    {
         return;
+    }
     SDL_Surface *const surface{::SDL_GetWindowSurface(info.sdl_window)};
     if (!surface)
+    {
         return;
+    }
     const u32 color{::SDL_MapSurfaceRGB(surface, background_color[0], background_color[1], background_color[2])};
     ::SDL_FillSurfaceRect(surface, nullptr, color);
     ::SDL_UpdateWindowSurface(info.sdl_window);
@@ -129,14 +139,18 @@ auto paint_background(const WindowInfo &info) -> void
 auto send_event(const WindowInfo &info, const WindowEvent &event) -> void
 {
     if (info.callback)
+    {
         info.callback(event);
+    }
 }
 
 auto process_window_event(const SDL_Event &e) -> void
 {
     WindowId id{};
     if (!get_id_from_sdl(e.window.windowID, id))
+    {
         return;
+    }
     WindowInfo &info{get_from_id(id)};
 
     switch (e.type)
@@ -165,14 +179,20 @@ auto process_key_event(const SDL_Event &e) -> void
 
     // Key repeats update the input state above, but aren't sent as window events.
     if (e.key.repeat)
+    {
         return;
+    }
 
     WindowId id{};
     if (!get_id_from_sdl(e.key.windowID, id))
+    {
         return;
+    }
     const u32 code{input::map_scancode(e.key.scancode)};
     if (code == u32_invalid_id)
+    {
         return;
+    }
 
     WindowEvent event{e.type == SDL_EVENT_KEY_DOWN ? WindowEvent::key_down : WindowEvent::key_up, id};
     event.key = (input::InputCode::Code)code;
@@ -182,7 +202,7 @@ auto process_key_event(const SDL_Event &e) -> void
 
 auto resize_window(WindowId id, u32 width, u32 height) -> void
 {
-    WindowInfo &info{get_from_id(id)};
+    const WindowInfo &info{get_from_id(id)};
     // NOTE: like PlatformWin32.cpp, this also resizes while in fullscreen mode.
     ::SDL_SetWindowSize(info.sdl_window, (int)width, (int)height);
 }
@@ -190,13 +210,10 @@ auto resize_window(WindowId id, u32 width, u32 height) -> void
 auto set_window_fullscreen(WindowId id, bool is_fullscreen) -> void
 {
     WindowInfo &info{get_from_id(id)};
-    if (info.is_fullscreen != is_fullscreen)
+    // Borderless desktop fullscreen, like PlatformWin32.cpp (no display mode change).
+    if (info.is_fullscreen != is_fullscreen && ::SDL_SetWindowFullscreen(info.sdl_window, is_fullscreen))
     {
-        // Borderless desktop fullscreen, like PlatformWin32.cpp (no display mode change).
-        if (::SDL_SetWindowFullscreen(info.sdl_window, is_fullscreen))
-        {
-            info.is_fullscreen = is_fullscreen;
-        }
+        info.is_fullscreen = is_fullscreen;
     }
 }
 
@@ -247,7 +264,9 @@ auto set_window_has_graphics_surface(WindowId id, bool has_surface) -> void
 {
     WindowInfo &info{get_from_id(id)};
     if (info.has_graphics_surface == has_surface)
+    {
         return;
+    }
     info.has_graphics_surface = has_surface;
     if (has_surface)
     {
@@ -272,7 +291,9 @@ auto create_window(const WindowInitInfo *init_info /* = nullptr */) -> Window
     }
 
     if (!init_video())
+    {
         return {};
+    }
 
     const char *const caption{(init_info && init_info->caption) ? init_info->caption : "Primal Game"};
     const s32 width{(init_info && init_info->width) ? init_info->width : 1920};
@@ -318,7 +339,7 @@ auto create_window(const WindowInitInfo *init_info /* = nullptr */) -> Window
 
 auto remove_window(WindowId id) -> void
 {
-    WindowInfo &info{get_from_id(id)};
+    const WindowInfo &info{get_from_id(id)};
     ::SDL_DestroyWindow(info.sdl_window);
     windows.remove(id);
     assert(window_count > 0);
@@ -331,10 +352,14 @@ auto set_current_directory_to_executable_path() -> std::filesystem::path
     std::error_code ec;
     const std::filesystem::path path{std::filesystem::read_symlink("/proc/self/exe", ec)};
     if (ec)
+    {
         return {};
+    }
     std::filesystem::current_path(path.parent_path(), ec);
     if (ec)
+    {
         return {};
+    }
     return std::filesystem::current_path();
 }
 
@@ -378,4 +403,4 @@ auto post_quit() -> void
 
 #include "IncludeWindowCpp.h"
 
-#endif // PRIMAL_PLATFORM_LINUX
+#endif

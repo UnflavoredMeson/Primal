@@ -3,6 +3,7 @@
 #pragma once
 #include "CommonHeaders.h"
 #include <type_traits>
+#include <utility>
 
 namespace primal::utl
 {
@@ -48,7 +49,7 @@ class vector
 
     // Move-constructor. Constructs by moving another vector.
     // The original vector will be empty after move.
-    constexpr vector(vector &&o)
+    constexpr vector(vector &&o) noexcept
         : _capacity{o._capacity}
         , _size{o._size}
         , _data{o._data}
@@ -77,7 +78,7 @@ class vector
 
     // Move-assignment operator. Frees all resources in this vector and
     // moves the other vector into this one.
-    constexpr auto operator=(vector &&o) -> vector &
+    constexpr auto operator=(vector &&o) noexcept -> vector &
     {
         assert(this != std::addressof(o));
         if (this != std::addressof(o))
@@ -125,7 +126,7 @@ class vector
     // Resizes the vector and initializes new items with their default value.
     constexpr auto resize(u64 new_size) -> void
     {
-        static_assert(std::is_default_constructible<T>::value, "Type must be default-constructible.");
+        static_assert(std::is_default_constructible_v<T>, "Type must be default-constructible.");
 
         if (new_size > _size)
         {
@@ -152,7 +153,7 @@ class vector
     // Resizes the vector and initializes new items by copying 'value'.
     constexpr auto resize(u64 new_size, const T &value) -> void
     {
-        static_assert(std::is_copy_constructible<T>::value, "Type must be copy-constructible.");
+        static_assert(std::is_copy_constructible_v<T>, "Type must be copy-constructible.");
 
         if (new_size > _size)
         {
@@ -214,18 +215,20 @@ class vector
     }
 
     // Removes the item at specified index.
-    constexpr auto erase(u64 index) -> T *const
+    constexpr auto erase(u64 index) -> T *
     {
         assert(_data && index < _size);
         return erase(std::addressof(_data[index]));
     }
 
     // Removes the item at specified location.
-    constexpr auto erase(T *const item) -> T *const
+    constexpr auto erase(T *const item) -> T *
     {
         assert(_data && item >= std::addressof(_data[0]) && item < std::addressof(_data[_size]));
         if constexpr (destruct)
+        {
             item->~T();
+        }
         --_size;
         if (item < std::addressof(_data[_size]))
         {
@@ -247,18 +250,20 @@ class vector
     }
 
     // Same as erase() but faster because it just copies the last item.
-    constexpr auto erase_unordered(u64 index) -> T *const
+    constexpr auto erase_unordered(u64 index) -> T *
     {
         assert(_data && index < _size);
         return erase_unordered(std::addressof(_data[index]));
     }
 
     // Same as erase() but faster because it just copies the last item.
-    constexpr auto erase_unordered(T *const item) -> T *const
+    constexpr auto erase_unordered(T *const item) -> T *
     {
         assert(_data && item >= std::addressof(_data[0]) && item < std::addressof(_data[_size]));
         if constexpr (destruct)
+        {
             item->~T();
+        }
         --_size;
         if (item < std::addressof(_data[_size]))
         {
@@ -287,13 +292,13 @@ class vector
     }
 
     // Swaps two vectors
-    constexpr auto swap(vector &o) -> void
+    constexpr auto swap(vector &o) noexcept -> void
     {
         if (this != std::addressof(o))
         {
-            auto temp(std::move(o));
-            o.move(*this);
-            move(temp);
+            std::swap(_capacity, o._capacity);
+            std::swap(_size, o._size);
+            std::swap(_data, o._data);
         }
     }
 
@@ -304,7 +309,7 @@ class vector
     }
 
     // Pointer to the start of data. Might be null.
-    [[nodiscard]] constexpr auto data() const -> T *const
+    [[nodiscard]] constexpr auto data() const -> T *
     {
         return _data;
     }
@@ -434,7 +439,9 @@ class vector
         clear();
         _capacity = 0;
         if (_data)
+        {
             std::free(_data);
+        }
         _data = nullptr;
     }
 

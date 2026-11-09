@@ -41,11 +41,11 @@ class BlobStreamReader
         _position += offset;
     }
 
-    [[nodiscard]] constexpr auto buffer_start() const -> const u8 *const
+    [[nodiscard]] constexpr auto buffer_start() const -> const u8 *
     {
         return _buffer;
     }
-    [[nodiscard]] constexpr auto position() const -> const u8 *const
+    [[nodiscard]] constexpr auto position() const -> const u8 *
     {
         return _position;
     }
@@ -105,15 +105,15 @@ class BlobStreamWriter
         _position += offset;
     }
 
-    [[nodiscard]] constexpr auto buffer_start() const -> const u8 *const
+    [[nodiscard]] constexpr auto buffer_start() const -> const u8 *
     {
         return _buffer;
     }
-    [[nodiscard]] constexpr auto buffer_end() const -> const u8 *const
+    [[nodiscard]] constexpr auto buffer_end() const -> const u8 *
     {
         return &_buffer[_buffer_size];
     }
-    [[nodiscard]] constexpr auto position() const -> const u8 *const
+    [[nodiscard]] constexpr auto position() const -> const u8 *
     {
         return _position;
     }

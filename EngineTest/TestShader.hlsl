@@ -202,7 +202,7 @@ float3 CalculateLighting(Surface S, float3 L, float3 lightColor)
     const float3 N = S.Normal;
     const float NoL = saturate(dot(N, L));
     return PhongBRDF(N, L, S.V, S.BaseColor, 1.f, (1 - S.PerceptualRoughness) * 100.f) * (NoL / PI) * lightColor;
-#else // PBR
+#else
     // We don't have light-units and therefore we don't know what intensity value of 1 corresponds to.
     // For now, let's multiply by PI to make a scene a bit lighter.
     return CookTorranceBRDF(S, L) * lightColor * PI;

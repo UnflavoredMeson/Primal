@@ -11,9 +11,9 @@
 
 #ifndef EDITOR_INTERFACE
 #define EDITOR_INTERFACE extern "C" __declspec(dllexport)
-#endif // !EDITOR_INTERFACE
+#endif
 
-class Progression
+class Progressiona
 {
   public:
     using progress_callback = void (*)(s32, s32);
@@ -31,7 +31,9 @@ class Progression
         _value = value;
         _max_value = max_value;
         if (_callback)
+        {
             _callback(value, max_value);
+        }
     }
 
     [[nodiscard]] constexpr auto max_value() const -> u32
@@ -61,7 +63,7 @@ inline auto to_wstring(const char *cstr) -> std::wstring
     return {s.begin(), s.end()};
 }
 
-inline auto split(std::string s, char delimiter) -> primal::utl::vector<std::string>
+inline auto split(const std::string &s, char delimiter) -> primal::utl::vector<std::string>
 {
     size_t start{0};
     size_t end{0};

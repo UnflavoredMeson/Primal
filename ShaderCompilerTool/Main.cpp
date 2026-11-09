@@ -24,16 +24,20 @@ auto platform_name(graphics::GraphicsPlatform platform) -> const char *
 
 }
 
-auto main(int argc, char **argv) -> int
+auto main(int argc, char *const *argv) -> int
 {
     utl::vector<graphics::GraphicsPlatform> platforms;
     for (int i{1}; i < argc; ++i)
     {
         if (std::strcmp(argv[i], "vulkan") == 0)
+        {
             platforms.emplace_back(graphics::GraphicsPlatform::vulkan);
+        }
 #if PRIMAL_PLATFORM_WINDOWS
         else if (std::strcmp(argv[i], "d3d12") == 0)
+        {
             platforms.emplace_back(graphics::GraphicsPlatform::direct3d12);
+        }
 #endif
         else
         {
@@ -47,7 +51,9 @@ auto main(int argc, char **argv) -> int
         }
     }
     if (platforms.empty())
+    {
         platforms.emplace_back(default_shader_platform);
+    }
 
     // The shader source and output paths are relative to the executable's folder (x64/<Config>/), like at run time.
     platform::set_current_directory_to_executable_path();

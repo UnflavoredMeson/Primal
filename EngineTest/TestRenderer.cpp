@@ -40,12 +40,14 @@ auto buffer_test_worker() -> void
 }
 
 template <class FnPtr, class... Args>
-auto init_test_workers(FnPtr &&fnPtr, Args &&...args) -> void
+auto init_test_workers([[maybe_unused]] FnPtr &&fn, [[maybe_unused]] Args &&...args) -> void
 {
 #if ENABLE_TEST_WORKERS
     shutdown = false;
     for (auto &w : workers)
-        w = std::thread(std::forward<FnPtr>(fnPtr), std::forward<Args>(args)...);
+    {
+        w = std::thread(std::forward<FnPtr>(fn), std::forward<Args>(args)...);
+    }
 #endif
 }
 
@@ -54,19 +56,21 @@ auto joint_test_workers() -> void
 #if ENABLE_TEST_WORKERS
     shutdown = true;
     for (auto &w : workers)
+    {
         w.join();
+    }
 #endif
 }
 /////////////////////////////////////////////////////////////////////////////////////
 
 struct CameraSurface
 {
-    game_entity::Entity entity{};
-    graphics::Camera camera{};
+    game_entity::Entity entity;
+    graphics::Camera camera;
     graphics::RenderSurface surface{};
 };
 
-CameraSurface _surfaces[4]{};
+CameraSurface surfaces[4]{};
 TimeIt timer{};
 
 bool resized{false};
@@ -86,11 +90,11 @@ auto test_lights(f32 dt) -> void;
 
 auto find_camera_surface(platform::WindowId id) -> CameraSurface *
 {
-    for (u32 i{0}; i < std::size(_surfaces); ++i)
+    for (u32 i{0}; i < std::size(surfaces); ++i)
     {
-        if (_surfaces[i].surface.window.is_valid() && _surfaces[i].surface.window.get_id() == id)
+        if (surfaces[i].surface.window.is_valid() && surfaces[i].surface.window.get_id() == id)
         {
-            return &_surfaces[i];
+            return &surfaces[i];
         }
     }
     return nullptr;
@@ -106,13 +110,13 @@ auto on_window_event(const platform::WindowEvent &event) -> void
         case WindowEvent::closed:
         {
             bool all_closed{true};
-            for (u32 i{0}; i < std::size(_surfaces); ++i)
+            for (u32 i{0}; i < std::size(surfaces); ++i)
             {
-                if (_surfaces[i].surface.window.is_valid())
+                if (surfaces[i].surface.window.is_valid())
                 {
-                    if (_surfaces[i].surface.window.is_closed())
+                    if (surfaces[i].surface.window.is_closed())
                     {
-                        ::destroy_camera_surface(_surfaces[i]);
+                        ::destroy_camera_surface(surfaces[i]);
                     }
                     else
                     {
@@ -127,7 +131,7 @@ auto on_window_event(const platform::WindowEvent &event) -> void
         }
         break;
         case WindowEvent::resized:
-            if (CameraSurface *const surface{::find_camera_surface(event.window)})
+            if (CameraSurface const *const surface{::find_camera_surface(event.window)})
             {
                 const platform::Window win{surface->surface.window};
                 surface->surface.surface.resize(win.width(), win.height());
@@ -154,7 +158,7 @@ auto on_window_event(const platform::WindowEvent &event) -> void
             }
             else if (event.key == InputCode::key_return && (event.modifiers & input::ModifierKey::alt))
             {
-                if (CameraSurface *const surface{::find_camera_surface(event.window)})
+                if (CameraSurface const *const surface{::find_camera_surface(event.window)})
                 {
                     const platform::Window win{surface->surface.window};
                     win.set_fullscreen(!win.is_fullscreen());
@@ -172,7 +176,7 @@ auto create_one_game_entity(
     const char *script_name) -> game_entity::Entity
 {
     transform::InitInfo transform_info{};
-    DirectX::XMVECTOR quat{DirectX::XMQuaternionRotationRollPitchYawFromVector(DirectX::XMLoadFloat3(&rotation))};
+    const DirectX::XMVECTOR quat{DirectX::XMQuaternionRotationRollPitchYawFromVector(DirectX::XMLoadFloat3(&rotation))};
     math::v4a rot_quat;
     DirectX::XMStoreFloat4A(&rot_quat, quat);
     std::memcpy(&transform_info.rotation[0], &rot_quat.x, sizeof(transform_info.rotation));
@@ -199,15 +203,19 @@ auto remove_game_entity(game_entity::EntityId id) -> void
     game_entity::remove(id);
 }
 
-auto read_file(std::filesystem::path path, std::unique_ptr<u8[]> &data, u64 &size) -> bool
+auto read_file(const std::filesystem::path &path, std::unique_ptr<u8[]> &data, u64 &size) -> bool
 {
     if (!std::filesystem::exists(path))
+    {
         return false;
+    }
 
     size = std::filesystem::file_size(path);
     assert(size);
     if (!size)
+    {
         return false;
+    }
     data = std::make_unique<u8[]>(size);
     std::ifstream file{path, std::ios::in | std::ios::binary};
     if (!file || !file.read((char *)data.get(), size))
@@ -233,17 +241,25 @@ auto create_camera_surface(CameraSurface &surface, platform::WindowInitInfo info
 
 auto destroy_camera_surface(CameraSurface &surface) -> void
 {
-    CameraSurface temp{surface};
+    const CameraSurface temp{surface};
     surface = {};
 
     if (temp.surface.surface.is_valid())
+    {
         graphics::remove_surface(temp.surface.surface.get_id());
+    }
     if (temp.surface.window.is_valid())
+    {
         platform::remove_window(temp.surface.window.get_id());
+    }
     if (temp.camera.is_valid())
+    {
         graphics::remove_camera(temp.camera.get_id());
+    }
     if (temp.entity.is_valid())
+    {
         game_entity::remove(temp.entity.get_id());
+    }
 }
 
 auto test_initialize() -> bool
@@ -255,7 +271,9 @@ auto test_initialize() -> bool
         // Pop up a message box allowing the user to retry compilation.
         if (::MessageBox(nullptr, L"Failed to compile engine shaders.", L"Shader Compilation Error", MB_RETRYCANCEL) !=
             IDRETRY)
+        {
             return false;
+        }
 #else
         std::fprintf(stderr, "Failed to compile the engine shaders.\n");
         return false;
@@ -263,19 +281,23 @@ auto test_initialize() -> bool
     }
 
     if (!graphics::initialize(platform))
+    {
         return false;
+    }
     is_graphics_initialized = true;
 
-    platform::WindowInitInfo info[]{
+    const platform::WindowInitInfo info[]{
         {&::on_window_event, nullptr, "Render window 1", 100, 100, 400, 800},
         {&::on_window_event, nullptr, "Render window 2", 150, 150, 800, 400},
         {&::on_window_event, nullptr, "Render window 3", 200, 200, 400, 400},
         {&::on_window_event, nullptr, "Render window 4", 250, 250, 800, 600},
     };
-    static_assert(std::size(info) == std::size(_surfaces));
+    static_assert(std::size(info) == std::size(surfaces));
 
-    for (u32 i{0}; i < std::size(_surfaces); ++i)
-        ::create_camera_surface(_surfaces[i], info[i]);
+    for (u32 i{0}; i < std::size(surfaces); ++i)
+    {
+        ::create_camera_surface(surfaces[i], info[i]);
+    }
 
     ::init_test_workers(::buffer_test_worker);
 
@@ -324,7 +346,9 @@ auto test_shutdown() -> void
 {
     // NOTE: shader compilation or graphics::initialize() failed: nothing was created.
     if (!is_graphics_initialized)
+    {
         return;
+    }
     is_graphics_initialized = false;
 
     input::unbind(std::hash<std::string>()("move"));
@@ -332,8 +356,10 @@ auto test_shutdown() -> void
     ::remove_lights();
     ::joint_test_workers();
 
-    for (u32 i{0}; i < std::size(_surfaces); ++i)
-        ::destroy_camera_surface(_surfaces[i]);
+    for (u32 i{0}; i < std::size(surfaces); ++i)
+    {
+        ::destroy_camera_surface(surfaces[i]);
+    }
 
     graphics::shutdown();
 }
@@ -346,7 +372,7 @@ auto EngineTest::initialize() -> bool
 auto EngineTest::run() -> void
 {
     [[maybe_unused]] static u32 counter{0}; // used by the commented-out light set switch below
-    static u32 light_set_key{0};
+    static const u32 light_set_key{0};
     ++counter;
     // if ((counter % 90) == 0) light_set_key = (light_set_key + 1) % 2;
 
@@ -354,9 +380,9 @@ auto EngineTest::run() -> void
     const f32 dt{timer.dt_avg()};
     script::update(dt);
     // test_lights(dt);
-    for (u32 i{0}; i < std::size(_surfaces); ++i)
+    for (u32 i{0}; i < std::size(surfaces); ++i)
     {
-        if (_surfaces[i].surface.surface.is_valid())
+        if (surfaces[i].surface.surface.is_valid())
         {
             f32 thresholds[4 + 12]{};
 
@@ -366,10 +392,10 @@ auto EngineTest::run() -> void
             info.thresholds = &thresholds[0];
             info.light_set_key = light_set_key;
             info.average_frame_time = dt;
-            info.camera_id = _surfaces[i].camera.get_id();
+            info.camera_id = surfaces[i].camera.get_id();
 
             assert(std::size(thresholds) >= info.render_item_count);
-            _surfaces[i].surface.surface.render(info);
+            surfaces[i].surface.surface.render(info);
         }
     }
     timer.end();
@@ -380,4 +406,4 @@ auto EngineTest::shutdown() -> void
     ::test_shutdown();
 }
 
-#endif // TEST_RENDERER
+#endif

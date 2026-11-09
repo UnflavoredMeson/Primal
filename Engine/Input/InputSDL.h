@@ -21,4 +21,4 @@ auto map_scancode(u32 scancode) -> u32;
 auto modifier_keys() -> u32;
 }
 
-#endif // PRIMAL_PLATFORM_LINUX
+#endif

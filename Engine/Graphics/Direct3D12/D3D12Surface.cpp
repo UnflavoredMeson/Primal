@@ -13,7 +13,9 @@ namespace
 constexpr auto to_non_srgb(DXGI_FORMAT format) -> DXGI_FORMAT
 {
     if (format == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB)
+    {
         return DXGI_FORMAT_R8G8B8A8_UNORM;
+    }
 
     return format;
 }
@@ -69,7 +71,7 @@ auto D3D12Surface::create_swap_chain(IDXGIFactory7 *factory, ID3D12CommandQueue 
 
 auto D3D12Surface::present() const -> void
 {
-    u32 sync_interval{core::vsync_enabled() ? (u32)1 : (u32)0};
+    const u32 sync_interval{core::vsync_enabled() ? (u32)1 : (u32)0};
     assert(_swap_chain);
     DXCall(_swap_chain->Present(sync_interval, sync_interval ? 0 : DXGI_PRESENT_ALLOW_TEARING));
     _current_bb_index = _swap_chain->GetCurrentBackBufferIndex();

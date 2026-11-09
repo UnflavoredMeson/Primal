@@ -10,4 +10,4 @@ auto unload_game() -> void;
 
 auto load_engine_shaders(std::unique_ptr<u8[]> &shaders, u64 &size) -> bool;
 }
-#endif // !defined(SHIPPING)
+#endif

@@ -51,14 +51,18 @@ auto choose_surface_format(VkPhysicalDevice physical_device, VkSurfaceKHR surfac
     ::vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, surface, &count, formats.data());
     assert(count);
     if (!count)
+    {
         return {};
+    }
 
     for (const auto &[preferred_format, color_space] : preferred_formats)
     {
         for (const VkSurfaceFormatKHR &format : formats)
         {
             if (format.format == preferred_format && format.colorSpace == color_space)
+            {
                 return format;
+            }
         }
     }
 
@@ -70,7 +74,9 @@ auto choose_surface_format(VkPhysicalDevice physical_device, VkSurfaceKHR surfac
 auto choose_present_mode(VkPhysicalDevice physical_device, VkSurfaceKHR surface, bool vsync) -> VkPresentModeKHR
 {
     if (vsync)
+    {
         return VK_PRESENT_MODE_FIFO_KHR;
+    }
 
     u32 count{0};
     ::vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, surface, &count, nullptr);
@@ -83,7 +89,9 @@ auto choose_present_mode(VkPhysicalDevice physical_device, VkSurfaceKHR surface,
         for (const VkPresentModeKHR mode : modes)
         {
             if (mode == preferred)
+            {
                 return mode;
+            }
         }
     }
 
@@ -171,7 +179,9 @@ auto VulkanSurface::resize() -> void
 auto VulkanSurface::needs_resize() const -> bool
 {
     if (_out_of_date || _vsync != core::vsync_enabled())
+    {
         return true;
+    }
     const math::u32v4 size{_window.size()};
     return size.z - size.x != _extent.width || size.w - size.y != _extent.height;
 }
@@ -183,7 +193,9 @@ auto VulkanSurface::create_swapchain() -> bool
 
     VkSurfaceCapabilitiesKHR caps{};
     if (!VkCall(::vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, _surface, &caps)))
+    {
         return false;
+    }
 
     // X11 reports the window size. Wayland reports 0xFFFFFFFF: the swapchain decides the size,
     // so use the window's size in pixels.
@@ -209,7 +221,9 @@ auto VulkanSurface::create_swapchain() -> bool
 
     u32 image_count{std::max(desired_image_count, caps.minImageCount)};
     if (caps.maxImageCount)
+    {
         image_count = std::min(image_count, caps.maxImageCount);
+    }
     image_count = std::min(image_count, max_image_count);
 
     VkCompositeAlphaFlagBitsKHR composite_alpha{VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR};
@@ -236,12 +250,16 @@ auto VulkanSurface::create_swapchain() -> bool
 
     VkSwapchainKHR swapchain{VK_NULL_HANDLE};
     if (!VkCall(::vkCreateSwapchainKHR(device, &info, nullptr, &swapchain)))
+    {
         return false;
+    }
 
     // NOTE: the caller flushed the GPU, so the old swapchain and its views can go right away.
     release_swapchain_resources();
     if (_swapchain)
+    {
         ::vkDestroySwapchainKHR(device, _swapchain, nullptr);
+    }
     _swapchain = swapchain;
 
     _format = surface_format.format;
@@ -266,7 +284,7 @@ auto VulkanSurface::create_swapchain() -> bool
         NAME_VK_OBJECT_INDEXED(_images[i], VK_OBJECT_TYPE_IMAGE, i, "Swapchain Image");
         NAME_VK_OBJECT_INDEXED(_image_views[i], VK_OBJECT_TYPE_IMAGE_VIEW, i, "Swapchain Image View");
 
-        VkSemaphoreCreateInfo semaphore_info{VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+        const VkSemaphoreCreateInfo semaphore_info{VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
         VkCall(::vkCreateSemaphore(device, &semaphore_info, nullptr, &_render_finished[i]));
         NAME_VK_OBJECT_INDEXED(_render_finished[i], VK_OBJECT_TYPE_SEMAPHORE, i, "Render Finished Semaphore");
     }
@@ -286,7 +304,9 @@ auto VulkanSurface::create_swapchain() -> bool
 auto VulkanSurface::acquire_next_image(VkSemaphore image_acquired) -> bool
 {
     if (!_swapchain || !_extent.width || !_extent.height)
+    {
         return false;
+    }
 
     const VkResult result{
         ::vkAcquireNextImageKHR(core::device(), _swapchain, UINT64_MAX, image_acquired, VK_NULL_HANDLE, &_image_index)};
@@ -332,9 +352,13 @@ auto VulkanSurface::release_swapchain_resources() -> void
     for (u32 i{0}; i < max_image_count; ++i)
     {
         if (_image_views[i])
+        {
             ::vkDestroyImageView(device, _image_views[i], nullptr);
+        }
         if (_render_finished[i])
+        {
             ::vkDestroySemaphore(device, _render_finished[i], nullptr);
+        }
         _image_views[i] = VK_NULL_HANDLE;
         _render_finished[i] = VK_NULL_HANDLE;
         _images[i] = VK_NULL_HANDLE; // owned by the swapchain
@@ -354,11 +378,15 @@ auto VulkanSurface::release() -> void
     }
 
     if (_surface == VK_NULL_HANDLE)
+    {
         return;
+    }
 
     release_swapchain_resources();
     if (_swapchain)
+    {
         ::vkDestroySwapchainKHR(core::device(), _swapchain, nullptr);
+    }
     ::vkDestroySurfaceKHR(core::instance(), _surface, nullptr);
     _swapchain = VK_NULL_HANDLE;
     _surface = VK_NULL_HANDLE;

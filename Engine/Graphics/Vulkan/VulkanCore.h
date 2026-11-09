@@ -45,29 +45,53 @@ template <typename T>
 consteval auto object_type() -> VkObjectType
 {
     if constexpr (std::is_same_v<T, VkSwapchainKHR>)
+    {
         return VK_OBJECT_TYPE_SWAPCHAIN_KHR;
+    }
     else if constexpr (std::is_same_v<T, VkSurfaceKHR>)
+    {
         return VK_OBJECT_TYPE_SURFACE_KHR;
+    }
     else if constexpr (std::is_same_v<T, VkImageView>)
+    {
         return VK_OBJECT_TYPE_IMAGE_VIEW;
+    }
     else if constexpr (std::is_same_v<T, VkImage>)
+    {
         return VK_OBJECT_TYPE_IMAGE;
+    }
     else if constexpr (std::is_same_v<T, VkBuffer>)
+    {
         return VK_OBJECT_TYPE_BUFFER;
+    }
     else if constexpr (std::is_same_v<T, VkSampler>)
+    {
         return VK_OBJECT_TYPE_SAMPLER;
+    }
     else if constexpr (std::is_same_v<T, VkPipeline>)
+    {
         return VK_OBJECT_TYPE_PIPELINE;
+    }
     else if constexpr (std::is_same_v<T, VkPipelineLayout>)
+    {
         return VK_OBJECT_TYPE_PIPELINE_LAYOUT;
+    }
     else if constexpr (std::is_same_v<T, VkSemaphore>)
+    {
         return VK_OBJECT_TYPE_SEMAPHORE;
+    }
     else if constexpr (std::is_same_v<T, VkDescriptorPool>)
+    {
         return VK_OBJECT_TYPE_DESCRIPTOR_POOL;
+    }
     else if constexpr (std::is_same_v<T, VkDescriptorSetLayout>)
+    {
         return VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT;
+    }
     else
+    {
         static_assert(sizeof(T) == 0, "Add the handle type here and to destroy_object() in VulkanCore.cpp.");
+    }
 }
 }
 

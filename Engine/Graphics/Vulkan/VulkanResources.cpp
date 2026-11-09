@@ -23,7 +23,7 @@ constexpr VkDescriptorType heap_descriptor_types[]{
 
 auto DescriptorHeap::initialize(u32 capacity) -> bool
 {
-    std::scoped_lock lock{_mutex};
+    const std::scoped_lock lock{_mutex};
     assert(capacity);
     assert(!_pool && !_size);
 
@@ -68,7 +68,9 @@ auto DescriptorHeap::initialize(u32 capacity) -> bool
     }
 
     if (!VkCall(::vkCreateDescriptorSetLayout(device, &layout_info, nullptr, &_set_layout)))
+    {
         return false;
+    }
     NAME_VK_OBJECT(_set_layout, VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, "Resource Heap Layout");
 
     const VkDescriptorPoolSize pool_size{VK_DESCRIPTOR_TYPE_MUTABLE_EXT, capacity};
@@ -79,7 +81,9 @@ auto DescriptorHeap::initialize(u32 capacity) -> bool
     pool_info.poolSizeCount = 1;
     pool_info.pPoolSizes = &pool_size;
     if (!VkCall(::vkCreateDescriptorPool(device, &pool_info, nullptr, &_pool)))
+    {
         return false;
+    }
     NAME_VK_OBJECT(_pool, VK_OBJECT_TYPE_DESCRIPTOR_POOL, "Resource Heap Pool");
 
     VkDescriptorSetAllocateInfo set_info{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
@@ -87,7 +91,9 @@ auto DescriptorHeap::initialize(u32 capacity) -> bool
     set_info.descriptorSetCount = 1;
     set_info.pSetLayouts = &_set_layout;
     if (!VkCall(::vkAllocateDescriptorSets(device, &set_info, &_set)))
+    {
         return false;
+    }
     NAME_VK_OBJECT(_set, VK_OBJECT_TYPE_DESCRIPTOR_SET, "Resource Heap");
 
     _free_handles = std::make_unique<u32[]>(capacity);
@@ -96,9 +102,11 @@ auto DescriptorHeap::initialize(u32 capacity) -> bool
     _size = 0;
 
     for (u32 i{0}; i < capacity; ++i)
+    {
         _free_handles[i] = i;
+    }
     std::memset(_allocated_slots.get(), 0, capacity);
-    DEBUG_OP(for (u32 i{0}; i < frame_buffer_count; ++i) assert(_deferred_free_indices[i].empty()));
+    DEBUG_OP(for (u32 i{0}; i < frame_buffer_count; ++i) { assert(_deferred_free_indices[i].empty()); });
 
     return true;
 }
@@ -115,13 +123,13 @@ auto DescriptorHeap::release() -> void
 
 auto DescriptorHeap::process_deferred_free(u32 frame_idx) -> void
 {
-    std::scoped_lock lock{_mutex};
+    const std::scoped_lock lock{_mutex};
     assert(frame_idx < frame_buffer_count);
 
     utl::vector<u32> &indices{_deferred_free_indices[frame_idx]};
     if (!indices.empty())
     {
-        for (auto index : indices)
+        for (const auto index : indices)
         {
             if (!_allocated_slots[index])
             {
@@ -138,7 +146,7 @@ auto DescriptorHeap::process_deferred_free(u32 frame_idx) -> void
 
 auto DescriptorHeap::allocate() -> DescriptorHandle
 {
-    std::scoped_lock lock{_mutex};
+    const std::scoped_lock lock{_mutex};
     assert(_set);
     assert(_size < _capacity);
 
@@ -157,8 +165,10 @@ auto DescriptorHeap::allocate() -> DescriptorHandle
 auto DescriptorHeap::free(DescriptorHandle &handle) -> void
 {
     if (!handle.is_valid())
+    {
         return;
-    std::scoped_lock lock{_mutex};
+    }
+    const std::scoped_lock lock{_mutex};
     assert(_set && _size);
     assert(handle._container == this);
     assert(handle.index < _capacity);
@@ -187,7 +197,7 @@ auto DescriptorHeap::write(
     write.pBufferInfo = buffer;
     // Host access to the set must be externally synchronized, and textures are created on several
     // threads (D3D12's CreateShaderResourceView is free-threaded).
-    std::scoped_lock lock{_mutex};
+    const std::scoped_lock lock{_mutex};
     ::vkUpdateDescriptorSets(core::device(), 1, &write, 0, nullptr);
 }
 
@@ -231,7 +241,9 @@ VulkanBuffer::VulkanBuffer(const VulkanBufferInitInfo &info, bool is_cpu_accessi
     buffer_info.usage = info.usage;
     // GPU-only buffers with initial data are filled by a copy from an upload buffer.
     if (info.data && !is_cpu_accessible)
+    {
         buffer_info.usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    }
     buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
     VmaAllocationCreateInfo alloc_info{};
@@ -290,7 +302,7 @@ ConstantBuffer::ConstantBuffer(const VulkanBufferInitInfo &info)
 
 auto ConstantBuffer::allocate(u32 size) -> u8 *
 {
-    std::scoped_lock lock{_mutex};
+    const std::scoped_lock lock{_mutex};
     const u32 aligned_size{(u32)math::align_size_up<alignment>(size)};
     assert(_cpu_offset + aligned_size <= _buffer.size());
     if (_cpu_offset + aligned_size <= _buffer.size())
@@ -412,7 +424,9 @@ VulkanRenderTexture::VulkanRenderTexture(const VulkanTextureInitInfo &info)
     texture_info.image_info = &image_info;
     _texture = VulkanTexture{texture_info};
     if (!image())
+    {
         return;
+    }
 
     const VkDevice device{core::device()};
     VkImageViewCreateInfo view_info{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
@@ -431,7 +445,9 @@ VulkanRenderTexture::VulkanRenderTexture(const VulkanTextureInitInfo &info)
 auto VulkanRenderTexture::release() -> void
 {
     for (u32 i{0}; i < VulkanTexture::max_mips; ++i)
+    {
         core::deferred_release(_rtv[i]);
+    }
     _texture.release();
 }
 

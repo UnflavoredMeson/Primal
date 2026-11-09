@@ -11,7 +11,7 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <Windows.h>
-#endif // PRIMAL_PLATFORM_WINDOWS
+#endif
 
 namespace primal::platform
 {

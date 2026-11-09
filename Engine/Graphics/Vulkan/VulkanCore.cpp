@@ -41,7 +41,9 @@ auto log_message(const char *format, ...) -> void // NOLINT(modernize-avoid-vari
     }
     va_end(args_copy);
     if (length < 0)
+    {
         return;
+    }
 
     std::fputs(message, stderr);
 #if PRIMAL_PLATFORM_WINDOWS
@@ -81,7 +83,9 @@ class VulkanCommand
         VkSemaphoreCreateInfo semaphore_info{VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
         semaphore_info.pNext = &timeline_info;
         if (!VkCall(::vkCreateSemaphore(device, &semaphore_info, nullptr, &_fence)))
+        {
             return false;
+        }
         NAME_VK_OBJECT(_fence, VK_OBJECT_TYPE_SEMAPHORE, "GFX Frame Fence (timeline)");
 
         for (u32 i{0}; i < frame_buffer_count; ++i)
@@ -92,7 +96,9 @@ class VulkanCommand
             pool_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
             pool_info.queueFamilyIndex = queue_family;
             if (!VkCall(::vkCreateCommandPool(device, &pool_info, nullptr, &frame.cmd_pool)))
+            {
                 return false;
+            }
             NAME_VK_OBJECT_INDEXED(frame.cmd_pool, VK_OBJECT_TYPE_COMMAND_POOL, i, "GFX Command Pool");
 
             VkCommandBufferAllocateInfo alloc_info{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
@@ -100,12 +106,16 @@ class VulkanCommand
             alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
             alloc_info.commandBufferCount = 1;
             if (!VkCall(::vkAllocateCommandBuffers(device, &alloc_info, &frame.cmd_buffer)))
+            {
                 return false;
+            }
             NAME_VK_OBJECT_INDEXED(frame.cmd_buffer, VK_OBJECT_TYPE_COMMAND_BUFFER, i, "GFX Command Buffer");
 
-            VkSemaphoreCreateInfo binary_info{VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+            const VkSemaphoreCreateInfo binary_info{VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
             if (!VkCall(::vkCreateSemaphore(device, &binary_info, nullptr, &frame.image_acquired)))
+            {
                 return false;
+            }
             NAME_VK_OBJECT_INDEXED(frame.image_acquired, VK_OBJECT_TYPE_SEMAPHORE, i, "Image Acquired Semaphore");
         }
 
@@ -115,7 +125,7 @@ class VulkanCommand
     // Wait for the current frame to be signaled, then reset and begin its command buffer.
     auto begin_frame() -> VkCommandBuffer
     {
-        CommandFrame &frame{_cmd_frames[_frame_index]};
+        const CommandFrame &frame{_cmd_frames[_frame_index]};
         frame.wait(_device, _fence);
         VkCall(::vkResetCommandPool(_device, frame.cmd_pool, 0));
 
@@ -159,7 +169,7 @@ class VulkanCommand
         submit.signalSemaphoreInfoCount = (u32)std::size(signal_infos);
         submit.pSignalSemaphoreInfos = &signal_infos[0];
         {
-            std::scoped_lock lock{_queue_mutex};
+            const std::scoped_lock lock{_queue_mutex};
             VkCall(::vkQueueSubmit2(_queue, 1, &submit, VK_NULL_HANDLE));
 
             // Presenting swap chain images happens in lockstep with frame buffers.
@@ -183,7 +193,7 @@ class VulkanCommand
         }
         if (_queue)
         {
-            std::scoped_lock lock{_queue_mutex};
+            const std::scoped_lock lock{_queue_mutex};
             VkCall(::vkQueueWaitIdle(_queue));
         }
         _frame_index = 0;
@@ -192,7 +202,9 @@ class VulkanCommand
     auto release() -> void
     {
         if (!_device)
+        {
             return;
+        }
         flush();
 
         for (u32 i{0}; i < frame_buffer_count; ++i)
@@ -201,7 +213,9 @@ class VulkanCommand
         }
 
         if (_fence)
+        {
             ::vkDestroySemaphore(_device, _fence, nullptr);
+        }
         _fence = VK_NULL_HANDLE;
         _fence_value = 0;
         _queue = VK_NULL_HANDLE;
@@ -212,7 +226,7 @@ class VulkanCommand
     // NOTE: a VkQueue must be externally synchronized (submits, presents, wait idle).
     auto submit(const VkSubmitInfo2 &submit) -> void
     {
-        std::scoped_lock lock{_queue_mutex};
+        const std::scoped_lock lock{_queue_mutex};
         VkCall(::vkQueueSubmit2(_queue, 1, &submit, VK_NULL_HANDLE));
     }
 
@@ -264,9 +278,13 @@ class VulkanCommand
         {
             // Destroying the pool frees its command buffers.
             if (cmd_pool)
+            {
                 ::vkDestroyCommandPool(device, cmd_pool, nullptr);
+            }
             if (image_acquired)
+            {
                 ::vkDestroySemaphore(device, image_acquired, nullptr);
+            }
             cmd_pool = VK_NULL_HANDLE;
             cmd_buffer = VK_NULL_HANDLE;
             image_acquired = VK_NULL_HANDLE;
@@ -276,7 +294,7 @@ class VulkanCommand
 
     VkDevice _device{VK_NULL_HANDLE};
     VkQueue _queue{VK_NULL_HANDLE};
-    std::mutex _queue_mutex{};
+    std::mutex _queue_mutex;
     u32 _queue_family{u32_invalid_id};
     VkSemaphore _fence{VK_NULL_HANDLE};
     u64 _fence_value{0};
@@ -362,7 +380,9 @@ auto has_layer(const utl::vector<VkLayerProperties> &layers, const char *name) -
     for (const auto &layer : layers)
     {
         if (std::strcmp(layer.layerName, name) == 0)
+        {
             return true;
+        }
     }
     return false;
 }
@@ -372,7 +392,9 @@ auto has_extension(const utl::vector<VkExtensionProperties> &extensions, const c
     for (const auto &extension : extensions)
     {
         if (std::strcmp(extension.extensionName, name) == 0)
+        {
             return true;
+        }
     }
     return false;
 }
@@ -387,7 +409,9 @@ auto use_validation() -> bool
     char *env{nullptr};
     size_t size{0};
     if (_dupenv_s(&env, &size, name) != 0 || !env)
+    {
         return true;
+    }
     const bool enabled{env[0] != '0'};
     std::free(env);
     return enabled;
@@ -481,17 +505,23 @@ auto create_instance() -> bool
         }
     }
     if (validation)
+    {
         enabled_layers.emplace_back(validation_layer_name);
+    }
 #ifdef _DEBUG
     if (debug_utils)
+    {
         enabled_extensions.emplace_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+    }
     if (use_validation() && !validation)
     {
         log_message("Warning: Vulkan validation layer is not available. Install vulkan-validation-layers.\n");
     }
 #endif
     if (layer_settings)
+    {
         enabled_extensions.emplace_back(VK_EXT_LAYER_SETTINGS_EXTENSION_NAME);
+    }
 
     VkApplicationInfo app_info{VK_STRUCTURE_TYPE_APPLICATION_INFO};
     app_info.pApplicationName = "Primal";
@@ -537,9 +567,13 @@ auto create_instance() -> bool
     }
 
     if (!VkCall(::vkCreateInstance(&info, nullptr, &vk_instance)))
+    {
         return false;
+    }
     if (validation)
+    {
         log_message("::Vulkan validation layer enabled%s\n", layer_settings ? " (+ synchronization validation)" : "");
+    }
 
 #ifdef _DEBUG
     if (debug_utils)
@@ -554,7 +588,9 @@ auto create_instance() -> bool
             // vkCreateDebugUtilsMessengerEXT requires pNext == nullptr.
             messenger_info.pNext = nullptr;
             if (create_messenger)
+            {
                 VkCall(create_messenger(vk_instance, &messenger_info, nullptr, &debug_messenger));
+            }
         }
     }
 #endif
@@ -580,13 +616,15 @@ struct DeviceFeatures
 auto get_required_features(const DeviceFeatures &supported, DeviceFeatures &enabled, bool log_missing) -> bool
 {
     bool ok{true};
-    auto require = [&](VkBool32 is_supported, VkBool32 &enable, const char *name)
+    const auto require = [&](VkBool32 is_supported, VkBool32 &enable, const char *name)
     {
         enable = VK_TRUE;
         if (!is_supported)
         {
             if (log_missing)
+            {
                 log_message("Vulkan: missing device feature %s\n", name);
+            }
             ok = false;
         }
     };
@@ -646,7 +684,9 @@ auto find_graphics_queue_family(VkPhysicalDevice physical_device) -> u32
     for (u32 i{0}; i < count; ++i)
     {
         if ((families[i].queueFlags & required) == required)
+        {
             return i;
+        }
     }
     return u32_invalid_id;
 }
@@ -658,11 +698,13 @@ auto is_device_suitable(VkPhysicalDevice physical_device, bool log_missing) -> b
     if (properties.apiVersion < minimum_api_version)
     {
         if (log_missing)
+        {
             log_message(
                 "Vulkan: %s supports Vulkan %u.%u, 1.3 is required.\n",
                 properties.deviceName,
                 VK_API_VERSION_MAJOR(properties.apiVersion),
                 VK_API_VERSION_MINOR(properties.apiVersion));
+        }
         return false;
     }
 
@@ -676,18 +718,24 @@ auto is_device_suitable(VkPhysicalDevice physical_device, bool log_missing) -> b
         if (!has_extension(extensions, name))
         {
             if (log_missing)
+            {
                 log_message("Vulkan: %s doesn't support %s\n", properties.deviceName, name);
+            }
             ok = false;
         }
     }
     if (!ok)
+    {
         return false;
+    }
 
     DeviceFeatures supported{};
     ::vkGetPhysicalDeviceFeatures2(physical_device, &supported.features);
     DeviceFeatures enabled{};
     if (!get_required_features(supported, enabled, log_missing))
+    {
         return false;
+    }
 
     return find_graphics_queue_family(physical_device) != u32_invalid_id;
 }
@@ -701,7 +749,7 @@ auto determine_main_physical_device() -> VkPhysicalDevice
     utl::vector<VkPhysicalDevice> devices(count);
     ::vkEnumeratePhysicalDevices(vk_instance, &count, devices.data());
 
-    auto rank = [](VkPhysicalDeviceType type)
+    const auto rank = [](VkPhysicalDeviceType type)
     {
         switch (type)
         {
@@ -717,7 +765,9 @@ auto determine_main_physical_device() -> VkPhysicalDevice
     for (const VkPhysicalDevice device : devices)
     {
         if (!is_device_suitable(device, false))
+        {
             continue;
+        }
         VkPhysicalDeviceProperties properties{};
         ::vkGetPhysicalDeviceProperties(device, &properties);
         if (rank(properties.deviceType) > best_rank)
@@ -731,7 +781,9 @@ auto determine_main_physical_device() -> VkPhysicalDevice
     {
         // Say why each device was rejected.
         for (const VkPhysicalDevice device : devices)
+        {
             is_device_suitable(device, true);
+        }
     }
 
     return best;
@@ -779,7 +831,9 @@ auto create_device() -> bool
     info.ppEnabledExtensionNames = &required_device_extensions[0];
 
     if (!VkCall(::vkCreateDevice(main_physical_device, &info, nullptr, &main_device)))
+    {
         return false;
+    }
     NAME_VK_OBJECT(main_device, VK_OBJECT_TYPE_DEVICE, "Main Vulkan Device");
     vkx::load_device_functions(main_device);
 
@@ -825,7 +879,9 @@ auto create_static_samplers() -> bool
         VkSamplerCreateInfo info{vkx::sampler_info((vkx::StaticSampler::Type)i)};
         info.maxAnisotropy = std::min(info.maxAnisotropy, properties.limits.maxSamplerAnisotropy);
         if (!VkCall(::vkCreateSampler(main_device, &info, nullptr, &static_samplers[i])))
+        {
             return false;
+        }
         NAME_VK_OBJECT(static_samplers[i], VK_OBJECT_TYPE_SAMPLER, names[i]);
     }
     return true;
@@ -845,15 +901,23 @@ auto destroy_object(const DeferredObject &object) -> void
         case VK_OBJECT_TYPE_IMAGE_VIEW: ::vkDestroyImageView(device, (VkImageView)object.handle, nullptr); break;
         case VK_OBJECT_TYPE_IMAGE:
             if (object.allocation)
+            {
                 ::vmaDestroyImage(vma_allocator, (VkImage)object.handle, object.allocation);
+            }
             else
+            {
                 ::vkDestroyImage(device, (VkImage)object.handle, nullptr);
+            }
             break;
         case VK_OBJECT_TYPE_BUFFER:
             if (object.allocation)
+            {
                 ::vmaDestroyBuffer(vma_allocator, (VkBuffer)object.handle, object.allocation);
+            }
             else
+            {
                 ::vkDestroyBuffer(device, (VkBuffer)object.handle, nullptr);
+            }
             break;
         case VK_OBJECT_TYPE_DESCRIPTOR_POOL:
             ::vkDestroyDescriptorPool(device, (VkDescriptorPool)object.handle, nullptr);
@@ -873,13 +937,15 @@ auto destroy_object(const DeferredObject &object) -> void
 
 auto process_deferred_releases(u32 frame_idx, bool force_release = false) -> void
 {
-    std::scoped_lock lock{deferred_releases_mutex};
+    const std::scoped_lock lock{deferred_releases_mutex};
 
     // NOTE: The objects could still be in use in previous frames. So we wait
     //       another round before destroying them.
     //       force_release is used during shutdown, where we don't have to wait.
     if (!force_release && ++deferred_releases_flag[frame_idx] < frame_buffer_count)
+    {
         return;
+    }
 
     deferred_releases_flag[frame_idx] = 0;
 
@@ -887,7 +953,9 @@ auto process_deferred_releases(u32 frame_idx, bool force_release = false) -> voi
 
     utl::vector<DeferredObject> &objects{deferred_releases[frame_idx]};
     for (const auto &object : objects)
+    {
         destroy_object(object);
+    }
     objects.clear();
 }
 
@@ -960,7 +1028,7 @@ namespace detail
 {
 auto deferred_release(VkObjectType type, u64 handle, VmaAllocation allocation) -> void
 {
-    std::scoped_lock lock{deferred_releases_mutex};
+    const std::scoped_lock lock{deferred_releases_mutex};
     const u32 frame_idx{current_frame_index()};
     deferred_releases[frame_idx].push_back({type, handle, allocation});
     deferred_releases_flag[frame_idx] = 1;
@@ -970,24 +1038,38 @@ auto deferred_release(VkObjectType type, u64 handle, VmaAllocation allocation) -
 auto initialize() -> bool
 {
     if (main_device)
+    {
         shutdown();
+    }
 
     if (!create_instance())
+    {
         return failed_init();
+    }
     if (!create_device())
+    {
         return failed_init();
+    }
     if (!create_allocator())
+    {
         return failed_init();
+    }
     if (!create_static_samplers())
+    {
         return failed_init();
+    }
     if (!srv_desc_heap.initialize(srv_heap_capacity))
+    {
         return failed_init();
+    }
 
     for (u32 i{0}; i < frame_buffer_count; ++i)
     {
         new (&constant_buffers[i]) ConstantBuffer{ConstantBuffer::get_default_init_info(constant_buffer_size)};
         if (!constant_buffers[i].buffer())
+        {
             return failed_init();
+        }
         NAME_VK_OBJECT_INDEXED(constant_buffers[i].buffer(), VK_OBJECT_TYPE_BUFFER, i, "Global Constant Buffer");
     }
 
@@ -995,7 +1077,9 @@ auto initialize() -> bool
     // NOTE: upload goes first (D3D12: after fx): modules may upload data while they initialize (gpass does).
     if (!(upload::initialize() && create_zero_buffer() && shaders::initialize() && gpass::initialize() &&
           fx::initialize() && content::initialize() && delight::initialize()))
+    {
         return failed_init();
+    }
     return true;
 }
 
@@ -1033,16 +1117,22 @@ auto shutdown() -> void
     for (VkSampler &sampler : static_samplers)
     {
         if (sampler)
+        {
             ::vkDestroySampler(main_device, sampler, nullptr);
+        }
         sampler = VK_NULL_HANDLE;
     }
 
     if (vma_allocator)
+    {
         ::vmaDestroyAllocator(vma_allocator);
+    }
     vma_allocator = VK_NULL_HANDLE;
 
     if (main_device)
+    {
         ::vkDestroyDevice(main_device, nullptr);
+    }
     main_device = VK_NULL_HANDLE;
     main_physical_device = VK_NULL_HANDLE;
 
@@ -1051,17 +1141,23 @@ auto shutdown() -> void
         const auto destroy_messenger{(PFN_vkDestroyDebugUtilsMessengerEXT)::vkGetInstanceProcAddr(
             vk_instance, "vkDestroyDebugUtilsMessengerEXT")};
         if (destroy_messenger)
+        {
             destroy_messenger(vk_instance, debug_messenger, nullptr);
+        }
         debug_messenger = VK_NULL_HANDLE;
     }
     set_debug_utils_object_name = nullptr;
 
     if (vk_instance)
+    {
         ::vkDestroyInstance(vk_instance, nullptr);
+    }
     vk_instance = VK_NULL_HANDLE;
 
     if (validation_error_count)
+    {
         log_message("::Vulkan: %u validation error(s) were reported.\n", validation_error_count);
+    }
     validation_error_count = 0;
 }
 
@@ -1190,7 +1286,7 @@ auto current_frame_index() -> u32
 
 auto set_deferred_releases_flag(u32 frame_idx) -> void
 {
-    std::scoped_lock lock{deferred_releases_mutex};
+    const std::scoped_lock lock{deferred_releases_mutex};
     deferred_releases_flag[frame_idx] = 1;
 }
 
@@ -1203,7 +1299,9 @@ auto set_object_name([[maybe_unused]] u64 handle, [[maybe_unused]] VkObjectType 
     -> void
 {
     if (!set_debug_utils_object_name || !main_device || !handle)
+    {
         return;
+    }
     VkDebugUtilsObjectNameInfoEXT info{VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT};
     info.objectType = type;
     info.objectHandle = handle;
@@ -1213,7 +1311,7 @@ auto set_object_name([[maybe_unused]] u64 handle, [[maybe_unused]] VkObjectType 
 
 auto create_surface(platform::Window window) -> Surface
 {
-    SurfaceId id{surfaces.add(window)};
+    const SurfaceId id{surfaces.add(window)};
     if (!surfaces[id].create())
     {
         surfaces.remove(id);
@@ -1233,7 +1331,9 @@ auto resize_surface(SurfaceId id, u32, u32) -> void
     // NOTE: SDL sends a resize event when a window is first shown, at the size the swapchain was just created with.
     //       Skip the flush + recreate then (render_surface() checks again every frame anyway).
     if (!surfaces[id].needs_resize())
+    {
         return;
+    }
     gfx_command.flush();
     surfaces[id].resize();
 }
@@ -1274,7 +1374,9 @@ auto render_surface(SurfaceId id, FrameInfo info) -> void
     // Nothing to render to (minimized or out of date). The frame is skipped; its command
     // buffer is reset by the next begin_frame().
     if (!surface.acquire_next_image(gfx_command.image_acquired_semaphore()))
+    {
         return;
+    }
 
     const VulkanFrameInfo vulkan_info{get_vulkan_frame_info(info, cb, surface, id, frame_idx)};
 

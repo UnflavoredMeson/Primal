@@ -32,20 +32,26 @@ auto find_surface(platform::WindowId id) -> graphics::RenderSurface *
     for (auto &surface : test_surfaces)
     {
         if (surface.window.is_valid() && surface.window.get_id() == id)
+        {
             return &surface;
+        }
     }
     return nullptr;
 }
 
 auto destroy_surface(graphics::RenderSurface &surface) -> void
 {
-    graphics::RenderSurface temp{surface};
+    const graphics::RenderSurface temp{surface};
     surface = {};
     // NOTE: the graphics surface goes first, it presents to the window.
     if (temp.surface.is_valid())
+    {
         graphics::remove_surface(temp.surface.get_id());
+    }
     if (temp.window.is_valid())
+    {
         platform::remove_window(temp.window.get_id());
+    }
 }
 
 auto on_window_event(const platform::WindowEvent &event) -> void
@@ -61,18 +67,26 @@ auto on_window_event(const platform::WindowEvent &event) -> void
             for (auto &surface : test_surfaces)
             {
                 if (!surface.window.is_valid())
+                {
                     continue;
+                }
                 if (surface.window.is_closed())
+                {
                     destroy_surface(surface);
+                }
                 else
+                {
                     all_closed = false;
+                }
             }
             if (all_closed && !is_restarting)
+            {
                 platform::post_quit();
+            }
         }
         break;
         case WindowEvent::resized:
-            if (graphics::RenderSurface *const surface{find_surface(event.window)})
+            if (graphics::RenderSurface const *const surface{find_surface(event.window)})
             {
                 const platform::Window win{surface->window};
                 surface->surface.resize(win.width(), win.height());
@@ -123,9 +137,11 @@ auto test_initialize() -> bool
     }
 
     if (!graphics::initialize(graphics::GraphicsPlatform::vulkan))
+    {
         return false;
+    }
 
-    platform::WindowInitInfo info[]{
+    const platform::WindowInitInfo info[]{
         {&on_window_event, nullptr, "Surface 1", 100, 100, 400, 800},
         {&on_window_event, nullptr, "Surface 2", 150, 150, 800, 400},
         {&on_window_event, nullptr, "Surface 3", 200, 200, 400, 400},
@@ -137,10 +153,14 @@ auto test_initialize() -> bool
     {
         test_surfaces[i].window = platform::create_window(&info[i]);
         if (!test_surfaces[i].window.is_valid())
+        {
             return false;
+        }
         test_surfaces[i].surface = graphics::create_surface(test_surfaces[i].window);
         if (!test_surfaces[i].surface.is_valid())
+        {
             return false;
+        }
     }
 
     is_restarting = false;
@@ -150,7 +170,9 @@ auto test_initialize() -> bool
 auto test_shutdown() -> void
 {
     for (auto &surface : test_surfaces)
+    {
         destroy_surface(surface);
+    }
     graphics::shutdown();
 }
 
@@ -167,10 +189,12 @@ class EngineTest : public Test
     auto run() -> void override
     {
         surfaces_test::timer.begin();
-        for (auto &surface : surfaces_test::test_surfaces)
+        for (const auto &surface : surfaces_test::test_surfaces)
         {
             if (surface.surface.is_valid())
+            {
                 surface.surface.render({});
+            }
         }
         surfaces_test::timer.end();
     }

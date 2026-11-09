@@ -136,14 +136,18 @@ auto get_adapters_by_performance() -> utl::vector<ComPtr<IDXGIAdapter>>
     {
         dxgi_module = ::LoadLibrary(L"dxgi.dll");
         if (!dxgi_module)
+        {
             return {};
+        }
     }
 
     using PFN_CreateDXGIFactory1 = HRESULT(WINAPI *)(REFIID, void **);
     const PFN_CreateDXGIFactory1 create_dxgi_factory1{
         (PFN_CreateDXGIFactory1)((void *)::GetProcAddress(dxgi_module, "CreateDXGIFactory1"))};
     if (!create_dxgi_factory1)
+    {
         return {};
+    }
 
     ComPtr<IDXGIFactory7> factory;
     utl::vector<ComPtr<IDXGIAdapter>> adapters;
@@ -159,13 +163,17 @@ auto get_adapters_by_performance() -> utl::vector<ComPtr<IDXGIAdapter>>
              ++i)
         {
             if (!adapter)
+            {
                 continue;
+            }
 
             DXGI_ADAPTER_DESC desc;
             adapter->GetDesc(&desc);
 
             if (desc.VendorId != warp_id)
+            {
                 adapters.emplace_back(adapter);
+            }
 
             adapter.Reset();
         }
@@ -176,20 +184,26 @@ auto get_adapters_by_performance() -> utl::vector<ComPtr<IDXGIAdapter>>
 
 auto create_device() -> void
 {
-    if (d3d11_devices.size())
+    if (!d3d11_devices.empty())
+    {
         return;
+    }
 
     if (!d3d11_module)
     {
         d3d11_module = ::LoadLibrary(L"d3d11.dll");
         if (!d3d11_module)
+        {
             return;
+        }
     }
 
     const PFN_D3D11_CREATE_DEVICE d3d11_create_device{
         (PFN_D3D11_CREATE_DEVICE)((void *)::GetProcAddress(d3d11_module, "D3D11CreateDevice"))};
     if (!d3d11_create_device)
+    {
         return;
+    }
 
     u32 create_device_flags{0};
 #ifdef _DEBUG
@@ -207,7 +221,7 @@ auto create_device() -> void
         ID3D11Device **device{&devices[i]};
         D3D_FEATURE_LEVEL feature_level;
         [[maybe_unused]]
-        HRESULT hr{d3d11_create_device(
+        const HRESULT hr{d3d11_create_device(
             adapters[i].Get(),
             adapters[i] ? D3D_DRIVER_TYPE_UNKNOWN : D3D_DRIVER_TYPE_HARDWARE,
             nullptr,
@@ -235,7 +249,7 @@ auto create_device() -> void
 
 auto try_create_device() -> bool
 {
-    std::lock_guard lock{device_creation_mutex};
+    const std::scoped_lock lock{device_creation_mutex};
     static bool try_once = false;
     if (!try_once)
     {
@@ -243,7 +257,7 @@ auto try_create_device() -> bool
         create_device();
     }
 
-    return d3d11_devices.size() > 0;
+    return !d3d11_devices.empty();
 }
 
 template <typename T>
@@ -269,7 +283,9 @@ auto run_on_gpu(T func) -> bool
             }
         }
         if (wait)
+        {
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        }
     }
 
     return result;
@@ -278,9 +294,13 @@ auto run_on_gpu(T func) -> bool
 constexpr auto set_or_clear_flag(u32 &flags, u32 flag, bool set) -> void
 {
     if (set)
+    {
         flags |= flag;
+    }
     else
+    {
         flags &= ~flag;
+    }
 }
 
 constexpr auto get_max_mip_count(u32 width, u32 height, u32 depth) -> u32
@@ -369,7 +389,7 @@ auto copy_subresources(const ScratchImage &scratch, TextureData *const data) -> 
     }
 }
 
-[[nodiscard]] auto subresource_data_to_images(TextureData *const data) -> utl::vector<Image>
+[[nodiscard]] auto subresource_data_to_images(TextureData const *const data) -> utl::vector<Image>
 {
     assert(data && data->subresource_data && data->subresource_size);
     assert(data->info.mip_levels && data->info.mip_levels <= TextureData::max_mips);
@@ -479,7 +499,9 @@ auto copy_icon(const Image &bc_image, TextureData *const data) -> void
     {
         hr = LoadFromHDRFile(file, nullptr, scratch);
         if (SUCCEEDED(hr))
+        {
             data->info.flags |= TextureFlags::is_hdr;
+        }
     }
 
     // It wasn't HDR. Try DDS.
@@ -563,7 +585,7 @@ auto copy_icon(const Image &bc_image, TextureData *const data) -> void
         if (settings.dimension == TextureDimension::texture_1d || settings.dimension == TextureDimension::texture_2d)
         {
             const bool allow_1d{settings.dimension == TextureDimension::texture_1d};
-            assert(array_size >= 1 && images.size() >= 1);
+            assert(array_size >= 1 && !images.empty());
             hr = working_scratch.InitializeArrayFromImages(images.data(), images.size(), allow_1d);
         }
         else if (settings.dimension == TextureDimension::texture_cube)
@@ -690,7 +712,9 @@ auto determine_output_format(TextureData *const data, ScratchImage &scratch, con
 _done:
     assert(IsCompressed(output_format));
     if (HasAlpha(output_format))
+    {
         data->info.flags |= TextureFlags::has_alpha;
+    }
 
     return IsSRGB(image_format) ? MakeSRGB(output_format) : output_format;
 }
@@ -767,7 +791,7 @@ auto can_use_gpu(DXGI_FORMAT format) -> bool
 {
     using namespace primal::content;
     assert(data->import_settings.compress);
-    TextureInfo &info{data->info};
+    const TextureInfo &info{data->info};
     const DXGI_FORMAT format{(DXGI_FORMAT)info.format};
     assert(IsCompressed(format));
     utl::vector<Image> images = subresource_data_to_images(data);
@@ -788,7 +812,7 @@ auto can_use_gpu(DXGI_FORMAT format) -> bool
     metadata.dimension = is_3d ? TEX_DIMENSION_TEXTURE3D : TEX_DIMENSION_TEXTURE2D;
 
     ScratchImage scratch;
-    HRESULT hr{Decompress(images.data(), (size_t)images.size(), metadata, DXGI_FORMAT_UNKNOWN, scratch)};
+    const HRESULT hr{Decompress(images.data(), (size_t)images.size(), metadata, DXGI_FORMAT_UNKNOWN, scratch)};
 
     if (FAILED(hr))
     {
@@ -847,7 +871,9 @@ auto prefilter_ibl(TextureData *const data, IblFilter::Type filter_type) -> void
     {
         ScratchImage bc_scratch{compress_image(data, cubemaps)};
         if (data->info.import_error)
+        {
             return;
+        }
 
         // Decompress the first image to be used for the icon.
         assert(bc_scratch.GetImages());
@@ -913,7 +939,7 @@ EDITOR_INTERFACE auto ComputeBrdfIntegrationLut(TextureData *const data) -> void
 
 EDITOR_INTERFACE auto Decompress(TextureData *const data) -> void
 {
-    ScratchImage scratch{decompress_image(data)};
+    const ScratchImage scratch{decompress_image(data)};
     if (!data->info.import_error)
     {
         copy_subresources(scratch, data);
@@ -939,7 +965,9 @@ EDITOR_INTERFACE auto Import(TextureData *const data) -> void
     {
         scratch_images.emplace_back(load_from_file(data, files[i].c_str()));
         if (data->info.import_error)
+        {
             return;
+        }
 
         const ScratchImage &scratch{scratch_images.back()};
         const TexMetadata &metadata{scratch.GetMetadata()};
@@ -969,6 +997,7 @@ EDITOR_INTERFACE auto Import(TextureData *const data) -> void
         const u32 depth{(u32)metadata.depth};
 
         for (u32 array_index{0}; array_index < array_size; ++array_index)
+        {
             for (u32 depth_index{0}; depth_index < depth; ++depth_index)
             {
                 const Image *image{scratch.GetImage(0, array_index, depth_index)};
@@ -988,11 +1017,14 @@ EDITOR_INTERFACE auto Import(TextureData *const data) -> void
 
                 images.emplace_back(*image);
             }
+        }
     }
 
     ScratchImage scratch{initialize_from_images(data, images)};
     if (data->info.import_error)
+    {
         return;
+    }
 
     // NOTE: don't compress if it's a cubemap that's going to be prefiltered. Compression is
     //       postponed till after prefiltering is done.
@@ -1000,7 +1032,9 @@ EDITOR_INTERFACE auto Import(TextureData *const data) -> void
     {
         ScratchImage bc_scratch{compress_image(data, scratch)};
         if (data->info.import_error)
+        {
             return;
+        }
 
         // Decompress the first image to be used for the icon.
         assert(bc_scratch.GetImages());

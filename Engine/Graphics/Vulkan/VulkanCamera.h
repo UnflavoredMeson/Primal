@@ -109,7 +109,7 @@ class VulkanCamera
     };
     graphics::Camera::Type _projection_type;
     id::id_type _entity_id;
-    bool _is_dirty;
+    bool _is_dirty{true};
 };
 
 auto create(CameraInitInfo info) -> graphics::Camera;

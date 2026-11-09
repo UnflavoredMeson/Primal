@@ -49,7 +49,7 @@ class D3D12Surface
     }
 #else
     DISABLE_COPY_AND_MOVE(D3D12Surface);
-#endif // USE_STL_VECTOR
+#endif
     ~D3D12Surface()
     {
         release();
@@ -67,7 +67,7 @@ class D3D12Surface
     {
         return (u32)_viewport.Height;
     }
-    [[nodiscard]] constexpr auto back_buffer() const -> ID3D12Resource *const
+    [[nodiscard]] constexpr auto back_buffer() const -> ID3D12Resource *
     {
         return _render_target_data[_current_bb_index].resource;
     }
@@ -122,7 +122,7 @@ class D3D12Surface
         _scissor_rect = {};
         _light_culling_id = id::invalid_id;
     }
-#endif // USE_STL_VECTOR
+#endif
 
     struct RenderTargetData
     {
@@ -135,7 +135,7 @@ class D3D12Surface
     //       when using std::vector (from STL)
     IDXGISwapChain4 *_swap_chain{nullptr};
     RenderTargetData _render_target_data[buffer_count]{};
-    platform::Window _window{};
+    platform::Window _window;
     mutable u32 _current_bb_index{0};
     D3D12_VIEWPORT _viewport{};
     D3D12_RECT _scissor_rect{};

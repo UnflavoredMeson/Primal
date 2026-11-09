@@ -218,7 +218,9 @@ class InputSystem final : public detail::InputSystemBase
         {
             // If handler was already added then don't add it again.
             if (func.instance == instance && func.callback == callback)
+            {
                 return;
+            }
         }
 
         collection.emplace_back(InputCallback{instance, callback});
@@ -231,7 +233,9 @@ class InputSystem final : public detail::InputSystemBase
         {
             // If handler was already added then don't add it again.
             if (func.binding == binding && func.instance == instance && func.callback == callback)
+            {
                 return;
+            }
         }
 
         _binding_callbacks.emplace_back(BindingCallback{binding, instance, callback});

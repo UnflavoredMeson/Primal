@@ -45,7 +45,9 @@ auto create_root_signature(const D3D12_ROOT_SIGNATURE_DESC1 &desc) -> ID3D12Root
     ComPtr<ID3D12DeviceConfiguration1> device_config;
     DXCall(hr = device->QueryInterface(IID_PPV_ARGS(&device_config)));
     if (FAILED(hr))
+    {
         return nullptr;
+    }
 
     if (FAILED(hr = device_config->SerializeVersionedRootSignature(&versioned_desc, &signature_blob, &error_blob)))
     {

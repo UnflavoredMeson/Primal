@@ -16,7 +16,7 @@ class EngineTest : public Test
   public:
     auto initialize() -> bool override
     {
-        std::srand((u32)std::time(nullptr));
+        std::srand((u32)std::time(nullptr)); // NOLINT(bugprone-random-generator-seed): a test, any seed
         return true;
     }
 
@@ -43,16 +43,18 @@ class EngineTest : public Test
     {
         u32 count = std::rand() % 20;
         if (_entities.empty())
+        {
             count = 1000;
+        }
         transform::InitInfo transform_info{};
-        game_entity::EntityInfo entity_info{
+        const game_entity::EntityInfo entity_info{
             &transform_info,
         };
 
         while (count > 0)
         {
             ++_added;
-            game_entity::Entity entity{game_entity::create(entity_info)};
+            const game_entity::Entity entity{game_entity::create(entity_info)};
             assert(entity.is_valid() && id::is_valid(entity.get_id()));
             _entities.push_back(entity);
             assert(game_entity::is_alive(entity.get_id()));
@@ -64,7 +66,9 @@ class EngineTest : public Test
     {
         u32 count = std::rand() % 20;
         if (_entities.size() < 1000)
+        {
             return;
+        }
         while (count > 0)
         {
             const u32 index{(u32)std::rand() % (u32)_entities.size()};
@@ -81,7 +85,7 @@ class EngineTest : public Test
         }
     }
 
-    auto print_results() -> void
+    auto print_results() const -> void
     {
         std::cout << "Entities created: " << _added << "\n";
         std::cout << "Entities deleted: " << _removed << "\n";

@@ -237,19 +237,33 @@ constexpr auto get_root_signature_flags(ShaderFlags::Flags flags) -> D3D12_ROOT_
 {
     D3D12_ROOT_SIGNATURE_FLAGS default_flags{d3dx::D3D12RootSignatureDesc::default_flags};
     if (flags & ShaderFlags::vertex)
+    {
         default_flags &= ~D3D12_ROOT_SIGNATURE_FLAG_DENY_VERTEX_SHADER_ROOT_ACCESS;
+    }
     if (flags & ShaderFlags::hull)
+    {
         default_flags &= ~D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS;
+    }
     if (flags & ShaderFlags::domain)
+    {
         default_flags &= ~D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS;
+    }
     if (flags & ShaderFlags::geometry)
+    {
         default_flags &= ~D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
+    }
     if (flags & ShaderFlags::pixel)
+    {
         default_flags &= ~D3D12_ROOT_SIGNATURE_FLAG_DENY_PIXEL_SHADER_ROOT_ACCESS;
+    }
     if (flags & ShaderFlags::amplification)
+    {
         default_flags &= ~D3D12_ROOT_SIGNATURE_FLAG_DENY_AMPLIFICATION_SHADER_ROOT_ACCESS;
+    }
     if (flags & ShaderFlags::mesh)
+    {
         default_flags &= ~D3D12_ROOT_SIGNATURE_FLAG_DENY_MESH_SHADER_ROOT_ACCESS;
+    }
     return default_flags;
 }
 
@@ -298,7 +312,7 @@ auto create_root_signature(MaterialType::Type type, ShaderFlags::Flags flags) ->
     assert(type < MaterialType::count);
     static_assert(sizeof(type) == sizeof(u32) && sizeof(flags) == sizeof(u32));
     const u64 key{((u64)type << 32) | flags};
-    auto pair = mtl_rs_map.find(key);
+    const auto pair = mtl_rs_map.find(key);
     if (pair != mtl_rs_map.end())
     {
         assert(pair->first == key);
@@ -385,8 +399,8 @@ auto create_pso_if_needed(const u8 *const stream_ptr, u64 aligned_stream_size, [
     const u64 key{math::calc_crc32_u64(stream_ptr, aligned_stream_size)};
 
     { // Lock scope to check if PSO already exists
-        std::lock_guard lock{pso_mutex};
-        auto pair = pso_map.find(key);
+        const std::scoped_lock lock{pso_mutex};
+        const auto pair = pso_map.find(key);
 
         if (pair != pso_map.end())
         {
@@ -396,12 +410,12 @@ auto create_pso_if_needed(const u8 *const stream_ptr, u64 aligned_stream_size, [
     }
 
     // Creating a new PSO is lock-free
-    d3dx::D3D12PipelineStateSubobjectStream *const stream{(d3dx::D3D12PipelineStateSubobjectStream *const)stream_ptr};
+    d3dx::D3D12PipelineStateSubobjectStream *const stream{(d3dx::D3D12PipelineStateSubobjectStream *)stream_ptr};
     ID3D12PipelineState *pso{d3dx::create_pipeline_state(stream, sizeof(d3dx::D3D12PipelineStateSubobjectStream))};
 
     { // Lock scope to add the new PSO's pointer and id (I know, scoping is not necessary, but it's more obvious this
       // way.)
-        std::lock_guard lock{pso_mutex};
+        const std::scoped_lock lock{pso_mutex};
         const id::id_type id{(u32)pipeline_states.size()};
         pipeline_states.emplace_back(pso);
         NAME_D3D12_OBJECT_INDEXED(
@@ -441,15 +455,15 @@ auto create_pso(id::id_type material_id, D3D12_PRIMITIVE_TOPOLOGY primitive_topo
 {
     constexpr u64 aligned_stream_size{
         math::align_size_up<sizeof(u64)>(sizeof(d3dx::D3D12PipelineStateSubobjectStream))};
-    u8 *const stream_ptr{(u8 *const)alloca(aligned_stream_size)};
+    u8 *const stream_ptr{(u8 *)alloca(aligned_stream_size)};
     ZeroMemory(stream_ptr, aligned_stream_size);
     new (stream_ptr) d3dx::D3D12PipelineStateSubobjectStream{};
 
-    d3dx::D3D12PipelineStateSubobjectStream &stream{*(d3dx::D3D12PipelineStateSubobjectStream *const)stream_ptr};
+    d3dx::D3D12PipelineStateSubobjectStream &stream{*(d3dx::D3D12PipelineStateSubobjectStream *)stream_ptr};
     D3D12_SHADER_BYTECODE depth_prepass_vertex_shader{};
 
     { // Lock materials
-        std::lock_guard lock{material_mutex};
+        const std::scoped_lock lock{material_mutex};
         const D3D12MaterialStream material{materials[material_id].get()};
 
         D3D12_RT_FORMAT_ARRAY rt_array{};
@@ -584,11 +598,11 @@ auto create_resource_from_texture_data(const u8 *const data) -> D3D12Texture
 
     const u32 footprints_data_size{
         (sizeof(D3D12_PLACED_SUBRESOURCE_FOOTPRINT) + sizeof(u32) + sizeof(u64)) * subresource_count};
-    std::unique_ptr<u8[]> footprints_data{std::make_unique<u8[]>(footprints_data_size)};
+    const std::unique_ptr<u8[]> footprints_data{std::make_unique<u8[]>(footprints_data_size)};
 
-    D3D12_PLACED_SUBRESOURCE_FOOTPRINT *const layouts{(D3D12_PLACED_SUBRESOURCE_FOOTPRINT *const)footprints_data.get()};
-    u32 *const num_rows{(u32 *const)&layouts[subresource_count]};
-    u64 *const row_sizes{(u64 *const)&num_rows[subresource_count]};
+    D3D12_PLACED_SUBRESOURCE_FOOTPRINT *const layouts{(D3D12_PLACED_SUBRESOURCE_FOOTPRINT *)footprints_data.get()};
+    u32 *const num_rows{(u32 *)&layouts[subresource_count]};
+    u64 *const row_sizes{(u64 *)&num_rows[subresource_count]};
     u64 required_size{0};
     id3d12_device *device{core::device()};
 
@@ -596,7 +610,7 @@ auto create_resource_from_texture_data(const u8 *const data) -> D3D12Texture
 
     assert(required_size);
     upload::D3D12UploadContext context{(u32)required_size};
-    u8 *const cpu_address{(u8 *const)context.cpu_address()};
+    u8 *const cpu_address{(u8 *)context.cpu_address()};
 
     for (u32 subresource_idx{0}; subresource_idx < subresource_count; ++subresource_idx)
     {
@@ -610,8 +624,8 @@ auto create_resource_from_texture_data(const u8 *const data) -> D3D12Texture
 
         for (u32 depth_idx{0}; depth_idx < subresource_depth; ++depth_idx)
         {
-            u8 *const src_slice{(u8 *const)subresource.pData + subresource.SlicePitch * depth_idx};
-            u8 *const dst_slice{(u8 *const)copy_dst.pData + copy_dst.SlicePitch * depth_idx};
+            u8 const *const src_slice{(u8 *)subresource.pData + subresource.SlicePitch * depth_idx};
+            u8 *const dst_slice{(u8 *)copy_dst.pData + copy_dst.SlicePitch * depth_idx};
 
             for (u32 row_idx{0}; row_idx < subresource_height; ++row_idx)
             {
@@ -751,7 +765,7 @@ auto add(const u8 *const data, id::id_type *const ids, u32 count) -> void
     D3D12_GPU_VIRTUAL_ADDRESS address{resource->GetGPUVirtualAddress()};
     blob.skip(mesh_data_size); // skip the mesh data to read submesh info.
 
-    std::lock_guard lock{mesh_mutex};
+    const std::scoped_lock lock{mesh_mutex};
 
     const u32 resource_id{mesh_buffers.add(resource)};
 
@@ -804,7 +818,7 @@ auto add(const u8 *const data, id::id_type *const ids, u32 count) -> void
 auto remove(const id::id_type *const ids, u32 count) -> void
 {
     assert(ids && count);
-    std::lock_guard lock{mesh_mutex};
+    const std::scoped_lock lock{mesh_mutex};
     const u32 resource_id{submesh_views[ids[0]].resource_index};
     assert(resource_id != u32_invalid_id);
 
@@ -824,7 +838,7 @@ auto get_views(const id::id_type *const gpu_ids, u32 id_count, const ViewsCache 
         cache.position_buffers && cache.element_buffers && cache.index_buffer_views && cache.primitive_topologies &&
         cache.elements_types);
 
-    std::lock_guard lock{mesh_mutex};
+    const std::scoped_lock lock{mesh_mutex};
     for (u32 i{0}; i < id_count; ++i)
     {
         const SubmeshView &view{submesh_views[gpu_ids[i]]};
@@ -852,7 +866,7 @@ auto add(const u8 *const data) -> id::id_type
     assert(data);
     D3D12Texture texture{create_resource_from_texture_data(data)};
 
-    std::lock_guard lock{texture_mutex};
+    const std::scoped_lock lock{texture_mutex};
     const id::id_type id{textures.add(std::move(texture))};
     descriptor_indices.add(textures[id].srv().index);
     return id;
@@ -860,7 +874,7 @@ auto add(const u8 *const data) -> id::id_type
 
 auto remove(id::id_type id) -> void
 {
-    std::lock_guard lock{texture_mutex};
+    const std::scoped_lock lock{texture_mutex};
     textures.remove(id);
     descriptor_indices.remove(id);
 }
@@ -868,7 +882,7 @@ auto remove(id::id_type id) -> void
 auto get_descriptor_indices(const id::id_type *const texture_ids, u32 id_count, u32 *const indices) -> void
 {
     assert(texture_ids && id_count && indices);
-    std::lock_guard lock{texture_mutex};
+    const std::scoped_lock lock{texture_mutex};
     for (u32 i{0}; i < id_count; ++i)
     {
         assert(id::is_valid(texture_ids[i]));
@@ -894,15 +908,15 @@ namespace material
 auto add(MaterialInitInfo info) -> id::id_type
 {
     std::unique_ptr<u8[]> buffer;
-    std::lock_guard lock{material_mutex};
-    D3D12MaterialStream stream{buffer, info};
+    const std::scoped_lock lock{material_mutex};
+    const D3D12MaterialStream stream{buffer, info};
     assert(buffer);
     return materials.add(std::move(buffer));
 }
 
 auto remove(id::id_type id) -> void
 {
-    std::lock_guard lock{material_mutex};
+    const std::scoped_lock lock{material_mutex};
     materials.remove(id);
 }
 
@@ -914,7 +928,7 @@ auto get_materials(
 {
     assert(material_ids && material_count);
     assert(cache.root_signatures && cache.material_types);
-    std::lock_guard lock{material_mutex};
+    const std::scoped_lock lock{material_mutex};
 
     u32 total_index_count{0};
 
@@ -951,15 +965,15 @@ auto add(
 {
     assert(id::is_valid(entity_id) && id::is_valid(geometry_content_id));
     assert(material_count && material_ids);
-    id::id_type *const gpu_ids{(id::id_type *const)alloca(material_count * sizeof(id::id_type))};
+    id::id_type *const gpu_ids{(id::id_type *)alloca(material_count * sizeof(id::id_type))};
     primal::content::get_submesh_gpu_ids(geometry_content_id, material_count, gpu_ids);
 
-    submesh::ViewsCache views_cache{
-        (D3D12_GPU_VIRTUAL_ADDRESS *const)alloca(material_count * sizeof(D3D12_GPU_VIRTUAL_ADDRESS)),
-        (D3D12_GPU_VIRTUAL_ADDRESS *const)alloca(material_count * sizeof(D3D12_GPU_VIRTUAL_ADDRESS)),
-        (D3D12_INDEX_BUFFER_VIEW *const)alloca(material_count * sizeof(D3D12_INDEX_BUFFER_VIEW)),
-        (D3D_PRIMITIVE_TOPOLOGY *const)alloca(material_count * sizeof(D3D_PRIMITIVE_TOPOLOGY)),
-        (u32 *const)alloca(material_count * sizeof(u32))};
+    const submesh::ViewsCache views_cache{
+        (D3D12_GPU_VIRTUAL_ADDRESS *)alloca(material_count * sizeof(D3D12_GPU_VIRTUAL_ADDRESS)),
+        (D3D12_GPU_VIRTUAL_ADDRESS *)alloca(material_count * sizeof(D3D12_GPU_VIRTUAL_ADDRESS)),
+        (D3D12_INDEX_BUFFER_VIEW *)alloca(material_count * sizeof(D3D12_INDEX_BUFFER_VIEW)),
+        (D3D_PRIMITIVE_TOPOLOGY *)alloca(material_count * sizeof(D3D_PRIMITIVE_TOPOLOGY)),
+        (u32 *)alloca(material_count * sizeof(u32))};
 
     submesh::get_views(gpu_ids, material_count, views_cache);
 
@@ -970,7 +984,7 @@ auto add(
     items[0] = geometry_content_id;
     id::id_type *const item_ids{&items[1]};
 
-    D3D12RenderItem *const d3d12_items{(D3D12RenderItem *const)alloca(material_count * sizeof(D3D12RenderItem))};
+    D3D12RenderItem *const d3d12_items{(D3D12RenderItem *)alloca(material_count * sizeof(D3D12RenderItem))};
 
     for (u32 i{0}; i < material_count; ++i)
     {
@@ -978,14 +992,15 @@ auto add(
         item.entity_id = entity_id;
         item.submesh_gpu_id = gpu_ids[i];
         item.material_id = material_ids[i];
-        PsoId id_pair{create_pso(item.material_id, views_cache.primitive_topologies[i], views_cache.elements_types[i])};
+        const PsoId id_pair{
+            create_pso(item.material_id, views_cache.primitive_topologies[i], views_cache.elements_types[i])};
         item.pso_id = id_pair.gpass_pso_id;
         item.depth_pso_id = id_pair.depth_pso_id;
 
         assert(id::is_valid(item.submesh_gpu_id) && id::is_valid(item.material_id));
     }
 
-    std::lock_guard lock{render_item_mutex};
+    const std::scoped_lock lock{render_item_mutex};
 
     for (u32 i{0}; i < material_count; ++i)
     {
@@ -1000,7 +1015,7 @@ auto add(
 
 auto remove(id::id_type id) -> void
 {
-    std::lock_guard lock{render_item_mutex};
+    const std::scoped_lock lock{render_item_mutex};
     const id::id_type *const item_ids{&render_item_ids[id][1]};
 
     // NOTE: the last element in the list of ids is always an invalid id.
@@ -1021,7 +1036,7 @@ auto get_d3d12_render_item_ids(const FrameInfo &info, utl::vector<id::id_type> &
     frame_cache.geometry_ids.clear();
     const u32 count{info.render_item_count};
 
-    std::lock_guard lock{render_item_mutex};
+    const std::scoped_lock lock{render_item_mutex};
 
     for (u32 i{0}; i < count; ++i)
     {
@@ -1060,8 +1075,7 @@ auto get_items(const id::id_type *const d3d12_render_item_ids, u32 id_count, con
     assert(d3d12_render_item_ids && id_count);
     assert(cache.entity_ids && cache.submesh_gpu_ids && cache.material_ids && cache.gpass_psos && cache.depth_psos);
 
-    std::lock_guard lock1{render_item_mutex};
-    std::lock_guard lock2{pso_mutex};
+    const std::scoped_lock lock{render_item_mutex, pso_mutex};
 
     for (u32 i{0}; i < id_count; ++i)
     {

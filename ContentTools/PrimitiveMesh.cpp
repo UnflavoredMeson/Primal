@@ -62,12 +62,15 @@ auto create_plane(
     utl::vector<math::v2> uvs;
 
     for (u32 j{0}; j <= vertical_count; ++j)
+    {
         for (u32 i{0}; i <= horizontal_count; ++i)
         {
             math::v3 position{offset};
-            f32 *const as_array{&position.x};
-            as_array[horizontal_index] += i * horizontal_step;
-            as_array[vertical_index] += j * vertical_step;
+            // Component by axis index (indexing &position.x as an array reads past x: undefined behavior).
+            const auto component = [&position](u32 axis) -> f32 &
+            { return axis == 0 ? position.x : (axis == 1 ? position.y : position.z); };
+            component(horizontal_index) += i * horizontal_step;
+            component(vertical_index) += j * vertical_step;
             m.positions.emplace_back(position.x * info.size.x, position.y * info.size.y, position.z * info.size.z);
 
             math::v2 uv{u_range.x, 1.f - v_range.x};
@@ -75,6 +78,7 @@ auto create_plane(
             uv.y -= j * v_step;
             uvs.emplace_back(uv);
         }
+    }
 
     assert(m.positions.size() == (((u64)horizontal_count + 1) * ((u64)vertical_count + 1)));
 
@@ -111,7 +115,7 @@ auto create_plane(
 
 constexpr auto get_face_vertex(u32 face, f32 x, f32 y) -> math::v3
 {
-    math::v3 face_vertex[6] = {
+    const math::v3 face_vertex[6] = {
         {-1.f, -y, x},  // X- Right
         {1.f, -y, -x},  // X+ Left
         {x, 1.f, y},    // Y+ Bottom
@@ -149,8 +153,8 @@ auto create_cube(const PrimitiveInitInfo &info) -> Mesh
         {
             for (u32 x{0}; x <= x_count; ++x)
             {
-                math::v2 pos{2.f * x * x_step - 1.f, 2.f * y * y_step - 1.f};
-                math::v3 position{get_face_vertex(face, pos.x, pos.y)};
+                const math::v2 pos{2.f * x * x_step - 1.f, 2.f * y * y_step - 1.f};
+                const math::v3 position{get_face_vertex(face, pos.x, pos.y)};
                 m.positions.emplace_back(position.x * info.size.x, position.y * info.size.y, position.z * info.size.z);
 #if 1
                 math::v2 uv{u_range[face], 1.f - v_range[face]};
@@ -366,7 +370,7 @@ auto create_capsule(Scene &, const PrimitiveInitInfo &) -> void
 
 }
 
-EDITOR_INTERFACE auto CreatePrimitiveMesh(SceneData *data, PrimitiveInitInfo *info) -> void
+EDITOR_INTERFACE auto CreatePrimitiveMesh(SceneData *data, PrimitiveInitInfo const *info) -> void
 {
     assert(data && info);
     assert(info->type < PrimitiveMeshType::count);

@@ -40,7 +40,7 @@ auto random_float(f32 min = 0.f) -> f32
 auto create_light(math::v3 position, math::v3 rotation, graphics::Light::Type type, u64 light_set_key) -> void
 {
     const char *script_name{nullptr}; // { type == graphics::Light::spot ? "RotatorScript" : nullptr };
-    game_entity::EntityId entity_id{::create_one_game_entity(position, rotation, nullptr, script_name).get_id()};
+    const game_entity::EntityId entity_id{::create_one_game_entity(position, rotation, nullptr, script_name).get_id()};
 
     graphics::LightInitInfo info{};
     info.entity_id = entity_id;
@@ -78,7 +78,7 @@ auto create_light(math::v3 position, math::v3 rotation, graphics::Light::Type ty
     }
 #endif
 
-    graphics::Light light{graphics::create_light(info)};
+    const graphics::Light light{graphics::create_light(info)};
     assert(light.is_valid());
     lights.push_back(light);
 }
@@ -128,13 +128,15 @@ auto generate_lights() -> void
     create_light({0, 3, 2.5f}, {}, graphics::light::point, left_set);
     create_light({0, 0.1f, 7}, {0, 3.14f, 0}, graphics::light::spot, left_set);
 #else
-    std::srand(37);
+    std::srand(37); // NOLINT(bugprone-random-generator-seed): same lights every run
 
     constexpr f32 scale1{2};
     constexpr math::v3 scale{1.f * scale1, 0.5f * scale1, 1.f * scale1};
     constexpr s32 dim{10};
     for (s32 x{-dim}; x < dim; ++x)
+    {
         for (s32 y{0}; y < 2 * dim; ++y)
+        {
             for (s32 z{-dim}; z < dim; ++z)
             {
                 create_light(
@@ -148,19 +150,21 @@ auto generate_lights() -> void
                     random_float() > 0.5f ? graphics::Light::spot : graphics::Light::point,
                     right_set);
             }
+        }
+    }
 #endif
 }
 
 auto remove_lights() -> void
 {
-    for (auto &light : lights)
+    for (const auto &light : lights)
     {
         const game_entity::EntityId id{light.entity_id()};
         graphics::remove_light(light.get_id(), light.light_set_key());
         ::remove_game_entity(id);
     }
 
-    for (auto &light : disabled_lights)
+    for (const auto &light : disabled_lights)
     {
         const game_entity::EntityId id{light.entity_id()};
         graphics::remove_light(light.get_id(), light.light_set_key());
@@ -174,7 +178,7 @@ auto remove_lights() -> void
     graphics::remove_light_set(right_set);
 }
 
-auto test_lights(f32 dt) -> void
+auto test_lights([[maybe_unused]] f32 dt) -> void
 {
 #if 0
     static f32 t{0};
@@ -189,10 +193,12 @@ auto test_lights(f32 dt) -> void
     u32 count{(u32)(random_float(0.1f) * 100)};
     for (u32 i{0}; i < count; ++i)
     {
-        if (!lights.size())
+        if (lights.empty())
+        {
             break;
+        }
         const u32 index{(u32)(random_float() * (lights.size() - 1))};
-        graphics::Light light{lights[index]};
+        const graphics::Light light{lights[index]};
         light.is_enabled(false);
         utl::erase_unordered(lights, index);
         disabled_lights.emplace_back(light);
@@ -201,10 +207,12 @@ auto test_lights(f32 dt) -> void
     count = (u32)(random_float(0.1f) * 50);
     for (u32 i{0}; i < count; ++i)
     {
-        if (!lights.size())
+        if (lights.empty())
+        {
             break;
+        }
         const u32 index{(u32)(random_float() * (lights.size() - 1))};
-        graphics::Light light{lights[index]};
+        const graphics::Light light{lights[index]};
         const game_entity::EntityId id{light.entity_id()};
         graphics::remove_light(light.get_id(), light.light_set_key());
         ::remove_game_entity(id);
@@ -214,10 +222,12 @@ auto test_lights(f32 dt) -> void
     count = (u32)(random_float(0.1f) * 50);
     for (u32 i{0}; i < count; ++i)
     {
-        if (!disabled_lights.size())
+        if (disabled_lights.empty())
+        {
             break;
+        }
         const u32 index{(u32)(random_float() * (disabled_lights.size() - 1))};
-        graphics::Light light{disabled_lights[index]};
+        const graphics::Light light{disabled_lights[index]};
         const game_entity::EntityId id{light.entity_id()};
         graphics::remove_light(light.get_id(), light.light_set_key());
         ::remove_game_entity(id);
@@ -227,10 +237,12 @@ auto test_lights(f32 dt) -> void
     count = (u32)(random_float(0.1f) * 100);
     for (u32 i{0}; i < count; ++i)
     {
-        if (!disabled_lights.size())
+        if (disabled_lights.empty())
+        {
             break;
+        }
         const u32 index{(u32)(random_float() * (disabled_lights.size() - 1))};
-        graphics::Light light{disabled_lights[index]};
+        const graphics::Light light{disabled_lights[index]};
         light.is_enabled(true);
         utl::erase_unordered(disabled_lights, index);
         lights.emplace_back(light);
@@ -242,11 +254,11 @@ auto test_lights(f32 dt) -> void
 
     for (u32 i{0}; i < count; ++i)
     {
-        math::v3 p1{
+        const math::v3 p1{
             (random_float() * 2 - 1.f) * 13.f * scale.x,
             random_float() * 2 * 13.f * scale.y,
             (random_float() * 2 - 1.f) * 13.f * scale.z};
-        math::v3 p2{
+        const math::v3 p2{
             (random_float() * 2 - 1.f) * 13.f * scale.x,
             random_float() * 2 * 13.f * scale.y,
             (random_float() * 2 - 1.f) * 13.f * scale.z};

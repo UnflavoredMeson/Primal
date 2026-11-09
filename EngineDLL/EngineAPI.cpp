@@ -26,15 +26,15 @@ using namespace primal;
 namespace
 {
 HMODULE game_code_dll{nullptr};
-using _get_script_creator = primal::script::detail::script_creator (*)(size_t);
-_get_script_creator get_script_creator{nullptr};
-using _get_script_names = LPSAFEARRAY (*)(void);
-_get_script_names get_script_names{nullptr};
+using get_script_creator_fn = primal::script::detail::script_creator (*)(size_t);
+get_script_creator_fn get_script_creator{nullptr};
+using get_script_names_fn = LPSAFEARRAY (*)();
+get_script_names_fn get_script_names{nullptr};
 
 struct ViewportSurface : public graphics::RenderSurface
 {
-    graphics::Camera camera{};
-    utl::vector<id::id_type> geometry_ids{};
+    graphics::Camera camera;
+    utl::vector<id::id_type> geometry_ids;
 };
 
 utl::vector<ViewportSurface> surfaces;
@@ -73,13 +73,13 @@ struct ShaderGroupData
     u8 *data;
 };
 
-auto patch_material_data(u8 *data) -> u8 *
+auto patch_material_data(u8 const *data) -> u8 *
 {
     utl::BlobStreamReader blob{data};
     const u32 texture_count{blob.read<u32>()};
     if (texture_count)
     {
-        id::id_type *const texture_ids{(id::id_type *const)blob.position()};
+        id::id_type *const texture_ids{(id::id_type *)blob.position()};
         blob.skip(sizeof(id::id_type) * texture_count);
         *((id::id_type **)blob.position()) = texture_ids;
     }
@@ -93,18 +93,18 @@ auto calculate_thresholds(
     u32 count,
     u32 surface_id) -> void
 {
-    game_entity::Entity camera{game_entity::EntityId{surfaces[surface_id].camera.entity_id()}};
+    const game_entity::Entity camera{game_entity::EntityId{surfaces[surface_id].camera.entity_id()}};
 
     using namespace DirectX;
     math::v3 pos{camera.position()};
-    XMVECTOR camera_pos{XMLoadFloat3(&pos)};
+    const XMVECTOR camera_pos{XMLoadFloat3(&pos)};
 
     for (u32 i{0}; i < count; ++i)
     {
         assert(id::is_valid(entity_ids[i]));
         pos = game_entity::Entity{entity_ids[i]}.position();
-        XMVECTOR entity_pos{XMLoadFloat3(&pos)};
-        XMVECTOR distance{XMVector3LengthEst(camera_pos - entity_pos)};
+        const XMVECTOR entity_pos{XMLoadFloat3(&pos)};
+        const XMVECTOR distance{XMVector3LengthEst(camera_pos - entity_pos)};
         XMStoreFloat(&thresholds[i], distance);
     }
 }
@@ -117,7 +117,7 @@ auto create_one_game_entity(
     math::v3 scale = {1.f, 1.f, 1.f}) -> game_entity::Entity
 {
     transform::InitInfo transform_info{};
-    DirectX::XMVECTOR quat{DirectX::XMQuaternionRotationRollPitchYawFromVector(DirectX::XMLoadFloat3(&rotation))};
+    const DirectX::XMVECTOR quat{DirectX::XMQuaternionRotationRollPitchYawFromVector(DirectX::XMLoadFloat3(&rotation))};
     math::v4a rot_quat{};
     DirectX::XMStoreFloat4A(&rot_quat, quat);
     std::memcpy(&transform_info.rotation[0], &rot_quat.x, sizeof(transform_info.rotation));
@@ -142,7 +142,7 @@ auto create_one_game_entity(
 
 auto create_camera() -> graphics::Camera
 {
-    game_entity::Entity ntt{create_one_game_entity({0, 1, 10}, {0, -math::pi, 0}, nullptr, nullptr)};
+    const game_entity::Entity ntt{create_one_game_entity({0, 1, 10}, {0, -math::pi, 0}, nullptr, nullptr)};
     return graphics::create_camera(graphics::PerspectiveCameraInitInfo{ntt.get_id()});
 }
 
@@ -174,7 +174,9 @@ EDITOR_INTERFACE auto InitializeEngine() -> EngineInitError::ErrorCode
         // Pop up a message box allowing the user to retry compilation.
         if (::MessageBoxA(nullptr, "Failed to compile engine shaders.", "Shader Compilation Error", MB_RETRYCANCEL) !=
             IDRETRY)
+        {
             return EngineInitError::shader_compilation;
+        }
     }
 
     if (!graphics::initialize(platform))
@@ -197,12 +199,14 @@ EDITOR_INTERFACE auto ShutdownEngine() -> void
 EDITOR_INTERFACE auto LoadGameCodeDll(const char *dll_path) -> u32
 {
     if (game_code_dll)
+    {
         return FALSE;
+    }
     game_code_dll = ::LoadLibraryA(dll_path);
     assert(game_code_dll);
 
-    get_script_creator = (_get_script_creator)::GetProcAddress(game_code_dll, "get_script_creator");
-    get_script_names = (_get_script_names)::GetProcAddress(game_code_dll, "get_script_names");
+    get_script_creator = (get_script_creator_fn)::GetProcAddress(game_code_dll, "get_script_creator");
+    get_script_names = (get_script_names_fn)::GetProcAddress(game_code_dll, "get_script_names");
 
     return (game_code_dll && get_script_creator && get_script_names) ? TRUE : FALSE;
 }
@@ -210,9 +214,11 @@ EDITOR_INTERFACE auto LoadGameCodeDll(const char *dll_path) -> u32
 EDITOR_INTERFACE auto UnloadGameCodeDll() -> u32
 {
     if (!game_code_dll)
+    {
         return FALSE;
+    }
     assert(game_code_dll);
-    [[maybe_unused]] int result{::FreeLibrary(game_code_dll)};
+    [[maybe_unused]] const int result{::FreeLibrary(game_code_dll)};
     assert(result);
     game_code_dll = nullptr;
     return TRUE;
@@ -229,12 +235,12 @@ EDITOR_INTERFACE auto GetScriptNames() -> LPSAFEARRAY
 
 EDITOR_INTERFACE auto CreateRenderSurface(HWND host, s32 width, s32 height) -> u32
 {
-    std::lock_guard lock{mutex};
+    const std::scoped_lock lock{mutex};
 
     assert(host);
     // NOTE: PlatformWin32.cpp tracks the mouse for child windows (WM_MOUSEHOVER/WM_MOUSELEAVE for the editor).
     const platform::NativeWindowHandle parent{platform::NativeWindowHandle::win32, nullptr, (u64)host};
-    platform::WindowInitInfo info{nullptr, &parent, nullptr, 0, 0, width, height};
+    const platform::WindowInitInfo info{nullptr, &parent, nullptr, 0, 0, width, height};
     ViewportSurface surface{};
     surface.window = platform::create_window(&info);
     surface.surface = graphics::create_surface(surface.window);
@@ -246,7 +252,7 @@ EDITOR_INTERFACE auto CreateRenderSurface(HWND host, s32 width, s32 height) -> u
 
 EDITOR_INTERFACE auto RemoveRenderSurface(u32 id) -> void
 {
-    std::lock_guard lock{mutex};
+    const std::scoped_lock lock{mutex};
     assert(id < surfaces.size());
     remove_camera(surfaces[id].camera);
     graphics::remove_surface(surfaces[id].surface.get_id());
@@ -255,9 +261,9 @@ EDITOR_INTERFACE auto RemoveRenderSurface(u32 id) -> void
 
 EDITOR_INTERFACE auto ResizeRenderSurface(u32 id) -> void
 {
-    std::lock_guard lock{mutex};
+    const std::scoped_lock lock{mutex};
     assert(id < surfaces.size());
-    platform::Window &window{surfaces[id].window};
+    const platform::Window &window{surfaces[id].window};
     window.resize(0, 0);
     surfaces[id].surface.resize(window.width(), window.height());
     surfaces[id].camera.aspect_ratio((f32)window.width() / window.height());
@@ -265,7 +271,7 @@ EDITOR_INTERFACE auto ResizeRenderSurface(u32 id) -> void
 
 EDITOR_INTERFACE auto GetWindowHandle(u32 id) -> HWND
 {
-    std::lock_guard lock{mutex};
+    const std::scoped_lock lock{mutex};
     assert(id < surfaces.size());
     return (HWND)surfaces[id].window.handle()->window;
 }
@@ -287,7 +293,7 @@ EDITOR_INTERFACE auto DestroyResource(id::id_type id, content::AssetType::Type t
     content::destroy_resource(id, type);
 }
 
-EDITOR_INTERFACE auto AddShaderGroup(ShaderGroupData *data) -> id::id_type
+EDITOR_INTERFACE auto AddShaderGroup(ShaderGroupData const *data) -> id::id_type
 {
     assert(data && data->type < graphics::ShaderType::count && data->count && data->data_size && data->data);
     const u32 count{data->count};
@@ -334,7 +340,7 @@ EDITOR_INTERFACE auto CompileShader(ShaderData *data) -> u32
     info.function = data->function_name;
     info.type = (graphics::ShaderType::Type)data->type;
 
-    utl::vector<std::string> extra_args{::split(data->extra_args, ';')};
+    const utl::vector<std::string> extra_args{::split(data->extra_args, ';')};
     utl::vector<std::wstring> w_extra_args{};
 
     for (const auto &str : extra_args)
@@ -342,10 +348,13 @@ EDITOR_INTERFACE auto CompileShader(ShaderData *data) -> u32
         w_extra_args.emplace_back(::to_wstring(str.c_str()));
     }
 
-    std::unique_ptr<u8[]> compiled_shader{::compile_shader(info, data->code, data->code_size, w_extra_args, true)};
+    const std::unique_ptr<u8[]> compiled_shader{
+        ::compile_shader(info, data->code, data->code_size, w_extra_args, true)};
 
     if (!compiled_shader)
+    {
         return FALSE;
+    }
 
     u64 buffer_size{0};
 
@@ -376,9 +385,9 @@ EDITOR_INTERFACE auto CompileShader(ShaderData *data) -> u32
     return TRUE;
 }
 
-EDITOR_INTERFACE auto SetGeometryIds(u32 surface_id, id::id_type *geometry_ids, u32 count) -> void
+EDITOR_INTERFACE auto SetGeometryIds(u32 surface_id, id::id_type const *geometry_ids, u32 count) -> void
 {
-    std::lock_guard lock{mutex};
+    const std::scoped_lock lock{mutex};
     assert(surface_id < surfaces.size());
 
     ViewportSurface &surface{surfaces[surface_id]};
@@ -392,7 +401,7 @@ EDITOR_INTERFACE auto SetGeometryIds(u32 surface_id, id::id_type *geometry_ids, 
 
 EDITOR_INTERFACE auto RenderFrame(u32 surface_id, id::id_type camera_id, u64 light_set) -> void
 {
-    std::lock_guard lock{mutex};
+    const std::scoped_lock lock{mutex};
     assert(surface_id < surfaces.size());
 
     const ViewportSurface &surface{surfaces[surface_id]};
@@ -435,7 +444,7 @@ EDITOR_INTERFACE auto UpdateEditorCamera(
     f32 rot_y,
     f32 rot_z) -> void
 {
-    std::lock_guard lock{mutex};
+    const std::scoped_lock lock{mutex};
     assert(surface_id < surfaces.size());
     const id::id_type entity_id{surfaces[surface_id].camera.entity_id()};
     assert(id::is_valid(entity_id));
@@ -450,7 +459,7 @@ EDITOR_INTERFACE auto UpdateEditorCamera(
 
 EDITOR_INTERFACE auto SetCameraRange(u32 surface_id, f32 near_z, f32 far_z) -> void
 {
-    std::lock_guard lock{mutex};
+    const std::scoped_lock lock{mutex};
     assert(near_z > 0 && far_z >= near_z);
     assert(surface_id < surfaces.size());
     surfaces[surface_id].camera.range(near_z, far_z);
@@ -458,7 +467,7 @@ EDITOR_INTERFACE auto SetCameraRange(u32 surface_id, f32 near_z, f32 far_z) -> v
 
 EDITOR_INTERFACE auto SetCameraFoV(u32 surface_id, f32 fov) -> void
 {
-    std::lock_guard lock{mutex};
+    const std::scoped_lock lock{mutex};
     assert(fov > 0);
     assert(surface_id < surfaces.size());
     fov *= (1.f / 180.f);
@@ -467,7 +476,7 @@ EDITOR_INTERFACE auto SetCameraFoV(u32 surface_id, f32 fov) -> void
 
 EDITOR_INTERFACE auto CreateLightSet(const char *light_set_key) -> u64
 {
-    std::lock_guard lock{mutex};
+    const std::scoped_lock lock{mutex};
     assert(light_set_key && light_set_key[0]);
     const u64 key{std::hash<std::string>()(light_set_key)};
     graphics::create_light_set(key);
@@ -476,7 +485,7 @@ EDITOR_INTERFACE auto CreateLightSet(const char *light_set_key) -> u64
 
 EDITOR_INTERFACE auto RemoveLightSet(u64 light_set_key) -> void
 {
-    std::lock_guard lock{mutex};
+    const std::scoped_lock lock{mutex};
     graphics::remove_light_set(light_set_key);
 }
 
@@ -498,7 +507,7 @@ EDITOR_INTERFACE auto CreateLight(
     const u8 *const data,
     [[maybe_unused]] u32 data_size) -> id::id_type
 {
-    std::lock_guard lock{mutex};
+    const std::scoped_lock lock{mutex};
     assert(id::is_valid(entity_id) && data && data_size);
     utl::BlobStreamReader blob{data};
     graphics::LightInitInfo info{};
@@ -533,74 +542,86 @@ EDITOR_INTERFACE auto CreateLight(
 
 EDITOR_INTERFACE auto RemoveLight(id::id_type light_id, u64 light_set_key) -> void
 {
-    std::lock_guard lock{mutex};
+    const std::scoped_lock lock{mutex};
     assert(id::is_valid(light_id));
     graphics::remove_light(graphics::LightId{light_id}, light_set_key);
 }
 
-EDITOR_INTERFACE auto GetLightIsEnabled(id::id_type *ids, u64 *light_set_keys, u32 *is_enabled, u32 count) -> void
+EDITOR_INTERFACE auto GetLightIsEnabled(id::id_type const *ids, u64 const *light_set_keys, u32 *is_enabled, u32 count)
+    -> void
 {
-    std::lock_guard lock{mutex};
+    const std::scoped_lock lock{mutex};
     assert(ids && light_set_keys && is_enabled && count);
 
     for (u32 i{0}; i < count; ++i)
     {
         assert(id::is_valid(ids[i]));
-        graphics::Light light{graphics::LightId{ids[i]}, light_set_keys[i]};
+        const graphics::Light light{graphics::LightId{ids[i]}, light_set_keys[i]};
         is_enabled[i] = light.is_enabled() ? 1 : 0;
     }
 }
 
-EDITOR_INTERFACE auto GetLightIntensity(id::id_type *ids, u64 *light_set_keys, f32 *intensities, u32 count) -> void
+EDITOR_INTERFACE auto GetLightIntensity(id::id_type const *ids, u64 const *light_set_keys, f32 *intensities, u32 count)
+    -> void
 {
-    std::lock_guard lock{mutex};
+    const std::scoped_lock lock{mutex};
     assert(ids && light_set_keys && intensities && count);
 
     for (u32 i{0}; i < count; ++i)
     {
         assert(id::is_valid(ids[i]));
-        graphics::Light light{graphics::LightId{ids[i]}, light_set_keys[i]};
+        const graphics::Light light{graphics::LightId{ids[i]}, light_set_keys[i]};
         intensities[i] = light.intensity();
     }
 }
 
-EDITOR_INTERFACE auto GetLightRange(id::id_type *ids, u64 *light_set_keys, f32 *ranges, u32 count) -> void
+EDITOR_INTERFACE auto GetLightRange(id::id_type const *ids, u64 const *light_set_keys, f32 *ranges, u32 count) -> void
 {
-    std::lock_guard lock{mutex};
+    const std::scoped_lock lock{mutex};
     assert(ids && light_set_keys && ranges && count);
 
     for (u32 i{0}; i < count; ++i)
     {
         assert(id::is_valid(ids[i]));
-        graphics::Light light{graphics::LightId{ids[i]}, light_set_keys[i]};
+        const graphics::Light light{graphics::LightId{ids[i]}, light_set_keys[i]};
         ranges[i] = light.range();
     }
 }
 
-EDITOR_INTERFACE auto GetLightConeAngles(id::id_type *ids, u64 *light_set_keys, f32 *umbras, f32 *penumbras, u32 count)
-    -> void
+EDITOR_INTERFACE auto GetLightConeAngles(
+    id::id_type const *ids,
+    u64 const *light_set_keys,
+    f32 *umbras,
+    f32 *penumbras,
+    u32 count) -> void
 {
-    std::lock_guard lock{mutex};
+    const std::scoped_lock lock{mutex};
     assert(ids && light_set_keys && umbras && penumbras && count);
 
     for (u32 i{0}; i < count; ++i)
     {
         assert(id::is_valid(ids[i]));
-        graphics::Light light{graphics::LightId{ids[i]}, light_set_keys[i]};
+        const graphics::Light light{graphics::LightId{ids[i]}, light_set_keys[i]};
         umbras[i] = light.umbra() * math::to_deg;
         penumbras[i] = light.penumbra() * math::to_deg;
     }
 }
 
-EDITOR_INTERFACE auto GetLightColor(id::id_type *ids, u64 *light_set_keys, f32 *r, f32 *g, f32 *b, u32 count) -> void
+EDITOR_INTERFACE auto GetLightColor(
+    id::id_type const *ids,
+    u64 const *light_set_keys,
+    f32 *r,
+    f32 *g,
+    f32 *b,
+    u32 count) -> void
 {
-    std::lock_guard lock{mutex};
+    const std::scoped_lock lock{mutex};
     assert(ids && light_set_keys && r && g && b && count);
 
     for (u32 i{0}; i < count; ++i)
     {
         assert(id::is_valid(ids[i]));
-        graphics::Light light{graphics::LightId{ids[i]}, light_set_keys[i]};
+        const graphics::Light light{graphics::LightId{ids[i]}, light_set_keys[i]};
         const math::v3 color{light.color()};
         r[i] = color.x;
         g[i] = color.y;
@@ -608,16 +629,21 @@ EDITOR_INTERFACE auto GetLightColor(id::id_type *ids, u64 *light_set_keys, f32 *
     }
 }
 
-EDITOR_INTERFACE auto GetLightAttenuation(id::id_type *ids, u64 *light_set_keys, f32 *a, f32 *b, f32 *c, u32 count)
-    -> void
+EDITOR_INTERFACE auto GetLightAttenuation(
+    id::id_type const *ids,
+    u64 const *light_set_keys,
+    f32 *a,
+    f32 *b,
+    f32 *c,
+    u32 count) -> void
 {
-    std::lock_guard lock{mutex};
+    const std::scoped_lock lock{mutex};
     assert(ids && light_set_keys && a && b && c && count);
 
     for (u32 i{0}; i < count; ++i)
     {
         assert(id::is_valid(ids[i]));
-        graphics::Light light{graphics::LightId{ids[i]}, light_set_keys[i]};
+        const graphics::Light light{graphics::LightId{ids[i]}, light_set_keys[i]};
         const math::v3 attenuation{light.attenuation()};
         a[i] = attenuation.x;
         b[i] = attenuation.y;
@@ -625,82 +651,106 @@ EDITOR_INTERFACE auto GetLightAttenuation(id::id_type *ids, u64 *light_set_keys,
     }
 }
 
-EDITOR_INTERFACE auto SetLightIsEnabled(id::id_type *ids, u64 *light_set_keys, u32 *is_enabled, u32 count) -> void
+EDITOR_INTERFACE auto SetLightIsEnabled(
+    id::id_type const *ids,
+    u64 const *light_set_keys,
+    u32 const *is_enabled,
+    u32 count) -> void
 {
-    std::lock_guard lock{mutex};
+    const std::scoped_lock lock{mutex};
     assert(ids && light_set_keys && is_enabled && count);
 
     for (u32 i{0}; i < count; ++i)
     {
         assert(id::is_valid(ids[i]));
-        graphics::Light light{graphics::LightId{ids[i]}, light_set_keys[i]};
+        const graphics::Light light{graphics::LightId{ids[i]}, light_set_keys[i]};
         light.is_enabled(is_enabled[i] != 0);
     }
 }
 
-EDITOR_INTERFACE auto SetLightIntensity(id::id_type *ids, u64 *light_set_keys, f32 *intensities, u32 count) -> void
+EDITOR_INTERFACE auto SetLightIntensity(
+    id::id_type const *ids,
+    u64 const *light_set_keys,
+    f32 const *intensities,
+    u32 count) -> void
 {
-    std::lock_guard lock{mutex};
+    const std::scoped_lock lock{mutex};
     assert(ids && light_set_keys && intensities && count);
 
     for (u32 i{0}; i < count; ++i)
     {
         assert(id::is_valid(ids[i]));
-        graphics::Light light{graphics::LightId{ids[i]}, light_set_keys[i]};
+        const graphics::Light light{graphics::LightId{ids[i]}, light_set_keys[i]};
         light.intensity(intensities[i]);
     }
 }
 
-EDITOR_INTERFACE auto SetLightRange(id::id_type *ids, u64 *light_set_keys, f32 *ranges, u32 count) -> void
+EDITOR_INTERFACE auto SetLightRange(id::id_type const *ids, u64 const *light_set_keys, f32 const *ranges, u32 count)
+    -> void
 {
-    std::lock_guard lock{mutex};
+    const std::scoped_lock lock{mutex};
     assert(ids && light_set_keys && ranges && count);
 
     for (u32 i{0}; i < count; ++i)
     {
         assert(id::is_valid(ids[i]));
-        graphics::Light light{graphics::LightId{ids[i]}, light_set_keys[i]};
+        const graphics::Light light{graphics::LightId{ids[i]}, light_set_keys[i]};
         light.range(ranges[i]);
     }
 }
 
-EDITOR_INTERFACE auto SetLightConeAngles(id::id_type *ids, u64 *light_set_keys, f32 *umbras, f32 *penumbras, u32 count)
-    -> void
+EDITOR_INTERFACE auto SetLightConeAngles(
+    id::id_type const *ids,
+    u64 const *light_set_keys,
+    f32 const *umbras,
+    f32 const *penumbras,
+    u32 count) -> void
 {
-    std::lock_guard lock{mutex};
+    const std::scoped_lock lock{mutex};
     assert(ids && light_set_keys && umbras && penumbras && count);
 
     for (u32 i{0}; i < count; ++i)
     {
         assert(id::is_valid(ids[i]));
-        graphics::Light light{graphics::LightId{ids[i]}, light_set_keys[i]};
+        const graphics::Light light{graphics::LightId{ids[i]}, light_set_keys[i]};
         light.cone_angles(umbras[i] * math::to_rad, penumbras[i] * math::to_rad);
     }
 }
 
-EDITOR_INTERFACE auto SetLightColor(id::id_type *ids, u64 *light_set_keys, f32 *r, f32 *g, f32 *b, u32 count) -> void
+EDITOR_INTERFACE auto SetLightColor(
+    id::id_type const *ids,
+    u64 const *light_set_keys,
+    f32 const *r,
+    f32 const *g,
+    f32 const *b,
+    u32 count) -> void
 {
-    std::lock_guard lock{mutex};
+    const std::scoped_lock lock{mutex};
     assert(ids && light_set_keys && r && g && b && count);
 
     for (u32 i{0}; i < count; ++i)
     {
         assert(id::is_valid(ids[i]));
-        graphics::Light light{graphics::LightId{ids[i]}, light_set_keys[i]};
+        const graphics::Light light{graphics::LightId{ids[i]}, light_set_keys[i]};
         light.color({r[i], g[i], b[i]});
     }
 }
 
-EDITOR_INTERFACE auto SetLightAttenuation(id::id_type *ids, u64 *light_set_keys, f32 *a, f32 *b, f32 *c, u32 count)
-    -> void
+EDITOR_INTERFACE auto SetLightAttenuation(
+    id::id_type const *ids,
+    u64 const *light_set_keys,
+    f32 const *a,
+    f32 const *b,
+    f32 const *c,
+    u32 count) -> void
 {
-    std::lock_guard lock{mutex};
+    const std::scoped_lock lock{mutex};
     assert(ids && light_set_keys && a && b && c && count);
 
     for (u32 i{0}; i < count; ++i)
     {
         assert(id::is_valid(ids[i]));
-        graphics::Light light{graphics::LightId{ids[i]}, light_set_keys[i]};
+        const graphics::Light light{graphics::LightId{ids[i]}, light_set_keys[i]};
         light.attenuation({a[i], b[i], c[i]});
     }
 }

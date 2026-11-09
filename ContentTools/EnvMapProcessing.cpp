@@ -38,7 +38,7 @@ struct ShaderConstants
 
 auto get_sample_direction_equirectangular(u32 face, f32 u, f32 v) -> math::v3
 {
-    math::v3 directions[6]{
+    const math::v3 directions[6]{
         {-u, 1.f, -v},  // X+ Left
         {u, -1.f, -v},  // X- Right
         {v, u, 1.f},    // Y+ Bottom
@@ -90,12 +90,14 @@ auto sample_cube_face(const Image &env_map, const Image &cube_face, u32 face_ind
             assert(uv.x >= 0.f && uv.x <= 1.f && uv.y >= 0.f && uv.y <= 1.f);
 
             if (mirror)
+            {
                 uv.x = 1.f - uv.x;
+            }
             const f32 pos_x{uv.x * env_width};
             const f32 pos_y{uv.y * env_height};
             u8 *dst_pixel{&cube_face.pixels[row_pitch * y + x * bytes_per_pixel]};
 
-            u8 *const src_pixel{&env_map.pixels[env_row_pitch * (u32)pos_y + (u32)pos_x * bytes_per_pixel]};
+            u8 const *const src_pixel{&env_map.pixels[env_row_pitch * (u32)pos_y + (u32)pos_x * bytes_per_pixel]};
             std::memcpy(dst_pixel, src_pixel, bytes_per_pixel);
         }
     }
@@ -117,7 +119,7 @@ auto reset_d3d11_context(ID3D11DeviceContext *ctx) -> void
 auto set_constants(ID3D11DeviceContext *ctx, ID3D11Buffer *constant_buffer, ShaderConstants constants) -> HRESULT
 {
     D3D11_MAPPED_SUBRESOURCE mapped_buffer{};
-    HRESULT hr{ctx->Map(constant_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_buffer)};
+    const HRESULT hr{ctx->Map(constant_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_buffer)};
     if (FAILED(hr) || !mapped_buffer.pData)
     {
         return hr;
@@ -138,7 +140,7 @@ auto create_constant_buffer(ID3D11Device *device, ID3D11Buffer **constant_buffer
     desc.MiscFlags = 0;
     desc.StructureByteStride = 0;
 
-    HRESULT hr{device->CreateBuffer(&desc, nullptr, constant_buffer)};
+    const HRESULT hr{device->CreateBuffer(&desc, nullptr, constant_buffer)};
     return hr;
 }
 
@@ -230,7 +232,7 @@ auto download_texture_2d(
             }
 
             const Image &img{*result.GetImage(mip, img_idx, 0)};
-            u8 *src{(u8 *)mapped_resource.pData};
+            u8 const *src{(u8 *)mapped_resource.pData};
             u8 *dst{img.pixels};
 
             for (u32 row{0}; row < img.height; ++row)
@@ -249,10 +251,10 @@ auto download_texture_2d(
 
 auto dispatch(
     ID3D11DeviceContext *ctx,
-    ID3D11ShaderResourceView **const srv_array,
-    ID3D11UnorderedAccessView **const uav_array,
-    ID3D11Buffer **const buffers_array,
-    ID3D11SamplerState **const samplers_array,
+    ID3D11ShaderResourceView *const *const srv_array,
+    ID3D11UnorderedAccessView *const *const uav_array,
+    ID3D11Buffer *const *const buffers_array,
+    ID3D11SamplerState *const *const samplers_array,
     ID3D11ComputeShader *shader,
     math::u32v3 group_count) -> void
 {
@@ -329,7 +331,9 @@ auto equirectangular_to_cubemap(
         sample_cube_face(f32_env_map.GetImages()[i], dst_images[5], 5, mirror);
 
         for (u32 face{0}; face < 5; ++face)
+        {
             threads[face].join();
+        }
     }
 
     if (env_maps[0].format != DXGI_FORMAT_R32G32B32A32_FLOAT)
@@ -805,7 +809,7 @@ auto prefilter_specular(
                 return hr;
             }
 
-            const u32 block_size{std::max((u32)1, (u32)((prefiltered_specular_cubemap_size >> mip) + 15) >> 4)};
+            const u32 block_size{std::max((u32)1, ((prefiltered_specular_cubemap_size >> mip) + 15) >> 4)};
             dispatch(
                 ctx.Get(),
                 cubemap_in_srv.GetAddressOf(),

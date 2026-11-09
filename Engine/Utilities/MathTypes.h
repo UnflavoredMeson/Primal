@@ -1,12 +1,14 @@
 // Copyright (c) Arash Khatami
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #pragma once
+#include <numbers>
+
 #include "CommonHeaders.h"
 
 namespace primal::math
 {
 
-constexpr f32 pi{3.1415926535897932384626433832795f};
+constexpr f32 pi{std::numbers::pi_v<float>};
 constexpr f32 inv_pi{1.f / pi};
 constexpr f32 half_pi{pi * 0.5f};
 constexpr f32 two_pi{2.f * pi};

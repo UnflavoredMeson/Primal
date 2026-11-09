@@ -38,7 +38,7 @@ template <typename T>
 class com_ptr : public CComPtr<T>
 {
   public:
-    using CComPtr<T>::CComPtr;
+    using CComPtr<T>::CComPtr; // NOLINT(modernize-use-noexcept): inherited constructors, misdiagnosed
     auto Get() const -> T *
     {
         return this->p;
@@ -79,12 +79,12 @@ auto shader_log(const char *message) -> void
         shader_log("\n");                                                                                              \
         DEBUG_BREAK();                                                                                                 \
     }
-#endif // DXCall
+#endif
 #else
 #ifndef DXCall
 #define DXCall(x) x
-#endif // DXCall
-#endif //_DEBUG
+#endif
+#endif
 
 namespace
 {
@@ -171,13 +171,19 @@ class ShaderCompiler
         HRESULT hr{S_OK};
         DXCall(hr = ::DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&_compiler)));
         if (FAILED(hr))
+        {
             return;
+        }
         DXCall(hr = ::DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(&_utils)));
         if (FAILED(hr))
+        {
             return;
+        }
         DXCall(hr = _utils->CreateDefaultIncludeHandler(&_include_handler));
         if (FAILED(hr))
+        {
             return;
+        }
     }
 
     DISABLE_COPY_AND_MOVE(ShaderCompiler);
@@ -202,7 +208,9 @@ class ShaderCompiler
         {
             u32 major{0}, minor{0};
             if (SUCCEEDED(info->GetVersion(&major, &minor)))
+            {
                 result = std::to_string(major) + "." + std::to_string(minor);
+            }
         }
         com_ptr<IDxcVersionInfo2> info2{nullptr};
         if (SUCCEEDED(_compiler->QueryInterface(IID_PPV_ARGS(&info2))) && info2)
@@ -233,7 +241,9 @@ class ShaderCompiler
         com_ptr<IDxcBlobEncoding> source_blob{nullptr};
         DXCall(hr = _utils->CreateBlob(data, data_size, 0, &source_blob));
         if (FAILED(hr))
+        {
             return {};
+        }
         assert(source_blob && source_blob->GetBufferSize());
 
         ShaderFileInfo info{};
@@ -248,7 +258,7 @@ class ShaderCompiler
         return compile(source_blob.Get(), get_args(info, extra_args));
     }
 
-    auto compile(ShaderFileInfo info, std::filesystem::path full_path, utl::vector<std::wstring> &extra_args)
+    auto compile(ShaderFileInfo info, const std::filesystem::path &full_path, utl::vector<std::wstring> &extra_args)
         -> DxcCompiledShader
     {
         assert(_compiler && _utils && _include_handler);
@@ -258,7 +268,9 @@ class ShaderCompiler
         com_ptr<IDxcBlobEncoding> source_blob{nullptr};
         DXCall(hr = _utils->LoadFile(full_path.wstring().c_str(), nullptr, &source_blob));
         if (FAILED(hr))
+        {
             return {};
+        }
         assert(source_blob && source_blob->GetBufferSize());
 
         shader_log("Compiling ");
@@ -270,7 +282,7 @@ class ShaderCompiler
         return compile(source_blob.Get(), get_args(info, extra_args));
     }
 
-    auto compile(IDxcBlobEncoding *source_blob, utl::vector<std::wstring> compiler_args) -> DxcCompiledShader
+    auto compile(IDxcBlobEncoding *source_blob, const utl::vector<std::wstring> &compiler_args) -> DxcCompiledShader
     {
         DxcBuffer buffer{};
         buffer.Encoding = DXC_CP_ACP; // auto-detect text format, I guess?
@@ -289,12 +301,16 @@ class ShaderCompiler
             hr = _compiler->Compile(
                 &buffer, args.data(), (u32)args.size(), _include_handler.Get(), IID_PPV_ARGS(&results)));
         if (FAILED(hr))
+        {
             return {};
+        }
 
         com_ptr<IDxcBlobUtf8> errors{nullptr};
         DXCall(hr = results->GetOutput(DXC_OUT_ERRORS, IID_PPV_ARGS(&errors), nullptr));
         if (FAILED(hr))
+        {
             return {};
+        }
 
         if (errors && errors->GetStringLength())
         {
@@ -310,12 +326,16 @@ class ShaderCompiler
         HRESULT status{S_OK};
         DXCall(hr = results->GetStatus(&status));
         if (FAILED(hr) || FAILED(status))
+        {
             return {};
+        }
 
         com_ptr<IDxcBlob> shader{nullptr};
         DXCall(hr = results->GetOutput(DXC_OUT_OBJECT, IID_PPV_ARGS(&shader), nullptr));
         if (FAILED(hr) || !shader)
+        {
             return {};
+        }
 
         DxcCompiledShader result{};
 
@@ -328,8 +348,10 @@ class ShaderCompiler
             com_ptr<IDxcBlob> hash{nullptr};
             DXCall(hr = results->GetOutput(DXC_OUT_SHADER_HASH, IID_PPV_ARGS(&hash), nullptr));
             if (FAILED(hr) || !hash)
+            {
                 return {};
-            DxcShaderHash *const hash_buffer{(DxcShaderHash *const)hash->GetBufferPointer()};
+            }
+            DxcShaderHash *const hash_buffer{(DxcShaderHash *)hash->GetBufferPointer()};
             // different source code could result in the same byte code, so we only care about byte code hash.
             assert(!(hash_buffer->Flags & DXC_HASHFLAG_INCLUDES_SOURCE));
             static_assert(sizeof(DxcShaderHash::HashDigest) == shader_hash_length);
@@ -377,7 +399,9 @@ class ShaderCompiler
     {
         utl::vector<std::wstring> args{};
         if (info.file_name)
+        {
             args.emplace_back(to_wstring(info.file_name));
+        }
 
         args.emplace_back(L"-E");
         args.emplace_back(to_wstring(info.function)); // Entry function
@@ -426,7 +450,7 @@ class ShaderCompiler
         // Requires the scalarBlockLayout feature (core in Vulkan 1.2).
         args.emplace_back(L"-fvk-use-dx-layout");
         // register(xN, space0) -> descriptor set 0, binding = N + shift.
-        const wchar_t *shifts[][2]{
+        const wchar_t *const shifts[][2]{
             {L"-fvk-b-shift", L"0"}, {L"-fvk-t-shift", L"100"}, {L"-fvk-u-shift", L"200"}, {L"-fvk-s-shift", L"300"}};
         for (const auto &shift : shifts)
         {
@@ -492,7 +516,9 @@ auto compiled_shaders_key(ShaderCompiler &compiler) -> std::string
         for (const auto &arg : compiler.arguments(file.info, extra_args))
         {
             for (const wchar_t c : arg)
+            {
                 text += (char)c; // arguments are ASCII
+            }
             text += ' ';
         }
         text += '\n';
@@ -525,32 +551,42 @@ auto compiled_shaders_are_up_to_date(graphics::GraphicsPlatform platform, const 
     const auto engine_shaders_path = engine_shaders_file_path(platform);
     const auto shaders_compilation_time = std::filesystem::last_write_time(engine_shaders_path, ec);
     if (ec)
+    {
         return false; // no shaders.bin yet
+    }
 
     {
         std::ifstream key_file{compiled_shaders_key_path(platform)};
         std::string stored_key;
         if (!key_file || !std::getline(key_file, stored_key) || stored_key != key)
+        {
             return false;
+        }
     }
 
     std::filesystem::directory_iterator it{shaders_source_path, ec};
     if (ec)
+    {
         return false; // let compile_shaders() report the missing sources
+    }
     for (const std::filesystem::directory_iterator end{}; it != end; it.increment(ec))
     {
         if (ec)
+        {
             return false;
+        }
         const auto source_time = it->last_write_time(ec);
         if (ec || source_time > shaders_compilation_time)
+        {
             return false;
+        }
     }
 
     return true;
 }
 
 auto save_compiled_shaders(
-    utl::vector<DxcCompiledShader> &shaders,
+    const utl::vector<DxcCompiledShader> &shaders,
     graphics::GraphicsPlatform platform,
     const std::string &key) -> bool
 {
@@ -597,7 +633,9 @@ auto save_compiled_shaders(
             file.write(padding, (std::streamsize)(math::align_size_up<alignment>(record_size) - record_size));
         }
         if (!file.flush())
+        {
             return false;
+        }
     }
 
     // Written last: the key only exists next to a complete shaders.bin.
@@ -629,9 +667,13 @@ auto pack_compiled_shader(DxcCompiledShader compiled_shader, bool include_errors
             blob.write(errors_length);
             blob.write(assembly_length);
             if (errors_length)
+            {
                 blob.write(compiled_shader.errors->GetStringPointer(), errors_length);
+            }
             if (assembly_length)
+            {
                 blob.write(compiled_shader.assembly->GetStringPointer(), assembly_length);
+            }
         }
 
         assert(blob.offset() == buffer_size);
@@ -672,7 +714,9 @@ auto compile_shader(
     full_path += info.file_name;
     std::error_code ec;
     if (!std::filesystem::exists(full_path, ec))
+    {
         return {};
+    }
 
     // NOTE: according to marcelolr (https://github.com/Microsoft/DirectXShaderCompiler/issues/79)
     //       "creating compiler instances is pretty cheap, so it's probably not worth the hassle of caching / sharing
@@ -696,15 +740,23 @@ auto selected_graphics_platform() -> graphics::GraphicsPlatform
     }
 #else
     if (const char *const env{std::getenv(name)})
+    {
         value = env;
+    }
 #endif
 
     if (value.empty())
+    {
         return default_shader_platform;
+    }
     if (value == "vulkan")
+    {
         return graphics::GraphicsPlatform::vulkan;
+    }
     if (value == "d3d12")
+    {
         return graphics::GraphicsPlatform::direct3d12;
+    }
     std::fprintf(
         stderr, "PRIMAL_GRAPHICS=%s is not \"vulkan\" or \"d3d12\"; using the default backend.\n", value.c_str());
     return default_shader_platform;
@@ -714,10 +766,14 @@ auto compile_shaders(graphics::GraphicsPlatform platform /*=default_shader_platf
 {
     ShaderCompiler compiler{platform};
     if (!compiler.is_valid())
+    {
         return false;
+    }
     const std::string key{compiled_shaders_key(compiler)};
     if (compiled_shaders_are_up_to_date(platform, key))
+    {
         return true;
+    }
 
     utl::vector<DxcCompiledShader> shaders;
     std::filesystem::path full_path{};

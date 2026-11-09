@@ -6,7 +6,7 @@
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
-#endif // !WIN32_LEAN_AND_MEAN
+#endif
 
 #include <Windows.h>
 
@@ -23,4 +23,4 @@ auto modifier_keys() -> u32;
 
 }
 
-#endif // PRIMAL_PLATFORM_WINDOWS
+#endif

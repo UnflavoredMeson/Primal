@@ -1,0 +1,6 @@
+# Commits that only reformat/rename code. git blame skips them with:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+# (GitHub's blame view reads this file automatically.)
+
+# PascalCase type names, trailing return types, ufps clang-format, ::/std:: qualified global calls
+78376889ed4fe803a46d778f5c546e0502114f7b

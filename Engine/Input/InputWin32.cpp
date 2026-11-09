@@ -350,17 +350,29 @@ auto modifier_keys() -> u32
 {
     u32 keys{ModifierKey::none};
     if (::GetKeyState(VK_LSHIFT) < 0)
+    {
         keys |= ModifierKey::left_shift;
+    }
     if (::GetKeyState(VK_RSHIFT) < 0)
+    {
         keys |= ModifierKey::right_shift;
+    }
     if (::GetKeyState(VK_LCONTROL) < 0)
+    {
         keys |= ModifierKey::left_ctrl;
+    }
     if (::GetKeyState(VK_RCONTROL) < 0)
+    {
         keys |= ModifierKey::right_ctrl;
+    }
     if (::GetKeyState(VK_LMENU) < 0)
+    {
         keys |= ModifierKey::left_alt;
+    }
     if (::GetKeyState(VK_RMENU) < 0)
+    {
         keys |= ModifierKey::right_alt;
+    }
     return keys;
 }
 
@@ -431,10 +443,11 @@ auto process_input_message(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) ->
             set(InputSource::mouse, InputCode::mouse_wheel, {(f32)(GET_WHEEL_DELTA_WPARAM(wparam)), 0.f, 0.f});
         }
         break;
+        default: break;
     }
 
     return S_OK;
 }
 }
 
-#endif // PRIMAL_PLATFORM_WINDOWS
+#endif

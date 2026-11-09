@@ -17,7 +17,9 @@ namespace primal::math
 {
     f32 diff{a - b};
     if (diff < 0.f)
+    {
         diff = -diff;
+    }
     return diff < eps;
 }
 
@@ -34,7 +36,7 @@ template <u32 bits>
     static_assert(bits && bits <= sizeof(u32) * 8);
     assert(f >= 0.f && f <= 1.f);
     constexpr f32 intervals{(f32)(((u32)1 << bits) - 1)};
-    return (u32)(intervals * f + 0.5f);
+    return (u32)(intervals * f + 0.5f); // NOLINT(bugprone-incorrect-roundings): f is in [0, 1] (asserted)
 }
 
 template <u32 bits>

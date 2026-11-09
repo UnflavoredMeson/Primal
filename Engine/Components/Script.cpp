@@ -49,7 +49,7 @@ auto exists(ScriptId id) -> bool
     assert(id::is_valid(id));
     const id::id_type index{id::index(id)};
     assert(
-        index < generations.size() && !(id::is_valid(id_mapping[index]) && id_mapping[index] >= entity_scripts.size()));
+        index < generations.size() && (!id::is_valid(id_mapping[index]) || id_mapping[index] < entity_scripts.size()));
     assert(generations[index] == id::generation(id));
     return (id::is_valid(id_mapping[index]) && generations[index] == id::generation(id)) &&
            entity_scripts[id_mapping[index]] && entity_scripts[id_mapping[index]]->is_valid();
@@ -57,7 +57,7 @@ auto exists(ScriptId id) -> bool
 #endif
 
 #if USE_TRANSFORM_CACHE_MAP
-auto get_cache_ptr(const game_entity::Entity *const entity) -> transform::ComponentCache *const
+auto get_cache_ptr(const game_entity::Entity *const entity) -> transform::ComponentCache *
 {
     assert(game_entity::is_alive((*entity).get_id()));
     const transform::TransformId id{(*entity).transform().get_id()};
@@ -82,7 +82,7 @@ auto get_cache_ptr(const game_entity::Entity *const entity) -> transform::Compon
     return &transform_cache[index];
 }
 #else
-auto get_cache_ptr(const game_entity::Entity *const entity) -> transform::ComponentCache *const
+auto get_cache_ptr(const game_entity::Entity *const entity) -> transform::ComponentCache *
 {
     assert(game_entity::is_alive((*entity).get_id()));
     const transform::TransformId id{(*entity).transform().get_id()};
@@ -108,14 +108,14 @@ namespace detail
 
 auto register_script(size_t tag, script_creator func) -> u8
 {
-    bool result{registry().insert(script_registry::value_type{tag, func}).second};
+    const bool result{registry().insert(script_registry::value_type{tag, func}).second};
     assert(result);
     return result;
 }
 
 auto get_script_creator(size_t tag) -> script_creator
 {
-    auto script = primal::script::registry().find(tag);
+    const auto script = primal::script::registry().find(tag);
     assert(script != primal::script::registry().end() && script->first == tag);
     return script->second;
 }
@@ -126,7 +126,7 @@ auto add_script_name(const char *name) -> u8
     script_names().emplace_back(name);
     return true;
 }
-#endif // USE_WITH_EDITOR
+#endif
 
 }
 
@@ -182,7 +182,7 @@ auto update(f32 dt) -> void
         ptr->update(dt);
     }
 
-    if (transform_cache.size())
+    if (!transform_cache.empty())
     {
         transform::update(transform_cache.data(), (u32)transform_cache.size());
         transform_cache.clear();
@@ -223,7 +223,9 @@ extern "C" __declspec(dllexport) auto get_script_names() -> LPSAFEARRAY
 {
     const u32 size{(u32)primal::script::script_names().size()};
     if (!size)
+    {
         return nullptr;
+    }
     CComSafeArray<BSTR> names(size);
     for (u32 i{0}; i < size; ++i)
     {
@@ -231,4 +233,4 @@ extern "C" __declspec(dllexport) auto get_script_names() -> LPSAFEARRAY
     }
     return names.Detach();
 }
-#endif // USE_WITH_EDITOR
+#endif

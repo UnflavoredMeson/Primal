@@ -87,10 +87,10 @@ class DescriptorHeap
     VkDescriptorPool _pool{VK_NULL_HANDLE};
     VkDescriptorSetLayout _set_layout{VK_NULL_HANDLE};
     VkDescriptorSet _set{VK_NULL_HANDLE};
-    std::unique_ptr<u32[]> _free_handles{};
-    std::unique_ptr<u8[]> _allocated_slots{};
+    std::unique_ptr<u32[]> _free_handles;
+    std::unique_ptr<u8[]> _allocated_slots;
     utl::vector<u32> _deferred_free_indices[frame_buffer_count]{};
-    mutable std::mutex _mutex{}; // also locked by the const write_*() functions
+    mutable std::mutex _mutex; // also locked by the const write_*() functions
     u32 _capacity{0};
     u32 _size{0};
 };
@@ -235,11 +235,13 @@ class ConstantBuffer
     template <typename T>
     [[nodiscard]] auto range(T *const allocation, u64 size = sizeof(T)) -> vkx::BufferRange
     {
-        std::scoped_lock lock{_mutex};
+        const std::scoped_lock lock{_mutex};
         const u8 *const base{cpu_address()};
-        assert(base);
-        if (!base)
+        assert(base && allocation);
+        if (!base || !allocation)
+        {
             return {};
+        }
         const u8 *const address{(const u8 *)allocation};
         assert(address >= base && address + size <= base + _cpu_offset);
         return {buffer(), (u64)(address - base), size};
@@ -258,9 +260,9 @@ class ConstantBuffer
     }
 
   private:
-    VulkanBuffer _buffer{};
+    VulkanBuffer _buffer;
     u32 _cpu_offset{0};
-    std::mutex _mutex{};
+    std::mutex _mutex;
 };
 
 //// UAV CLEARABLE BUFFER /////////////////////////////////////////////////////////////////////////
@@ -324,7 +326,7 @@ class UavClearableBuffer
     }
 
   private:
-    VulkanBuffer _buffer{};
+    VulkanBuffer _buffer;
 };
 
 //// TEXTURE //////////////////////////////////////////////////////////////////////////////////////
@@ -450,7 +452,9 @@ class VulkanRenderTexture
         : _texture{std::move(o._texture)}
     {
         for (u32 i{0}; i < VulkanTexture::max_mips; ++i)
+        {
             _rtv[i] = o._rtv[i];
+        }
         o.reset();
     }
 
@@ -498,17 +502,21 @@ class VulkanRenderTexture
     {
         _texture = std::move(o._texture);
         for (u32 i{0}; i < VulkanTexture::max_mips; ++i)
+        {
             _rtv[i] = o._rtv[i];
+        }
         o.reset();
     }
 
     constexpr auto reset() -> void
     {
         for (u32 i{0}; i < VulkanTexture::max_mips; ++i)
+        {
             _rtv[i] = VK_NULL_HANDLE;
+        }
     }
 
-    VulkanTexture _texture{};
+    VulkanTexture _texture;
     VkImageView _rtv[VulkanTexture::max_mips]{};
 };
 
@@ -551,7 +559,7 @@ class VulkanDepthBuffer
     }
 
   private:
-    VulkanTexture _texture{};
+    VulkanTexture _texture;
 };
 
 }

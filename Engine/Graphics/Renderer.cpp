@@ -51,7 +51,9 @@ auto initialize(GraphicsPlatform platform) -> bool
 auto shutdown() -> void
 {
     if (gfx.platform != (GraphicsPlatform)-1)
+    {
         gfx.shutdown();
+    }
 }
 
 auto set_option(RendererOption::Option option, const void *const parameter, u32 parameter_size) -> void

@@ -115,7 +115,7 @@ using string_hash = std::hash<std::string>;
 auto register_script(size_t, script_creator) -> u8;
 #ifdef USE_WITH_EDITOR
 extern "C" __declspec(dllexport)
-#endif // USE_WITH_EDITOR
+#endif
 auto get_script_creator(size_t tag) -> script_creator;
 
 template <class script_class>
@@ -146,6 +146,6 @@ auto add_script_name(const char *name) -> u8;
         &primal::script::detail::create_script<TYPE>)};                                                                \
     }
 
-#endif // USE_WITH_EDITOR
+#endif
 }
 }

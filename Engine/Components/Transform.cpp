@@ -33,16 +33,16 @@ auto calculate_transform_matrices(id::id_type index) -> void
     assert(scales.size() > index);
 
     using namespace DirectX;
-    XMVECTOR r{XMLoadFloat4(&rotations[index])};
-    XMVECTOR t{XMLoadFloat3(&positions[index])};
-    XMVECTOR s{XMLoadFloat3(&scales[index])};
+    const XMVECTOR r{XMLoadFloat4(&rotations[index])};
+    const XMVECTOR t{XMLoadFloat3(&positions[index])};
+    const XMVECTOR s{XMLoadFloat3(&scales[index])};
 
     XMMATRIX world{XMMatrixAffineTransformation(s, XMQuaternionIdentity(), r, t)};
     XMStoreFloat4x4(&to_world[index], world);
 
     // NOTE: (F. Luna) Intro to DirectX 12, section 8.2.2
     world.r[3] = XMVectorSet(0.f, 0.f, 0.f, 1.f);
-    XMMATRIX inverse_world{XMMatrixInverse(nullptr, world)};
+    const XMMATRIX inverse_world{XMMatrixInverse(nullptr, world)};
     XMStoreFloat4x4(&inv_world[index], inverse_world);
 
     has_transform[index] = 1;
@@ -52,16 +52,15 @@ auto calculate_local_frame(const math::v4 &rotation, LocalFrame &result) -> void
 {
     using namespace DirectX;
 
-    LocalFrame frame{};
+    const LocalFrame frame{};
 
     XMVECTOR right{XMLoadFloat3(&frame.right)};
     XMVECTOR up{XMLoadFloat3(&frame.up)};
-    XMVECTOR front{XMLoadFloat3(&frame.front)};
-    XMVECTOR rotation_quat{XMLoadFloat4(&rotation)};
+    const XMVECTOR rotation_quat{XMLoadFloat4(&rotation)};
 
     right = XMVector3Normalize(XMVector3Rotate(right, rotation_quat));
     up = XMVector3Normalize(XMVector3Rotate(up, rotation_quat));
-    front = XMVector3Normalize(XMVector3Cross(right, up));
+    const XMVECTOR front{XMVector3Normalize(XMVector3Cross(right, up))};
 
     XMStoreFloat3(&result.right, right);
     XMStoreFloat3(&result.up, up);
@@ -102,7 +101,7 @@ auto create(InitInfo info, game_entity::Entity entity) -> Component
 
     if (positions.size() > entity_index)
     {
-        math::v4 rotation{info.rotation};
+        const math::v4 rotation{info.rotation};
         rotations[entity_index] = rotation;
         calculate_local_frame(rotation, local_frames[entity_index]);
         positions[entity_index] = math::v3{info.position};
@@ -254,10 +253,10 @@ auto Component::calculate_local_position(math::v3 delta) const -> DirectX::XMVEC
     const id::id_type index{id::index(_id)};
     using namespace DirectX;
     const math::m3x3 frame_rows{local_frame()};
-    XMMATRIX frame{XMLoadFloat3x3(&frame_rows)};
+    const XMMATRIX frame{XMLoadFloat3x3(&frame_rows)};
     XMVECTOR l_pos{XMLoadFloat3(&delta)};
     l_pos = XMVector3Transform(l_pos, frame);
-    XMVECTOR w_pos{XMLoadFloat3(&positions[index])};
+    const XMVECTOR w_pos{XMLoadFloat3(&positions[index])};
 
     return w_pos + l_pos;
 }
@@ -274,8 +273,8 @@ auto Component::calculate_local_rotation(math::v3 delta) const -> DirectX::XMVEC
     const id::id_type index{id::index(_id)};
 
     using namespace DirectX;
-    XMVECTOR d{XMQuaternionRotationRollPitchYawFromVector(XMLoadFloat3(&delta))};
-    XMVECTOR q{XMLoadFloat4(&rotations[index])};
+    const XMVECTOR d{XMQuaternionRotationRollPitchYawFromVector(XMLoadFloat3(&delta))};
+    const XMVECTOR q{XMLoadFloat4(&rotations[index])};
 
     return XMQuaternionMultiply(d, q);
 }
@@ -303,9 +302,9 @@ auto Component::calculate_world_rotation(math::v3 delta) const -> DirectX::XMVEC
     const id::id_type index{id::index(_id)};
 
     using namespace DirectX;
-    XMVECTOR a{XMLoadFloat3(&axis)};
-    XMVECTOR d{XMQuaternionRotationNormal(a, angle)};
-    XMVECTOR q{XMLoadFloat4(&rotations[index])};
+    const XMVECTOR a{XMLoadFloat3(&axis)};
+    const XMVECTOR d{XMQuaternionRotationNormal(a, angle)};
+    const XMVECTOR q{XMLoadFloat4(&rotations[index])};
 
     return XMQuaternionMultiply(q, d);
 }

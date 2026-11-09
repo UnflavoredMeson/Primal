@@ -188,8 +188,8 @@ auto fill_per_object_data(const VulkanFrameInfo &vulkan_info) -> void
             current_entity_id = cache.entity_ids[i];
             hlsl::PerObjectData data{};
             transform::get_transform_matrices(game_entity::EntityId{current_entity_id}, data.World, data.InvWorld);
-            XMMATRIX world{XMLoadFloat4x4(&data.World)};
-            XMMATRIX wvp{XMMatrixMultiply(world, vulkan_info.camera->view_projection())};
+            const XMMATRIX world{XMLoadFloat4x4(&data.World)};
+            const XMMATRIX wvp{XMMatrixMultiply(world, vulkan_info.camera->view_projection())};
             XMStoreFloat4x4(&data.WorldViewProjection, wvp);
 
             current_data_pointer = cbuffer.allocate<hlsl::PerObjectData>();
@@ -209,7 +209,9 @@ auto prepare_render_frame(const VulkanFrameInfo &vulkan_info) -> void
     cache.clear();
     // No camera (e.g. the SURFACES test) or nothing to draw.
     if (!vulkan_info.camera || !vulkan_info.info->render_item_ids || !vulkan_info.info->render_item_count)
+    {
         return;
+    }
 
     using namespace content;
     render_item::get_vulkan_render_item_ids(*vulkan_info.info, cache.vulkan_render_item_ids);

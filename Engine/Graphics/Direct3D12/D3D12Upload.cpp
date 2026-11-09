@@ -55,7 +55,7 @@ auto get_available_upload_frame() -> u32
 {
     u32 index{u32_invalid_id};
     const u32 count{upload_frame_count};
-    UploadFrame *const frames{&upload_frames[0]};
+    UploadFrame const *const frames{&upload_frames[0]};
 
     for (u32 i{0}; i < count; ++i)
     {
@@ -93,7 +93,7 @@ D3D12UploadContext::D3D12UploadContext(u32 aligned_size)
     assert(upload_cmd_queue);
     {
         // We don't want to lock this function for longer than necessary. So, we scope this lock.
-        std::lock_guard lock{frame_mutex};
+        const std::scoped_lock lock{frame_mutex};
         _frame_index = get_available_upload_frame();
         assert(_frame_index != u32_invalid_id);
         // Before unlocking, we prevent other threads from picking
@@ -118,6 +118,7 @@ D3D12UploadContext::D3D12UploadContext(u32 aligned_size)
     DXCall(frame.cmd_list->Reset(frame.cmd_allocator, nullptr));
 }
 
+// NOLINTNEXTLINE(readability-make-member-function-const): submits and waits for GPU work
 auto D3D12UploadContext::end_upload() -> void
 {
     assert(_frame_index != u32_invalid_id);
@@ -125,7 +126,7 @@ auto D3D12UploadContext::end_upload() -> void
     id3d12_graphics_command_list *const cmd_list{frame.cmd_list};
     DXCall(cmd_list->Close());
 
-    std::lock_guard lock{queue_mutex};
+    const std::scoped_lock lock{queue_mutex};
 
     ID3D12CommandList *const cmd_lists[]{cmd_list};
     ID3D12CommandQueue *const cmd_queue{upload_cmd_queue};
@@ -153,13 +154,17 @@ auto initialize() -> bool
         UploadFrame &frame{upload_frames[i]};
         DXCall(hr = device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_COPY, IID_PPV_ARGS(&frame.cmd_allocator)));
         if (FAILED(hr))
+        {
             return init_failed();
+        }
 
         DXCall(
             hr = device->CreateCommandList(
                 0, D3D12_COMMAND_LIST_TYPE_COPY, frame.cmd_allocator, nullptr, IID_PPV_ARGS(&frame.cmd_list)));
         if (FAILED(hr))
+        {
             return init_failed();
+        }
 
         DXCall(frame.cmd_list->Close());
 
@@ -175,12 +180,16 @@ auto initialize() -> bool
 
     DXCall(hr = device->CreateCommandQueue(&desc, IID_PPV_ARGS(&upload_cmd_queue)));
     if (FAILED(hr))
+    {
         return init_failed();
+    }
     NAME_D3D12_OBJECT(upload_cmd_queue, L"Upload Copy Queue");
 
     DXCall(hr = device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&upload_fence)));
     if (FAILED(hr))
+    {
         return init_failed();
+    }
     NAME_D3D12_OBJECT(upload_fence, L"Upload Fence");
 
     return true;

@@ -8,9 +8,9 @@ namespace primal::graphics::d3d12
 //// DESCRIPTOR HEAP //////////////////////////////////////////////////////////////////////////////
 auto DescriptorHeap::initialize(u32 capacity, bool is_shader_visible) -> bool
 {
-    std::lock_guard lock{_mutex};
+    const std::scoped_lock lock{_mutex};
     assert(capacity && capacity < D3D12_MAX_SHADER_VISIBLE_DESCRIPTOR_HEAP_SIZE_TIER_2);
-    assert(!(_type == D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER && capacity > D3D12_MAX_SHADER_VISIBLE_SAMPLER_HEAP_SIZE));
+    assert(_type != D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER || capacity <= D3D12_MAX_SHADER_VISIBLE_SAMPLER_HEAP_SIZE);
 
     if (_type == D3D12_DESCRIPTOR_HEAP_TYPE_DSV || _type == D3D12_DESCRIPTOR_HEAP_TYPE_RTV)
     {
@@ -31,7 +31,9 @@ auto DescriptorHeap::initialize(u32 capacity, bool is_shader_visible) -> bool
     HRESULT hr{S_OK};
     DXCall(hr = device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&_heap)));
     if (FAILED(hr))
+    {
         return false;
+    }
 
     _free_handles = std::make_unique<u32[]>(capacity);
     _allocated_slots = std::make_unique<u8[]>(capacity);
@@ -39,9 +41,11 @@ auto DescriptorHeap::initialize(u32 capacity, bool is_shader_visible) -> bool
     _size = 0;
 
     for (u32 i{0}; i < capacity; ++i)
+    {
         _free_handles[i] = i;
+    }
     std::memset(_allocated_slots.get(), 0, capacity);
-    DEBUG_OP(for (u32 i{0}; i < frame_buffer_count; ++i) assert(_deferred_free_indices[i].empty()));
+    DEBUG_OP(for (u32 i{0}; i < frame_buffer_count; ++i) { assert(_deferred_free_indices[i].empty()); });
 
     _descriptor_size = device->GetDescriptorHandleIncrementSize(_type);
     _cpu_start = _heap->GetCPUDescriptorHandleForHeapStart();
@@ -58,13 +62,13 @@ auto DescriptorHeap::release() -> void
 
 auto DescriptorHeap::process_deferred_free(u32 frame_idx) -> void
 {
-    std::lock_guard lock{_mutex};
+    const std::scoped_lock lock{_mutex};
     assert(frame_idx < frame_buffer_count);
 
     utl::vector<u32> &indices{_deferred_free_indices[frame_idx]};
     if (!indices.empty())
     {
-        for (auto index : indices)
+        for (const auto index : indices)
         {
             if (!_allocated_slots[index])
             {
@@ -81,7 +85,7 @@ auto DescriptorHeap::process_deferred_free(u32 frame_idx) -> void
 
 auto DescriptorHeap::allocate() -> DescriptorHandle
 {
-    std::lock_guard lock{_mutex};
+    const std::scoped_lock lock{_mutex};
     assert(_heap);
     assert(_size < _capacity);
 
@@ -101,17 +105,19 @@ auto DescriptorHeap::allocate() -> DescriptorHandle
     }
 
     handle.index = index;
-    DEBUG_OP(handle.container = this);
+    DEBUG_OP(handle._container = this);
     return handle;
 }
 
 auto DescriptorHeap::free(DescriptorHandle &handle) -> void
 {
     if (!handle.is_valid())
+    {
         return;
-    std::lock_guard lock{_mutex};
+    }
+    const std::scoped_lock lock{_mutex};
     assert(_heap && _size);
-    assert(handle.container == this);
+    assert(handle._container == this);
     assert(handle.cpu.ptr >= _cpu_start.ptr);
     assert((handle.cpu.ptr - _cpu_start.ptr) % _descriptor_size == 0);
     assert(handle.index < _capacity);
@@ -146,14 +152,14 @@ ConstantBuffer::ConstantBuffer(const D3D12BufferInitInfo &info)
 {
     NAME_D3D12_OBJECT_INDEXED(buffer(), size(), L"Constant Buffer - size");
 
-    D3D12_RANGE range{};
+    const D3D12_RANGE range{};
     DXCall(buffer()->Map(0, &range, (void **)&_cpu_address));
     assert(_cpu_address);
 }
 
-auto ConstantBuffer::allocate(u32 size) -> u8 *const
+auto ConstantBuffer::allocate(u32 size) -> u8 *
 {
-    std::lock_guard lock{_mutex};
+    const std::scoped_lock lock{_mutex};
     const u32 aligned_size{(u32)d3dx::align_size_for_constant_buffer(size)};
     assert(_cpu_offset + aligned_size <= _buffer.size());
     if (_cpu_offset + aligned_size <= _buffer.size())
@@ -199,7 +205,7 @@ D3D12Texture::D3D12Texture(D3D12TextureInitInfo info)
     auto *const device{core::device()};
     assert(device);
 
-    D3D12_CLEAR_VALUE *const clear_value{
+    D3D12_CLEAR_VALUE const *const clear_value{
         info.desc && (info.desc->Flags & D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET ||
                       info.desc->Flags & D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL)
             ? &info.clear_value
@@ -271,7 +277,9 @@ D3D12RenderTexture::D3D12RenderTexture(D3D12TextureInitInfo info)
 auto D3D12RenderTexture::release() -> void
 {
     for (u32 i{0}; i < _mip_count; ++i)
+    {
         core::rtv_heap().free(_rtv[i]);
+    }
     _texture.release();
     _mip_count = 0;
 }

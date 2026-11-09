@@ -216,7 +216,7 @@ auto calculate_grid_frustums(
         D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 }
 
-auto _declspec(noinline) resize_and_calculate_grid_frustums(
+PRIMAL_NOINLINE auto resize_and_calculate_grid_frustums(
     CullingParameters &culler,
     id3d12_graphics_command_list *const cmd_list,
     const D3D12FrameInfo &d3d12_info,
@@ -278,7 +278,9 @@ auto cull_lights(
     // NOTE: we update culler.has_lights after this statement, so the light culling shader
     //       will run once to clear the buffers when there're no lights.
     if (!params.NumLights && !culler.has_lights)
+    {
         return;
+    }
 
     culler.has_lights = params.NumLights > 0;
 

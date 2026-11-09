@@ -79,9 +79,11 @@ auto sample_pixel_bgr(const u8 *const pixel) -> Color
 auto evaluate_color(Color c) -> s32
 {
     if (c.is_black() || c.is_transparent())
+    {
         return 0;
+    }
 
-    math::v3 v{c.r * 2.f - 1.f, c.g * 2.f - 1.f, c.b * 2.f - 1.f};
+    const math::v3 v{c.r * 2.f - 1.f, c.g * 2.f - 1.f, c.b * 2.f - 1.f};
     const f32 v_length_sq{v.x * v.x + v.y * v.y + v.z * v.z};
 
     return (v.z < 0.f || v_length_sq < vector_length_sq_rejection_threshold) ? -1 : 1;
@@ -121,10 +123,12 @@ auto evaluate_image(const Image *const image, sampler sample) -> bool
     {
         const f32 rejection_ratio{(f32)rejected_samples / (f32)accepted_samples};
         if (rejection_ratio > rejection_ratio_threshold)
+        {
             return false;
+        }
 
         average_color /= (f32)accepted_samples;
-        math::v3 v{average_color.r * 2.f - 1.f, average_color.g * 2.f - 1.f, average_color.b * 2.f - 1.f};
+        const math::v3 v{average_color.r * 2.f - 1.f, average_color.g * 2.f - 1.f, average_color.b * 2.f - 1.f};
         const f32 avg_length{std::sqrt(v.x * v.x + v.y * v.y + v.z * v.z)};
         const f32 avg_normalized_z{v.z / avg_length};
 
@@ -141,7 +145,9 @@ auto is_normal_map(const Image *const image) -> bool
 {
     const DXGI_FORMAT image_format{image->format};
     if (BitsPerPixel(image_format) != 32 || BitsPerColor(image_format) != 8)
+    {
         return false;
+    }
 
     return evaluate_image(image, IsBGR(image_format) ? sample_pixel_bgr : sample_pixel_rgb);
 }

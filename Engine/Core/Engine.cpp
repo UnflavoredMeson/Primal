@@ -34,17 +34,16 @@ auto on_window_event(const platform::WindowEvent &event) -> void
 auto engine_initialize() -> bool
 {
     if (!content::load_game())
+    {
         return false;
+    }
 
-    platform::WindowInitInfo info{
+    const platform::WindowInitInfo info{
         &on_window_event, nullptr, "Primal Game" // TODO: get the game name from the loaded game file
     };
 
     game_window.window = platform::create_window(&info);
-    if (!game_window.window.is_valid())
-        return false;
-
-    return true;
+    return game_window.window.is_valid();
 }
 
 auto engine_update() -> void
@@ -56,7 +55,9 @@ auto engine_update() -> void
 auto engine_shutdown() -> void
 {
     if (game_window.window.is_valid())
+    {
         platform::remove_window(game_window.window.get_id());
+    }
     content::unload_game();
 }
-#endif // !defined(SHIPPING)
+#endif

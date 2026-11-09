@@ -74,7 +74,9 @@ auto FbxContext::get_scene(FbxNode *root /*= nullptr*/) -> void
     {
         root = _fbx_scene->GetRootNode();
         if (!root)
+        {
             return;
+        }
     }
 
     const s32 num_nodes{root->GetChildCount()};
@@ -86,7 +88,9 @@ auto FbxContext::get_scene(FbxNode *root /*= nullptr*/) -> void
         {
             FbxNode *node{root->GetChild(i)};
             if (!node)
+            {
                 continue;
+            }
 
             get_meshes(node, lod.meshes, 0, -1.f);
         }
@@ -111,7 +115,9 @@ auto FbxContext::get_scene(FbxNode *root /*= nullptr*/) -> void
         {
             FbxNode *node{root->GetChild(i)};
             if (!node)
+            {
                 continue;
+            }
 
             LodGroup lod{};
             get_meshes(node, lod.meshes, 0, -1.f);
@@ -165,13 +171,17 @@ auto FbxContext::get_mesh(FbxNodeAttribute *attribute, utl::vector<Mesh> &meshes
 
     FbxMesh *fbx_mesh{(FbxMesh *)attribute};
     if (fbx_mesh->RemoveBadPolygons() < 0)
+    {
         return;
+    }
 
     // Triangulate the mesh if needed.
     FbxGeometryConverter gc{_fbx_manager};
     fbx_mesh = (FbxMesh *)gc.Triangulate(fbx_mesh, true);
     if (!fbx_mesh || fbx_mesh->RemoveBadPolygons() < 0)
+    {
         return;
+    }
 
     FbxNode *const node{fbx_mesh->GetNode()};
 
@@ -213,7 +223,9 @@ auto FbxContext::get_lod_group(FbxNodeAttribute *attribute) -> void
     }
 
     if (lod.meshes.size())
+    {
         _scene->lod_groups.emplace_back(lod);
+    }
 }
 
 auto FbxContext::get_mesh_data(FbxMesh *fbx_mesh, Mesh &m) -> bool
@@ -232,7 +244,9 @@ auto FbxContext::get_mesh_data(FbxMesh *fbx_mesh, Mesh &m) -> bool
 
     const s32 num_polys{fbx_mesh->GetPolygonCount()};
     if (num_polys <= 0)
+    {
         return false;
+    }
 
     // Get vertices
     const s32 num_vertices{fbx_mesh->GetControlPointsCount()};
@@ -242,7 +256,9 @@ auto FbxContext::get_mesh_data(FbxMesh *fbx_mesh, Mesh &m) -> bool
 
     assert(num_vertices > 0 && vertices && num_indices > 0 && indices);
     if (!(num_vertices > 0 && vertices && num_indices > 0 && indices))
+    {
         return false;
+    }
 
     m.raw_indices.resize(num_indices);
     utl::vector vertex_ref(num_vertices, u32_invalid_id);
@@ -376,7 +392,7 @@ EDITOR_INTERFACE auto ImportFbx(const char *file, SceneData *data, Progression::
     // NOTE: anything that involves using the FBX SDK should be single-threaded
     {
         std::lock_guard lock{fbx_mutex};
-        FbxContext fbx_context{file, &scene, data, &progression};
+        const FbxContext fbx_context{file, &scene, data, &progression};
         if (fbx_context.is_valid())
         {
             fbx_context.get_scene();

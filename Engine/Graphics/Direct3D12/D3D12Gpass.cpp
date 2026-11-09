@@ -105,10 +105,10 @@ struct GpassCache
             _buffer.resize(new_buffer_size);
 
             entity_ids = (id::id_type *)_buffer.data();
-            submesh_gpu_ids = (id::id_type *)&entity_ids[items_count];
-            material_ids = (id::id_type *)&submesh_gpu_ids[items_count];
+            submesh_gpu_ids = (&entity_ids[items_count]);
+            material_ids = (&submesh_gpu_ids[items_count]);
             gpass_pipeline_states = (ID3D12PipelineState **)&material_ids[items_count];
-            depth_pipeline_states = (ID3D12PipelineState **)&gpass_pipeline_states[items_count];
+            depth_pipeline_states = (&gpass_pipeline_states[items_count]);
             root_signatures = (ID3D12RootSignature **)&depth_pipeline_states[items_count];
             cmd_signatures = (ID3D12CommandSignature **)&root_signatures[items_count];
             material_types = (MaterialType::Type *)&cmd_signatures[items_count];
@@ -116,12 +116,12 @@ struct GpassCache
             texture_counts = (u32 *)&descriptor_indices[items_count];
             material_surfaces = (MaterialSurface **)&texture_counts[items_count];
             position_buffers = (D3D12_GPU_VIRTUAL_ADDRESS *)&material_surfaces[items_count];
-            element_buffers = (D3D12_GPU_VIRTUAL_ADDRESS *)&position_buffers[items_count];
+            element_buffers = (&position_buffers[items_count]);
             index_buffer_views = (D3D12_INDEX_BUFFER_VIEW *)&element_buffers[items_count];
             primitive_topologies = (D3D_PRIMITIVE_TOPOLOGY *)&index_buffer_views[items_count];
             elements_types = (u32 *)&primitive_topologies[items_count];
             per_object_data = (D3D12_GPU_VIRTUAL_ADDRESS *)&elements_types[items_count];
-            material_data = (D3D12_GPU_VIRTUAL_ADDRESS *)&per_object_data[items_count];
+            material_data = (&per_object_data[items_count]);
         }
     }
 
@@ -171,7 +171,7 @@ class CommandBuffer
             _cmd_buffer = D3D12Buffer{ConstantBuffer::get_default_init_info(total_size), true};
             NAME_D3D12_OBJECT_INDEXED(_cmd_buffer.buffer(), core::current_frame_index(), L"Indirect Command Buffer");
 
-            D3D12_RANGE read_range{0, 0}; // We won't be reading from this buffer on the CPU.
+            const D3D12_RANGE read_range{0, 0}; // We won't be reading from this buffer on the CPU.
             DXCall(_cmd_buffer.buffer()->Map(0, &read_range, (void **)&_cpu_address));
             assert(_cpu_address);
         }
@@ -191,7 +191,7 @@ class CommandBuffer
     {
         upload_commands(false);
     }
-    [[nodiscard]] constexpr auto buffer() const -> ID3D12Resource *const
+    [[nodiscard]] constexpr auto buffer() const -> ID3D12Resource *
     {
         return _cmd_buffer.buffer();
     }
@@ -213,10 +213,10 @@ class CommandBuffer
         }
     }
 
-    D3D12Buffer _cmd_buffer{};
+    D3D12Buffer _cmd_buffer;
     u8 *_cpu_address{nullptr};
     u32 _buffer_size{0};
-    utl::vector<DrawIndexedIndirectCommand> _commands{};
+    utl::vector<DrawIndexedIndirectCommand> _commands;
 } command_buffers[frame_buffer_count];
 
 auto create_buffers(math::u32v2 size) -> bool
@@ -272,7 +272,7 @@ auto create_buffers(math::u32v2 size) -> bool
 auto fill_per_object_data(const D3D12FrameInfo &d3d12_info) -> void
 {
     const GpassCache &cache{frame_cache};
-    const u32 render_items_count{(u32)cache.size()};
+    const u32 render_items_count{cache.size()};
     id::id_type current_entity_id{id::invalid_id};
     hlsl::PerObjectData *current_data_pointer{nullptr};
 
@@ -286,8 +286,8 @@ auto fill_per_object_data(const D3D12FrameInfo &d3d12_info) -> void
             current_entity_id = cache.entity_ids[i];
             hlsl::PerObjectData data{};
             transform::get_transform_matrices(game_entity::EntityId{current_entity_id}, data.World, data.InvWorld);
-            XMMATRIX world{XMLoadFloat4x4(&data.World)};
-            XMMATRIX wvp{XMMatrixMultiply(world, d3d12_info.camera->view_projection())};
+            const XMMATRIX world{XMLoadFloat4x4(&data.World)};
+            const XMMATRIX wvp{XMMatrixMultiply(world, d3d12_info.camera->view_projection())};
             XMStoreFloat4x4(&data.WorldViewProjection, wvp);
 
             current_data_pointer = cbuffer.allocate<hlsl::PerObjectData>();
@@ -326,7 +326,9 @@ auto prepare_render_frame(const D3D12FrameInfo &d3d12_info) -> void
     GpassCache &cache{frame_cache};
     cache.clear();
     if (!d3d12_info.info->render_item_ids || !d3d12_info.info->render_item_count)
+    {
         return;
+    }
 
     using namespace content;
     render_item::get_d3d12_render_item_ids(*d3d12_info.info, cache.d3d12_render_item_ids);
@@ -343,7 +345,7 @@ auto prepare_render_frame(const D3D12FrameInfo &d3d12_info) -> void
 
     ConstantBuffer &cbuffer{core::cbuffer()};
     const u32 size{items_count * sizeof(MaterialSurface) + cache.descriptor_index_count * sizeof(u32)};
-    u32 *const material_data{(u32 *const)cbuffer.allocate(size)};
+    u32 *const material_data{(u32 *)cbuffer.allocate(size)};
     u32 mtl_data_offset{0};
 
     for (u32 i{0}; i < items_count; ++i)
@@ -372,7 +374,9 @@ auto group_by_pso() -> void
     const u32 items_count{cache.size()};
 
     if (!items_count)
+    {
         return;
+    }
 
     assert(cache.draw_indirect_pso_sort_flags.size() == items_count);
     assert(cache.gpass_grouped_indices.size() == items_count);
@@ -396,12 +400,16 @@ auto group_by_pso() -> void
         {
             u32 index{0};
             while (index < items_count && (cache.draw_indirect_pso_sort_flags[index] & pass_mask))
+            {
                 ++index;
+            }
 
             if (index >= items_count)
+            {
                 break;
+            }
 
-            ID3D12PipelineState *current_pso{pipeline_states[index]};
+            ID3D12PipelineState const *current_pso{pipeline_states[index]};
 
             // mark the first item that's using the current pso
             cache.draw_indirect_pso_sort_flags[index] |= flag_new_pso;
@@ -676,7 +684,9 @@ auto depth_prepass_indirect(id3d12_graphics_command_list *cmd_list, const D3D12F
     const u32 items_count{cache.size()};
 
     if (!items_count)
+    {
         return;
+    }
 
     const u32 frame_idx{d3d12_info.frame_index};
     CommandBuffer &cmd_buffer{command_buffers[frame_idx]};
@@ -687,6 +697,8 @@ auto depth_prepass_indirect(id3d12_graphics_command_list *cmd_list, const D3D12F
     u32 *const new_pso_indices{(u32 *)alloca(pso_count * sizeof(u32))};
     record_depth_command_buffer(d3d12_info, new_pso_indices, pso_count);
 
+    // NOLINTBEGIN(clang-analyzer-core.CallAndMessage,clang-analyzer-core.UndefinedBinaryOperatorResult):
+    // new_pso_indices is filled by record_*_command_buffer()
     for (u32 i{0}; i < pso_count; ++i)
     {
         const u32 cache_index{cache.depth_grouped_indices[new_pso_indices[i]]};
@@ -709,6 +721,7 @@ auto depth_prepass_indirect(id3d12_graphics_command_list *cmd_list, const D3D12F
             nullptr,
             0);
     }
+    // NOLINTEND(clang-analyzer-core.CallAndMessage,clang-analyzer-core.UndefinedBinaryOperatorResult)
 }
 
 auto render_indirect(id3d12_graphics_command_list *cmd_list, const D3D12FrameInfo &d3d12_info) -> void
@@ -717,14 +730,18 @@ auto render_indirect(id3d12_graphics_command_list *cmd_list, const D3D12FrameInf
     const u32 items_count{cache.size()};
 
     if (!items_count)
+    {
         return;
+    }
 
     const u32 frame_idx{d3d12_info.frame_index};
-    CommandBuffer &cmd_buffer{command_buffers[frame_idx]};
+    const CommandBuffer &cmd_buffer{command_buffers[frame_idx]};
     const u32 pso_count{cache.gpass_pso_count};
     u32 *const new_pso_indices{(u32 *)alloca(pso_count * sizeof(u32))};
     record_gpass_command_buffer(d3d12_info, new_pso_indices, pso_count);
 
+    // NOLINTBEGIN(clang-analyzer-core.CallAndMessage,clang-analyzer-core.UndefinedBinaryOperatorResult):
+    // new_pso_indices is filled by record_*_command_buffer()
     for (u32 i{0}; i < pso_count; ++i)
     {
         const u32 cache_index{cache.gpass_grouped_indices[new_pso_indices[i]]};
@@ -747,6 +764,7 @@ auto render_indirect(id3d12_graphics_command_list *cmd_list, const D3D12FrameInf
             nullptr,
             0);
     }
+    // NOLINTEND(clang-analyzer-core.CallAndMessage,clang-analyzer-core.UndefinedBinaryOperatorResult)
 }
 
 auto add_transitions_for_depth_prepass(d3dx::D3D12ResourceBarrier &barriers) -> void

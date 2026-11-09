@@ -20,7 +20,7 @@ auto create_one_game_entity(
     geometry::InitInfo *geometry_info,
     const char *script_name) -> game_entity::Entity;
 auto remove_game_entity(game_entity::EntityId id) -> void;
-auto read_file(std::filesystem::path, std::unique_ptr<u8[]> &, u64 &) -> bool;
+auto read_file(const std::filesystem::path &, std::unique_ptr<u8[]> &, u64 &) -> bool;
 
 namespace
 {
@@ -157,7 +157,7 @@ auto create_material() -> void
     default_mtl_id = content::create_resource(&info, content::AssetType::material);
 
     std::memset(pbr_mtl_ids, 0xff, sizeof(pbr_mtl_ids));
-    math::v2 metal_rough[std::size(pbr_mtl_ids)]{
+    const math::v2 metal_rough[std::size(pbr_mtl_ids)]{
         {0.f, 0.0f},
         {0.f, 0.2f},
         {0.f, 0.4f},
@@ -283,7 +283,7 @@ auto create_render_items() -> void
     geometry_info.material_count = 1;
     for (u32 i{0}; i < std::size(sphere_entity_ids); ++i)
     {
-        id::id_type id{pbr_mtl_ids[i]};
+        const id::id_type id{pbr_mtl_ids[i]};
         id::id_type sphere_mtls[]{id};
         geometry_info.material_ids = &sphere_mtls[0];
         const f32 x{-6.f + i % 6};
@@ -327,7 +327,7 @@ auto destroy_render_items() -> void
         content::destroy_resource(fembot_mtl_id, content::AssetType::material);
     }
 
-    for (id::id_type id : pbr_mtl_ids)
+    for (const id::id_type id : pbr_mtl_ids)
     {
         if (id::is_valid(id))
         {
@@ -336,7 +336,7 @@ auto destroy_render_items() -> void
     }
 
     // remove textures
-    for (id::id_type id : texture_ids)
+    for (const id::id_type id : texture_ids)
     {
         if (id::is_valid(id))
         {
@@ -375,4 +375,4 @@ auto destroy_render_items() -> void
         content::remove_shader_group(textured_ps_id);
     }
 }
-#endif // TEST_RENDERER
+#endif

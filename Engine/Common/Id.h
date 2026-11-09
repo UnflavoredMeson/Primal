@@ -35,7 +35,7 @@ constexpr auto is_valid(id_type id) -> bool
 
 constexpr auto index(id_type id) -> id_type
 {
-    id_type index{id & detail::index_mask};
+    const id_type index{id & detail::index_mask};
     assert(index != detail::index_mask);
     return index;
 }

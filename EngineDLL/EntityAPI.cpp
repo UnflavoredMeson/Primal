@@ -15,10 +15,12 @@ auto to_quat(math::v3 angles, bool is_degrees) -> math::v4
 {
     using namespace DirectX;
     if (is_degrees)
+    {
         angles = math::to_radians(angles);
+    }
 
     math::v4 quat_result{};
-    XMVECTOR quat{XMQuaternionRotationRollPitchYawFromVector(XMLoadFloat3(&angles))};
+    const XMVECTOR quat{XMQuaternionRotationRollPitchYawFromVector(XMLoadFloat3(&angles))};
     XMStoreFloat4(&quat_result, quat);
     return quat_result;
 }
@@ -38,7 +40,7 @@ struct TransformComponent
         transform::InitInfo info{};
         std::memcpy(&info.position[0], &position[0], sizeof(position));
         std::memcpy(&info.scale[0], &scale[0], sizeof(scale));
-        math::v3 rot{&rotation[0]};
+        const math::v3 rot{&rotation[0]};
         math::v4 rot_quat{::to_quat(rot, true)};
         std::memcpy(&info.rotation[0], &rot_quat.x, sizeof(info.rotation));
         return info;
@@ -115,8 +117,8 @@ auto get_euler_angles_from_local_frame(const math::m3x3 &m) -> math::v3
 
 auto get_local_pos(math::v3 pos, u32 id) -> math::v3
 {
-    transform::Component xform{transform::TransformId{id}};
-    DirectX::XMVECTOR position{xform.calculate_local_position(pos)};
+    const transform::Component xform{transform::TransformId{id}};
+    const DirectX::XMVECTOR position{xform.calculate_local_position(pos)};
     math::v3 result{};
     DirectX::XMStoreFloat3(&result, position);
     return result;
@@ -125,8 +127,8 @@ auto get_local_pos(math::v3 pos, u32 id) -> math::v3
 auto get_world_quat(math::v3 w, u32 id) -> math::v4
 {
     w = math::to_radians(w);
-    transform::Component xform{transform::TransformId{id}};
-    DirectX::XMVECTOR q{xform.calculate_world_rotation(w)};
+    const transform::Component xform{transform::TransformId{id}};
+    const DirectX::XMVECTOR q{xform.calculate_world_rotation(w)};
     math::v4 result{};
     DirectX::XMStoreFloat4(&result, q);
     return result;
@@ -135,8 +137,8 @@ auto get_world_quat(math::v3 w, u32 id) -> math::v4
 auto get_local_quat(math::v3 w, u32 id) -> math::v4
 {
     w = math::to_radians(w);
-    transform::Component xform{transform::TransformId{id}};
-    DirectX::XMVECTOR q{xform.calculate_local_rotation(w)};
+    const transform::Component xform{transform::TransformId{id}};
+    const DirectX::XMVECTOR q{xform.calculate_local_rotation(w)};
     math::v4 result{};
     DirectX::XMStoreFloat4(&result, q);
     return result;
@@ -145,8 +147,8 @@ auto get_local_quat(math::v3 w, u32 id) -> math::v4
 auto get_absolute_quat(math::v3 w, u32 id) -> math::v4
 {
     w = math::to_radians(w);
-    transform::Component xform{transform::TransformId{id}};
-    DirectX::XMVECTOR q{xform.calculate_absolute_rotation(w)};
+    const transform::Component xform{transform::TransformId{id}};
+    const DirectX::XMVECTOR q{xform.calculate_absolute_rotation(w)};
     math::v4 result{};
     DirectX::XMStoreFloat4(&result, q);
     return result;
@@ -157,13 +159,13 @@ utl::TicketMutex mutex{};
 
 EDITOR_INTERFACE auto CreateGameEntity(GameEntityDescriptor *e) -> id::id_type
 {
-    std::lock_guard lock{mutex};
+    const std::scoped_lock lock{mutex};
     assert(e);
-    GameEntityDescriptor &desc{*e};
+    const GameEntityDescriptor &desc{*e};
     transform::InitInfo transform_info{desc.transform.to_init_info()};
     script::InitInfo script_info{desc.script.to_init_info()};
     geometry::InitInfo geometry_info{desc.geometry.to_init_info()};
-    game_entity::EntityInfo entity_info{
+    const game_entity::EntityInfo entity_info{
         &transform_info,
         &script_info,
         id::is_valid(desc.geometry.geometry_content_id) ? &geometry_info : nullptr,
@@ -173,19 +175,19 @@ EDITOR_INTERFACE auto CreateGameEntity(GameEntityDescriptor *e) -> id::id_type
 
 EDITOR_INTERFACE auto RemoveGameEntity(id::id_type id) -> void
 {
-    std::lock_guard lock{mutex};
+    const std::scoped_lock lock{mutex};
     assert(id::is_valid(id));
     game_entity::remove(game_entity::EntityId{id});
 }
 
 EDITOR_INTERFACE auto UpdateComponent(id::id_type entity_id, GameEntityDescriptor *e, ComponentType::Type type) -> b32
 {
-    std::lock_guard lock{mutex};
+    const std::scoped_lock lock{mutex};
     assert(id::is_valid(entity_id) && e && type != ComponentType::transform);
-    GameEntityDescriptor &desc{*e};
+    const GameEntityDescriptor &desc{*e};
     script::InitInfo script_info{desc.script.to_init_info()};
     geometry::InitInfo geometry_info{desc.geometry.to_init_info()};
-    game_entity::EntityInfo entity_info{
+    const game_entity::EntityInfo entity_info{
         nullptr,
         &script_info,
         id::is_valid(desc.geometry.geometry_content_id) ? &geometry_info : nullptr,
@@ -195,9 +197,9 @@ EDITOR_INTERFACE auto UpdateComponent(id::id_type entity_id, GameEntityDescripto
 
 EDITOR_INTERFACE auto GetComponentId(id::id_type entity_id, ComponentType::Type type) -> id::id_type
 {
-    std::lock_guard lock{mutex};
+    const std::scoped_lock lock{mutex};
     assert(id::is_valid(entity_id));
-    game_entity::Entity entity{game_entity::EntityId{entity_id}};
+    const game_entity::Entity entity{game_entity::EntityId{entity_id}};
 
     switch (type)
     {
@@ -208,10 +210,10 @@ EDITOR_INTERFACE auto GetComponentId(id::id_type entity_id, ComponentType::Type 
     }
 }
 
-EDITOR_INTERFACE auto GetPosition(id::id_type *ids, f32 *x, f32 *y, f32 *z, u32 count) -> void
+EDITOR_INTERFACE auto GetPosition(id::id_type const *ids, f32 *x, f32 *y, f32 *z, u32 count) -> void
 {
     assert(ids && count);
-    std::lock_guard lock{mutex};
+    const std::scoped_lock lock{mutex};
 
     for (u32 i{0}; i < count; ++i)
     {
@@ -219,18 +221,18 @@ EDITOR_INTERFACE auto GetPosition(id::id_type *ids, f32 *x, f32 *y, f32 *z, u32 
             transform::TransformId{ids[i]} == game_entity::Entity{game_entity::EntityId{ids[i]}}.transform().get_id());
         // NOTE: transform id is the same as entity id
         const transform::TransformId id{ids[i]};
-        transform::Component t{id};
-        math::v3 pos{t.position()};
+        const transform::Component t{id};
+        const math::v3 pos{t.position()};
         x[i] = pos.x;
         y[i] = pos.y;
         z[i] = pos.z;
     }
 }
 
-EDITOR_INTERFACE auto GetRotation(id::id_type *ids, f32 *x, f32 *y, f32 *z, u32 count) -> void
+EDITOR_INTERFACE auto GetRotation(id::id_type const *ids, f32 *x, f32 *y, f32 *z, u32 count) -> void
 {
     assert(ids && count);
-    std::lock_guard lock{mutex};
+    const std::scoped_lock lock{mutex};
     using namespace DirectX;
 
     for (u32 i{0}; i < count; ++i)
@@ -239,18 +241,18 @@ EDITOR_INTERFACE auto GetRotation(id::id_type *ids, f32 *x, f32 *y, f32 *z, u32 
             transform::TransformId{ids[i]} == game_entity::Entity{game_entity::EntityId{ids[i]}}.transform().get_id());
         // NOTE: transform id is the same as entity id
         const transform::TransformId id{ids[i]};
-        transform::Component t{id};
-        math::v3 euler{get_euler_angles_from_local_frame(t.local_frame())};
+        const transform::Component t{id};
+        const math::v3 euler{get_euler_angles_from_local_frame(t.local_frame())};
         x[i] = euler.x;
         y[i] = euler.y;
         z[i] = euler.z;
     }
 }
 
-EDITOR_INTERFACE auto GetScale(id::id_type *ids, f32 *x, f32 *y, f32 *z, u32 count) -> void
+EDITOR_INTERFACE auto GetScale(id::id_type const *ids, f32 *x, f32 *y, f32 *z, u32 count) -> void
 {
     assert(ids && count);
-    std::lock_guard lock{mutex};
+    const std::scoped_lock lock{mutex};
 
     for (u32 i{0}; i < count; ++i)
     {
@@ -258,24 +260,30 @@ EDITOR_INTERFACE auto GetScale(id::id_type *ids, f32 *x, f32 *y, f32 *z, u32 cou
             transform::TransformId{ids[i]} == game_entity::Entity{game_entity::EntityId{ids[i]}}.transform().get_id());
         // NOTE: transform id is the same as entity id
         const transform::TransformId id{ids[i]};
-        transform::Component t{id};
-        math::v3 scale{t.scale()};
+        const transform::Component t{id};
+        const math::v3 scale{t.scale()};
         x[i] = scale.x;
         y[i] = scale.y;
         z[i] = scale.z;
     }
 }
 
-EDITOR_INTERFACE auto SetPosition(id::id_type *ids, f32 *x, f32 *y, f32 *z, u32 count, b32 is_local) -> void
+EDITOR_INTERFACE auto SetPosition(
+    id::id_type const *ids,
+    f32 const *x,
+    f32 const *y,
+    f32 const *z,
+    u32 count,
+    b32 is_local) -> void
 {
     assert(ids && count);
-    std::lock_guard lock{mutex};
+    const std::scoped_lock lock{mutex};
 
     transform_cache.resize(count);
 
     for (u32 i{0}; i < count; ++i)
     {
-        math::v3 v{x[i], y[i], z[i]};
+        const math::v3 v{x[i], y[i], z[i]};
         transform_cache[i].position = !is_local ? v : get_local_pos(v, ids[i]);
         transform_cache[i].flags = transform::ComponentFlags::position;
         assert(
@@ -287,10 +295,16 @@ EDITOR_INTERFACE auto SetPosition(id::id_type *ids, f32 *x, f32 *y, f32 *z, u32 
     transform::update(transform_cache.data(), count);
 }
 
-EDITOR_INTERFACE auto SetRotation(id::id_type *ids, f32 *x, f32 *y, f32 *z, u32 count, u32 frame) -> void
+EDITOR_INTERFACE auto SetRotation(
+    id::id_type const *ids,
+    f32 const *x,
+    f32 const *y,
+    f32 const *z,
+    u32 count,
+    u32 frame) -> void
 {
     assert(ids && count);
-    std::lock_guard lock{mutex};
+    const std::scoped_lock lock{mutex};
 
     transform_cache.resize(count);
 
@@ -308,7 +322,7 @@ EDITOR_INTERFACE auto SetRotation(id::id_type *ids, f32 *x, f32 *y, f32 *z, u32 
 
     for (u32 i{0}; i < count; ++i)
     {
-        math::v3 v{x[i], y[i], z[i]};
+        const math::v3 v{x[i], y[i], z[i]};
         transform_cache[i].rotation = frame_fn(v, ids[i]);
         transform_cache[i].flags = transform::ComponentFlags::rotation;
         assert(
@@ -320,10 +334,10 @@ EDITOR_INTERFACE auto SetRotation(id::id_type *ids, f32 *x, f32 *y, f32 *z, u32 
     transform::update(transform_cache.data(), count);
 }
 
-EDITOR_INTERFACE auto SetScale(id::id_type *ids, f32 *x, f32 *y, f32 *z, u32 count, b32) -> void
+EDITOR_INTERFACE auto SetScale(id::id_type const *ids, f32 const *x, f32 const *y, f32 const *z, u32 count, b32) -> void
 {
     assert(ids && count);
-    std::lock_guard lock{mutex};
+    const std::scoped_lock lock{mutex};
 
     transform_cache.resize(count);
 

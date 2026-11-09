@@ -8,7 +8,7 @@
 // Skip definition of min/max macros in windows.h
 #ifndef NOMINMAX
 #define NOMINMAX
-#endif // !NOMINMAX
+#endif
 
 #include <dxgi1_6.h>
 #include <d3d12.h>
@@ -41,12 +41,12 @@ using id3d12_graphics_command_list = ID3D12GraphicsCommandList6;
         OutputDebugStringA("\n");                                                                                      \
         __debugbreak();                                                                                                \
     }
-#endif // !DXCall
+#endif
 #else
 #ifndef DXCall
 #define DXCall(x) x
-#endif // !DXCall
-#endif // _DEBUG
+#endif
+#endif
 
 #ifdef _DEBUG
 // Sets the name of the COM object and outputs a debug string int Visual Studio's output panel.
@@ -70,7 +70,7 @@ using id3d12_graphics_command_list = ID3D12GraphicsCommandList6;
 #else
 #define NAME_D3D12_OBJECT(x, name)
 #define NAME_D3D12_OBJECT_INDEXED(x, n, name)
-#endif // _DEBUG
+#endif
 
 #include "D3D12Helpers.h"
 #include "D3D12Resources.h"

@@ -27,3 +27,5 @@ InsertNewlineAtEOF: true
 # The engine's headers depend on include order (e.g. CommonHeaders.h includes PrimitiveTypes.h before Id.h, which uses
 # u32 without including it). Sort once the headers are self-contained.
 SortIncludes: Never
+# Braces on every if/else/for/while/do body, even single statements.
+InsertBraces: true

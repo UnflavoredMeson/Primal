@@ -8,8 +8,8 @@ namespace primal::graphics
 {
 struct PlatformInterface
 {
-    bool (*initialize)(void);
-    void (*shutdown)(void);
+    bool (*initialize)();
+    void (*shutdown)();
 
     void (*set_option)(RendererOption::Option, const void *const, u32);
     void (*get_option)(RendererOption::Option, void *const, u32);

@@ -1,6 +1,10 @@
 // Copyright (c) Arash Khatami
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #pragma once
+// Include guard as well: headers included below include this file back, and when an IDE (clangd) opens this file on
+// its own, #pragma once doesn't protect the main file ("redefinition of 'Version'").
+#ifndef PRIMAL_COMMON_HEADERS_H
+#define PRIMAL_COMMON_HEADERS_H
 
 #include "PlatformDetection.h"
 
@@ -11,6 +15,7 @@
 // C/C++ headers
 // NOTE: don't put here any headers that include std::vector or std::deque
 #include <cstdint>
+#include <cstring>
 #include <assert.h>
 #include <memory>
 #include <unordered_map>
@@ -31,6 +36,13 @@
 
 #ifndef DISABLE_COPY_AND_MOVE
 #define DISABLE_COPY_AND_MOVE(T) DISABLE_COPY(T) DISABLE_MOVE(T)
+#endif
+
+// Keeps a function out of line (hot loops calling a rarely-run function). Goes first: PRIMAL_NOINLINE auto f() -> T
+#if defined(_MSC_VER)
+#define PRIMAL_NOINLINE __declspec(noinline)
+#else
+#define PRIMAL_NOINLINE __attribute__((noinline))
 #endif
 
 #ifdef _DEBUG
@@ -54,3 +66,5 @@ constexpr const struct Version
 #include "../Utilities/Utilities.h"
 #include "../Common/Id.h"
 #include "../Utilities/Math.h"
+
+#endif

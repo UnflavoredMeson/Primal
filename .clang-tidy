@@ -1,0 +1,130 @@
+# Copyright (c) 2026 Charles Smith
+# Distributed under the MIT license. See the LICENSE file in the project root for more information.
+#
+# Static analysis for clang-tidy. Formatting lives in .clang-format..
+# Command line: run-clang-tidy -p build/linux-debug
+---
+# Notes on the list below (comments can't go inside the folded block):
+# - EnumCastOutOfRange is off: flag enums (D3D12_*, our *Flags) are combined with |, and the analyzer reports every
+#   combination as out of range.
+# - misc-const-correctness (const wherever a local isn't modified),
+#   modernize-use-structured-binding, readability-braces-around-statements (clang-format's InsertBraces adds the
+#   braces; the check reports what it can't see, e.g. in macros).
+# - readability-duplicate-include is off until self-contained headers: with the include cycles it flags
+#   includes that aren't duplicates, and its fixes break the build.
+Checks: >
+  -*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  -bugprone-implicit-widening-of-multiplication-result,
+  -bugprone-macro-parentheses,
+  -bugprone-reserved-identifier,
+  -bugprone-switch-missing-default-case,
+  -bugprone-casting-through-void,
+  -bugprone-signed-bitwise,
+  -bugprone-multi-level-implicit-pointer-conversion,
+  -bugprone-throwing-static-initialization,
+  -bugprone-tagged-union-member-count,
+  -bugprone-assignment-in-if-condition,
+  -bugprone-suspicious-include,
+  -bugprone-bitwise-pointer-cast,
+  clang-analyzer-*,
+  -clang-analyzer-optin.performance.Padding,
+  -clang-analyzer-optin.core.EnumCastOutOfRange,
+  performance-*,
+  -performance-enum-size,
+  -performance-no-int-to-ptr,
+  modernize-*,
+  -modernize-avoid-c-arrays,
+  -modernize-use-nodiscard,
+  -modernize-macro-to-enum,
+  -modernize-use-auto,
+  -modernize-use-designated-initializers,
+  -modernize-use-std-print,
+  -modernize-use-std-format,
+  -modernize-use-ranges,
+  -modernize-use-integer-sign-comparison,
+  -modernize-avoid-c-style-cast,
+  readability-identifier-naming,
+  readability-redundant-*,
+  readability-container-size-empty,
+  readability-make-member-function-const,
+  readability-simplify-boolean-expr,
+  readability-inconsistent-declaration-parameter-name,
+  readability-misleading-indentation,
+  readability-use-std-min-max,
+  misc-unused-using-decls,
+  misc-unused-parameters,
+  misc-definitions-in-headers,
+  misc-redundant-expression,
+  misc-const-correctness,
+  modernize-use-structured-binding,
+  readability-braces-around-statements,
+  -bugprone-invalid-enum-default-initialization
+
+WarningsAsErrors: ''
+# Only report headers of our own code (not SDL, DXC, DirectXMath, system headers).
+HeaderFilterRegex: '.*/(Engine|EngineDLL|EngineTest|ContentTools)/.*'
+ExcludeHeaderFilterRegex: '.*/(ThirdParty|MikkTSpace)/.*'
+FormatStyle: file
+
+CheckOptions:
+  # --- Naming: PascalCase type names; everything else snake_case ---
+  # Exempt: std-like utl containers, com_ptr (WRL alias on Windows), the small ContentTools vector structs.
+  # Primitive/math aliases (u32, v3, m4x4) stay lowercase via TypeAliasCase/TypedefCase.
+  readability-identifier-naming.NamespaceCase: lower_case
+  readability-identifier-naming.ClassCase: CamelCase
+  readability-identifier-naming.StructCase: CamelCase
+  readability-identifier-naming.UnionCase: CamelCase
+  readability-identifier-naming.EnumCase: CamelCase
+  readability-identifier-naming.EnumConstantCase: lower_case
+  readability-identifier-naming.TypeAliasCase: lower_case
+  readability-identifier-naming.TypedefCase: lower_case
+  readability-identifier-naming.FunctionCase: lower_case
+  readability-identifier-naming.MethodCase: lower_case
+  readability-identifier-naming.VariableCase: lower_case
+  readability-identifier-naming.ParameterCase: lower_case
+  readability-identifier-naming.MemberCase: lower_case
+  readability-identifier-naming.PrivateMemberCase: lower_case
+  readability-identifier-naming.PrivateMemberPrefix: '_'
+  readability-identifier-naming.ProtectedMemberCase: lower_case
+  readability-identifier-naming.ProtectedMemberPrefix: '_'
+  readability-identifier-naming.ConstexprVariableCase: lower_case
+  readability-identifier-naming.ConstexprVariableIgnoredRegexp: '^_[a-z0-9_]+$'
+  readability-identifier-naming.GlobalConstantCase: lower_case
+  readability-identifier-naming.TemplateParameterCase: lower_case
+  readability-identifier-naming.MacroDefinitionCase: UPPER_CASE
+  # Win32 / D3D12 / COM entry points and the editor's C ABI keep their names.
+  readability-identifier-naming.FunctionIgnoredRegexp: '^(WinMain|DllMain|[A-Z][A-Za-z0-9]*)$'
+  readability-identifier-naming.MethodIgnoredRegexp: '^(QueryInterface|AddRef|Release|Get|[A-Z][A-Za-z0-9]*)$'
+  readability-identifier-naming.MacroDefinitionIgnoredRegexp: '^(_[A-Z_]+|DXCall|VkCall|NAME_D3D12_OBJECT.*|DEBUG_BREAK)$'
+  readability-identifier-naming.TemplateParameterIgnoredRegexp: '^[A-Z][A-Za-z0-9]*$'
+  # Third-party types we only reference (SDL_Event is a union).
+  readability-identifier-naming.UnionIgnoredRegexp: '^SDL_.*$'
+  # The HLSL-shared structs (Graphics/Shaders/CommonTypes.hlsli) use HLSL's PascalCase member names.
+  # Members of anonymous unions in private sections look public to the check (_field_of_view), HLSL padding (_pad).
+  readability-identifier-naming.MemberIgnoredRegexp: '^([A-Z][A-Za-z0-9]*|_[a-z][a-z0-9_]*)$'
+  # Win32-style function pointer aliases (PFN_CreateDXGIFactory1) ...
+  # ... and the typed ids, which DEFINE_TYPED_ID makes aliases in Release (structs in Debug): EntityId, SurfaceId.
+  readability-identifier-naming.TypeAliasIgnoredRegexp: '^(PFN_[A-Za-z0-9_]+|[A-Z][A-Za-z0-9]*Id)$'
+  readability-identifier-naming.ClassIgnoredRegexp: '^(vector|deque|free_list|com_ptr|u16v2|u8v3)$'
+  readability-identifier-naming.StructIgnoredRegexp: '^(vector|deque|free_list|com_ptr|u16v2|u8v3)$'
+
+  # --- Other checks ---
+  bugprone-assert-side-effect.AssertMacros: 'assert'
+  misc-unused-parameters.StrictMode: false
+  modernize-use-override.IgnoreDestructors: true
+  performance-unnecessary-value-param.AllowedTypes: 'com_ptr;ComPtr;window;surface;.*_id$'
+  readability-redundant-member-init.IgnoreBaseInCopyConstructors: true
+  # trailing return types for functions (void too: this check skips void, so write `-> void` by hand);
+  # lambdas keep their usual form. Functions with a calling convention (WINAPI, CALLBACK, VKAPI_CALL) keep the
+  # classic form (NOLINT at those declarations).
+  modernize-use-trailing-return-type.TransformLambdas: none
+  # const for local values and references; pointers themselves (T *const p) are left alone.
+  misc-const-correctness.AnalyzeValues: true
+  misc-const-correctness.AnalyzeReferences: true
+  misc-const-correctness.WarnPointersAsValues: false
+  # Pointee constness (const T *): wrong for the backends' function-pointer tables (set/get_parameter), so off.
+  misc-const-correctness.AnalyzePointers: false
+...

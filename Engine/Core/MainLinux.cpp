@@ -33,5 +33,5 @@ auto main() -> int
     return 0;
 }
 
-#endif // USE_WITH_EDITOR
-#endif // PRIMAL_PLATFORM_LINUX
+#endif
+#endif

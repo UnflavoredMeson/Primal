@@ -7,7 +7,7 @@
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
-#endif // ! WIN32_LEAN_AND_MEAN
+#endif
 #include <Windows.h>
 #include <crtdbg.h>
 
@@ -37,5 +37,5 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
     return 0;
 }
 
-#endif // USE_WITH_EDITOR
-#endif // PRIMAL_PLATFORM_WINDOWS
+#endif
+#endif

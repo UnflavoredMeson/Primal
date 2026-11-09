@@ -37,8 +37,7 @@ class D3D12Command
         desc.Type = type;
 
         DXCall(hr = device->CreateCommandQueue(&desc, IID_PPV_ARGS(&_cmd_queue)));
-        if (FAILED(hr))
-            goto _error;
+        if (FAILED(hr)) { goto _error; }
         NAME_D3D12_OBJECT(
             _cmd_queue,
             type == D3D12_COMMAND_LIST_TYPE_DIRECT    ? L"GFX Command Queue"
@@ -50,7 +49,9 @@ class D3D12Command
             CommandFrame &frame{_cmd_frames[i]};
             DXCall(hr = device->CreateCommandAllocator(type, IID_PPV_ARGS(&frame.cmd_allocator)));
             if (FAILED(hr))
+            {
                 goto _error;
+            }
             NAME_D3D12_OBJECT_INDEXED(
                 frame.cmd_allocator,
                 i,
@@ -62,7 +63,9 @@ class D3D12Command
         DXCall(
             hr = device->CreateCommandList(0, type, _cmd_frames[0].cmd_allocator, nullptr, IID_PPV_ARGS(&_cmd_list)));
         if (FAILED(hr))
+        {
             goto _error;
+        }
         DXCall(_cmd_list->Close());
         NAME_D3D12_OBJECT(
             _cmd_list,
@@ -72,7 +75,9 @@ class D3D12Command
 
         DXCall(hr = device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&_fence)));
         if (FAILED(hr))
+        {
             goto _error;
+        }
         NAME_D3D12_OBJECT(_fence, L"D3D12 Fence");
 
         return;
@@ -89,7 +94,7 @@ class D3D12Command
     // Wait for the current frame to be signaled and reset the command list/allocator.
     auto begin_frame() -> void
     {
-        CommandFrame &frame{_cmd_frames[_frame_index]};
+        const CommandFrame &frame{_cmd_frames[_frame_index]};
         frame.wait(_fence);
         DXCall(frame.cmd_allocator->Reset());
         DXCall(_cmd_list->Reset(frame.cmd_allocator, nullptr));
@@ -137,11 +142,11 @@ class D3D12Command
         }
     }
 
-    [[nodiscard]] constexpr auto command_queue() const -> ID3D12CommandQueue *const
+    [[nodiscard]] constexpr auto command_queue() const -> ID3D12CommandQueue *
     {
         return _cmd_queue;
     }
-    [[nodiscard]] constexpr auto command_list() const -> id3d12_graphics_command_list *const
+    [[nodiscard]] constexpr auto command_list() const -> id3d12_graphics_command_list *
     {
         return _cmd_list;
     }
@@ -271,15 +276,17 @@ auto get_max_feature_level(IDXGIAdapter4 *adapter) -> D3D_FEATURE_LEVEL
     return feature_level_info.MaxSupportedFeatureLevel;
 }
 
-auto __declspec(noinline) process_deferred_releases(u32 frame_idx, bool force_release = false) -> void
+PRIMAL_NOINLINE auto process_deferred_releases(u32 frame_idx, bool force_release = false) -> void
 {
-    std::lock_guard lock{deferred_releases_mutex};
+    const std::scoped_lock lock{deferred_releases_mutex};
 
     // NOTE: The resources could still be in use in previous frames. So we wait
     //       another round before releasing the resources.
     //      force_release is used during shutdown, where we don't have to wait.
     if (!force_release && ++deferred_releases_flag[frame_idx] < frame_buffer_count)
+    {
         return;
+    }
 
     deferred_releases_flag[frame_idx] = 0;
 
@@ -292,7 +299,9 @@ auto __declspec(noinline) process_deferred_releases(u32 frame_idx, bool force_re
     if (!resources.empty())
     {
         for (auto &resource : resources)
+        {
             release(resource);
+        }
         resources.clear();
     }
 }
@@ -342,7 +351,7 @@ namespace detail
 {
 auto deferred_release(IUnknown *resource) -> void
 {
-    std::lock_guard lock{deferred_releases_mutex};
+    const std::scoped_lock lock{deferred_releases_mutex};
     const u32 frame_idx{current_frame_index()};
     deferred_releases[frame_idx].push_back(resource);
     deferred_releases_flag[frame_idx] = 1;
@@ -355,21 +364,27 @@ auto initialize() -> bool
     // create a ID3D12Device (this a virtual adapter).
 
     if (main_device)
+    {
         shutdown();
+    }
 
     HRESULT hr{S_OK};
 
     DXCall(hr = ::D3D12GetInterface(CLSID_D3D12SDKConfiguration, IID_PPV_ARGS(&d3d12_sdk_config)));
     if (FAILED(hr))
+    {
         return failed_init();
+    }
 
     DXCall(
         hr = d3d12_sdk_config->CreateDeviceFactory(
             d3d12_sdk_version, d3d12_sdk_path, IID_PPV_ARGS(&d3d12_device_factory)));
     if (FAILED(hr))
+    {
         return failed_init();
+    }
 
-    u32 dxgi_factory_flags{0};
+    u32 dxgi_factory_flags{0}; // NOLINT(misc-const-correctness): set in Debug builds
 #ifdef _DEBUG
     // Enable debugging layer. Requires "Graphics Tools" optional feature
     {
@@ -392,11 +407,13 @@ auto initialize() -> bool
 
         dxgi_factory_flags |= DXGI_CREATE_FACTORY_DEBUG;
     }
-#endif // _DEBUG
+#endif
 
     DXCall(hr = ::CreateDXGIFactory2(dxgi_factory_flags, IID_PPV_ARGS(&dxgi_factory)));
     if (FAILED(hr))
+    {
         return failed_init();
+    }
 
     tearing_is_supported = 0;
 
@@ -411,16 +428,22 @@ auto initialize() -> bool
     ComPtr<IDXGIAdapter4> main_adapter;
     main_adapter.Attach(determine_main_adapter());
     if (!main_adapter)
+    {
         return failed_init();
+    }
 
-    D3D_FEATURE_LEVEL max_feature_level{get_max_feature_level(main_adapter.Get())};
+    const D3D_FEATURE_LEVEL max_feature_level{get_max_feature_level(main_adapter.Get())};
     assert(max_feature_level >= minimum_feature_level);
     if (max_feature_level < minimum_feature_level)
+    {
         return failed_init();
+    }
 
     DXCall(hr = d3d12_device_factory->CreateDevice(main_adapter.Get(), max_feature_level, IID_PPV_ARGS(&main_device)));
     if (FAILED(hr))
+    {
         return failed_init();
+    }
 
 #ifdef _DEBUG
     {
@@ -443,7 +466,7 @@ auto initialize() -> bool
         info_queue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_WARNING, true);
         info_queue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, true);
     }
-#endif // _DEBUG
+#endif
 
     bool result{true};
     result &= rtv_desc_heap.initialize(512, false);
@@ -451,24 +474,32 @@ auto initialize() -> bool
     result &= srv_desc_heap.initialize(4096, true);
     result &= uav_desc_heap.initialize(512, false);
     if (!result)
+    {
         return failed_init();
+    }
 
     for (u32 i{0}; i < frame_buffer_count; ++i)
     {
         new (&constant_buffers[i]) ConstantBuffer{ConstantBuffer::get_default_init_info(1024 * 1024)};
         NAME_D3D12_OBJECT_INDEXED(constant_buffers[i].buffer(), i, L"Global Constant Buffer");
         if (!constant_buffers[i].buffer())
+        {
             return failed_init();
+        }
     }
 
     new (&gfx_command) D3D12Command(main_device, D3D12_COMMAND_LIST_TYPE_DIRECT);
     if (!gfx_command.command_queue())
+    {
         return failed_init();
+    }
 
     // initialize modules
     if (!(shaders::initialize() && gpass::initialize() && fx::initialize() && upload::initialize() &&
           content::initialize() && delight::initialize()))
+    {
         return failed_init();
+    }
 
     NAME_D3D12_OBJECT(main_device, L"Main D3D12 Device");
     NAME_D3D12_OBJECT(rtv_desc_heap.heap(), L"RTV Descriptor Heap");
@@ -540,7 +571,7 @@ auto shutdown() -> void
         DXCall(
             debug_device->ReportLiveDeviceObjects(D3D12_RLDO_SUMMARY | D3D12_RLDO_DETAIL | D3D12_RLDO_IGNORE_INTERNAL));
     }
-#endif // _DEBUG
+#endif
 
     release(main_device);
     release(d3d12_device_factory);
@@ -647,7 +678,7 @@ auto current_frame_index() -> u32
 
 auto set_deferred_releases_flag(u32 frame_idx) -> void
 {
-    std::lock_guard lock{deferred_releases_mutex};
+    const std::scoped_lock lock{deferred_releases_mutex};
     deferred_releases_flag[frame_idx] = 1;
 }
 
@@ -663,7 +694,7 @@ auto vsync_enabled() -> bool
 
 auto create_surface(platform::Window window) -> Surface
 {
-    SurfaceId id{surfaces.add(window)};
+    const SurfaceId id{surfaces.add(window)};
     surfaces[id].create_swap_chain(dxgi_factory, gfx_command.command_queue());
     return Surface{id};
 }

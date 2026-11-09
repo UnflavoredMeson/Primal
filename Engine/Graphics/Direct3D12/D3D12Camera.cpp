@@ -12,7 +12,7 @@ utl::free_list<D3D12Camera> cameras;
 
 auto set_up_vector(D3D12Camera &camera, const void *const data, [[maybe_unused]] u32 size) -> void
 {
-    math::v3 up_vector{*(math::v3 *)data};
+    const math::v3 up_vector{*(math::v3 *)data};
     assert(sizeof(up_vector) == size);
     camera.up(up_vector);
 }
@@ -20,7 +20,7 @@ auto set_up_vector(D3D12Camera &camera, const void *const data, [[maybe_unused]]
 constexpr auto set_field_of_view(D3D12Camera &camera, const void *const data, [[maybe_unused]] u32 size) -> void
 {
     assert(camera.projection_type() == graphics::Camera::perspective);
-    f32 fov{*(f32 *)data};
+    const f32 fov{*(f32 *)data};
     assert(sizeof(fov) == size);
     camera.field_of_view(fov);
 }
@@ -28,7 +28,7 @@ constexpr auto set_field_of_view(D3D12Camera &camera, const void *const data, [[
 constexpr auto set_aspect_ratio(D3D12Camera &camera, const void *const data, [[maybe_unused]] u32 size) -> void
 {
     assert(camera.projection_type() == graphics::Camera::perspective);
-    f32 aspect_ratio{*(f32 *)data};
+    const f32 aspect_ratio{*(f32 *)data};
     assert(sizeof(aspect_ratio) == size);
     camera.aspect_ratio(aspect_ratio);
 }
@@ -36,7 +36,7 @@ constexpr auto set_aspect_ratio(D3D12Camera &camera, const void *const data, [[m
 constexpr auto set_view_width(D3D12Camera &camera, const void *const data, [[maybe_unused]] u32 size) -> void
 {
     assert(camera.projection_type() == graphics::Camera::orthographic);
-    f32 view_width{*(f32 *)data};
+    const f32 view_width{*(f32 *)data};
     assert(sizeof(view_width) == size);
     camera.view_width(view_width);
 }
@@ -44,63 +44,63 @@ constexpr auto set_view_width(D3D12Camera &camera, const void *const data, [[may
 constexpr auto set_view_height(D3D12Camera &camera, const void *const data, [[maybe_unused]] u32 size) -> void
 {
     assert(camera.projection_type() == graphics::Camera::orthographic);
-    f32 view_height{*(f32 *)data};
+    const f32 view_height{*(f32 *)data};
     assert(sizeof(view_height) == size);
     camera.view_height(view_height);
 }
 
 constexpr auto set_near_z(D3D12Camera &camera, const void *const data, [[maybe_unused]] u32 size) -> void
 {
-    f32 near_z{*(f32 *)data};
+    const f32 near_z{*(f32 *)data};
     assert(sizeof(near_z) == size);
     camera.near_z(near_z);
 }
 
 constexpr auto set_far_z(D3D12Camera &camera, const void *const data, [[maybe_unused]] u32 size) -> void
 {
-    f32 far_z{*(f32 *)data};
+    const f32 far_z{*(f32 *)data};
     assert(sizeof(far_z) == size);
     camera.far_z(far_z);
 }
 
 auto get_view(const D3D12Camera &camera, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    math::m4x4 *const matrix{(math::m4x4 *const)data};
+    math::m4x4 *const matrix{(math::m4x4 *)data};
     assert(sizeof(math::m4x4) == size);
     DirectX::XMStoreFloat4x4(matrix, camera.view());
 }
 
 auto get_projection(const D3D12Camera &camera, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    math::m4x4 *const matrix{(math::m4x4 *const)data};
+    math::m4x4 *const matrix{(math::m4x4 *)data};
     assert(sizeof(math::m4x4) == size);
     DirectX::XMStoreFloat4x4(matrix, camera.projection());
 }
 
 auto get_inverse_projection(const D3D12Camera &camera, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    math::m4x4 *const matrix{(math::m4x4 *const)data};
+    math::m4x4 *const matrix{(math::m4x4 *)data};
     assert(sizeof(math::m4x4) == size);
     DirectX::XMStoreFloat4x4(matrix, camera.inverse_projection());
 }
 
 auto get_view_projection(const D3D12Camera &camera, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    math::m4x4 *const matrix{(math::m4x4 *const)data};
+    math::m4x4 *const matrix{(math::m4x4 *)data};
     assert(sizeof(math::m4x4) == size);
     DirectX::XMStoreFloat4x4(matrix, camera.view_projection());
 }
 
 auto get_inverse_view_projection(const D3D12Camera &camera, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    math::m4x4 *const matrix{(math::m4x4 *const)data};
+    math::m4x4 *const matrix{(math::m4x4 *)data};
     assert(sizeof(math::m4x4) == size);
     DirectX::XMStoreFloat4x4(matrix, camera.inverse_view_projection());
 }
 
 auto get_up_vector(const D3D12Camera &camera, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    math::v3 *const up_vector{(math::v3 *const)data};
+    math::v3 *const up_vector{(math::v3 *)data};
     assert(sizeof(math::v3) == size);
     DirectX::XMStoreFloat3(up_vector, camera.up());
 }
@@ -108,7 +108,7 @@ auto get_up_vector(const D3D12Camera &camera, void *const data, [[maybe_unused]]
 constexpr auto get_field_of_view(const D3D12Camera &camera, void *const data, [[maybe_unused]] u32 size) -> void
 {
     assert(camera.projection_type() == graphics::Camera::perspective);
-    f32 *const fov{(f32 *const)data};
+    f32 *const fov{(f32 *)data};
     assert(sizeof(f32) == size);
     *fov = camera.field_of_view();
 }
@@ -116,7 +116,7 @@ constexpr auto get_field_of_view(const D3D12Camera &camera, void *const data, [[
 constexpr auto get_aspect_ratio(const D3D12Camera &camera, void *const data, [[maybe_unused]] u32 size) -> void
 {
     assert(camera.projection_type() == graphics::Camera::perspective);
-    f32 *const aspect_ratio{(f32 *const)data};
+    f32 *const aspect_ratio{(f32 *)data};
     assert(sizeof(f32) == size);
     *aspect_ratio = camera.aspect_ratio();
 }
@@ -124,7 +124,7 @@ constexpr auto get_aspect_ratio(const D3D12Camera &camera, void *const data, [[m
 constexpr auto get_view_width(const D3D12Camera &camera, void *const data, [[maybe_unused]] u32 size) -> void
 {
     assert(camera.projection_type() == graphics::Camera::orthographic);
-    f32 *const view_width{(f32 *const)data};
+    f32 *const view_width{(f32 *)data};
     assert(sizeof(f32) == size);
     *view_width = camera.view_width();
 }
@@ -132,35 +132,35 @@ constexpr auto get_view_width(const D3D12Camera &camera, void *const data, [[may
 constexpr auto get_view_height(const D3D12Camera &camera, void *const data, [[maybe_unused]] u32 size) -> void
 {
     assert(camera.projection_type() == graphics::Camera::orthographic);
-    f32 *const view_height{(f32 *const)data};
+    f32 *const view_height{(f32 *)data};
     assert(sizeof(f32) == size);
     *view_height = camera.view_height();
 }
 
 constexpr auto get_near_z(const D3D12Camera &camera, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    f32 *const near_z{(f32 *const)data};
+    f32 *const near_z{(f32 *)data};
     assert(sizeof(f32) == size);
     *near_z = camera.near_z();
 }
 
 constexpr auto get_far_z(const D3D12Camera &camera, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    f32 *const far_z{(f32 *const)data};
+    f32 *const far_z{(f32 *)data};
     assert(sizeof(f32) == size);
     *far_z = camera.far_z();
 }
 
 constexpr auto get_projection_type(const D3D12Camera &camera, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    graphics::Camera::Type *const type{(graphics::Camera::Type *const)data};
+    graphics::Camera::Type *const type{(graphics::Camera::Type *)data};
     assert(sizeof(graphics::Camera::Type) == size);
     *type = camera.projection_type();
 }
 
 constexpr auto get_entity_id(const D3D12Camera &camera, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    id::id_type *const entity_id{(id::id_type *const)data};
+    id::id_type *const entity_id{(id::id_type *)data};
     assert(sizeof(id::id_type) == size);
     *entity_id = camera.entity_id();
 }
@@ -219,7 +219,6 @@ D3D12Camera::D3D12Camera(CameraInitInfo info)
     , _aspect_ratio{info.aspect_ratio}
     , _projection_type{info.type}
     , _entity_id{info.entity_id}
-    , _is_dirty{true}
 {
     assert(id::is_valid(_entity_id));
     update();
@@ -227,11 +226,11 @@ D3D12Camera::D3D12Camera(CameraInitInfo info)
 
 auto D3D12Camera::update() -> void
 {
-    game_entity::Entity entity{game_entity::EntityId{_entity_id}};
+    const game_entity::Entity entity{game_entity::EntityId{_entity_id}};
     using namespace DirectX;
-    math::v3 pos{entity.position()};
-    math::v3 dir{entity.front()};
-    math::v3 up{entity.up()};
+    const math::v3 pos{entity.position()};
+    const math::v3 dir{entity.front()};
+    const math::v3 up{entity.up()};
     _position = XMLoadFloat3(&pos);
     _direction = XMLoadFloat3(&dir);
     _up = XMLoadFloat3(&up);
@@ -313,7 +312,7 @@ auto set_parameter(CameraId id, CameraParameter::Parameter parameter, const void
 {
     assert(data && data_size);
     assert(parameter < CameraParameter::count && set_functions[parameter] != dummy_set);
-    D3D12Camera &camera{get(id)};
+    D3D12Camera &camera{get(id)}; // NOLINT(misc-const-correctness): set_functions[] take a non-const camera
     set_functions[parameter](camera, data, data_size);
 }
 
@@ -321,7 +320,7 @@ auto get_parameter(CameraId id, CameraParameter::Parameter parameter, void *cons
 {
     assert(data && data_size);
     assert(parameter < CameraParameter::count);
-    D3D12Camera &camera{get(id)};
+    const D3D12Camera &camera{get(id)};
     get_functions[parameter](camera, data, data_size);
 }
 

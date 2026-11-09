@@ -44,13 +44,13 @@ auto Window::resize(u32 width, u32 height) const -> void
 
 auto Window::width() const -> u32
 {
-    math::u32v4 s{size()};
+    const math::u32v4 s{size()};
     return s.z - s.x;
 }
 
 auto Window::height() const -> u32
 {
-    math::u32v4 s{size()};
+    const math::u32v4 s{size()};
     return s.w - s.y;
 }
 
@@ -71,4 +71,4 @@ auto Window::set_has_graphics_surface(bool has_surface) const -> void
     set_window_has_graphics_surface(_id, has_surface);
 }
 }
-#endif // INCLUDE_WINDOW_CPP
+#endif

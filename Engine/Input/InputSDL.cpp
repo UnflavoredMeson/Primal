@@ -17,9 +17,13 @@ u32 held_modifiers{ModifierKey::none};
 auto set_modifier(u32 flag, bool is_down) -> void
 {
     if (is_down)
+    {
         held_modifiers |= flag;
+    }
     else
+    {
         held_modifiers &= ~flag;
+    }
 }
 
 // Win32 sends both the generic key (e.g. key_shift) and the left/right variant.
@@ -98,7 +102,7 @@ auto map_scancode(u32 scancode) -> u32
     {
         case SDL_SCANCODE_BACKSPACE: return InputCode::key_backspace;
         case SDL_SCANCODE_TAB: return InputCode::key_tab;
-        case SDL_SCANCODE_RETURN: return InputCode::key_return;
+        case SDL_SCANCODE_RETURN:
         case SDL_SCANCODE_KP_ENTER: return InputCode::key_return; // Win32 reports VK_RETURN for both
         case SDL_SCANCODE_LSHIFT: return InputCode::key_left_shift;
         case SDL_SCANCODE_RSHIFT: return InputCode::key_right_shift;
@@ -221,7 +225,9 @@ auto process_input_event(const SDL_Event &event) -> void
         {
             const bool is_down{event.type == SDL_EVENT_KEY_DOWN};
             if (process_modifier(event.key.scancode, is_down))
+            {
                 break;
+            }
 
             const u32 code{map_scancode(event.key.scancode)};
             if (code != u32_invalid_id)
@@ -256,7 +262,9 @@ auto process_input_event(const SDL_Event &event) -> void
         {
             f32 notches{event.wheel.y};
             if (event.wheel.direction == SDL_MOUSEWHEEL_FLIPPED)
+            {
                 notches = -notches;
+            }
             set(InputSource::mouse, InputCode::mouse_wheel, {notches * wheel_delta, 0.f, 0.f});
         }
         break;
@@ -264,4 +272,4 @@ auto process_input_event(const SDL_Event &event) -> void
     }
 }
 }
-#endif // PRIMAL_PLATFORM_LINUX
+#endif
