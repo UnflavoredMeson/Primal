@@ -111,7 +111,10 @@ create_mesh_hierarchy(const void *const data)
     utl::blob_stream_reader blob{ (const u8 *const)data };
     const u32 lod_count{ blob.read<u32>() };
     assert(lod_count);
-    geometry_hierarchy_stream stream{ hierarchy_buffer, lod_count };
+    // NOTE: the count is written here rather than passed to the stream: with lod_count == u32_invalid_id (corrupt
+    //       data) the stream would read it back from uninitialized memory (GCC -Wmaybe-uninitialized).
+    *((u32*)hierarchy_buffer) = lod_count;
+    geometry_hierarchy_stream stream{ hierarchy_buffer };
 
     for (u32 lod_idx{ 0 }; lod_idx < lod_count; ++lod_idx)
     {

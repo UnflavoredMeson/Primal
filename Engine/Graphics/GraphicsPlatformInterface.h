@@ -14,7 +14,8 @@ struct platform_interface
     void (*get_option)(renderer_option::option, void *const, u32);
 
     struct {
-        surface(*create)(platform::window);
+        // NOTE: the types are qualified because the members are named like them (GCC -Wchanges-meaning).
+        graphics::surface(*create)(platform::window);
         void(*remove)(surface_id);
         void(*resize)(surface_id, u32, u32);
         u32(*width)(surface_id);
@@ -25,14 +26,14 @@ struct platform_interface
     struct {
         void(*create_light_set)(u64);
         void(*remove_light_set)(u64);
-        light(*create)(light_init_info);
+        graphics::light(*create)(light_init_info);
         void(*remove)(light_id, u64);
         void(*set_parameter)(light_id, u64, light_parameter::parameter, const void *const, u32);
         void(*get_parameter)(light_id, u64, light_parameter::parameter, void *const, u32);
     } light;
 
     struct {
-        camera(*create)(camera_init_info);
+        graphics::camera(*create)(camera_init_info);
         void(*remove)(camera_id);
         void(*set_parameter)(camera_id, camera_parameter::parameter, const void *const, u32);
         void(*get_parameter)(camera_id, camera_parameter::parameter, void *const, u32);

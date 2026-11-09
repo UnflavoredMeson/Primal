@@ -26,7 +26,7 @@ struct frame_info
     f32             last_frame_time{ 16.7f };
     f32             average_frame_time{ 16.7f };
     u32             render_item_count{ 0 };
-    camera_id       camera_id{ id::invalid_id };
+    graphics::camera_id camera_id{ id::invalid_id }; // qualified: a member named like its type (GCC -Wchanges-meaning)
 };
 
 DEFINE_TYPED_ID(surface_id);
@@ -90,7 +90,7 @@ struct light_init_info
         directional_light_params    directional_params;
         point_light_params          point_params;
         spot_light_params           spot_params;
-        ambient_params              ambient_params;
+        graphics::ambient_params    ambient_params;
     };
     bool                            is_enabled{ true };
 };

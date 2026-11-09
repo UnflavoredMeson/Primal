@@ -133,8 +133,8 @@ public:
     }
 
     [[nodiscard]] constexpr u32 texture_count() const { return _texture_count; }
-    [[nodiscard]] constexpr material_type::type material_type() const { return _type; }
-    [[nodiscard]] constexpr shader_flags::flags shader_flags() const { return _shader_flags; }
+    [[nodiscard]] constexpr graphics::material_type::type material_type() const { return _type; }
+    [[nodiscard]] constexpr graphics::shader_flags::flags shader_flags() const { return _shader_flags; }
     [[nodiscard]] constexpr id::id_type root_signature_id() const { return _root_signature_id; }
     [[nodiscard]] constexpr id::id_type* texture_ids() const { return _texture_ids; }
     [[nodiscard]] constexpr u32* descriptor_indices() const { return _descriptor_indices; }

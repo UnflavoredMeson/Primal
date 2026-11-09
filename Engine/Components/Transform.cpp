@@ -5,30 +5,14 @@
 namespace primal::transform {
 namespace {
 
-#ifdef _MSC_VER
-#pragma warning(push)
-#pragma warning(disable:4201)
-#endif
-// C4201: nonstandard extension used: nameless struct/union
+// NOTE: three vectors instead of a union with math::m3x3: an anonymous struct whose members have constructors
+//       isn't allowed in a union by GCC (MSVC/clang extension). component::local_frame() builds the matrix.
 struct local_frame
 {
-    union {
-        struct {
-            math::v3 right;
-            math::v3 up;
-            math::v3 front;
-        };
-        math::m3x3 frame;
-    };
-
-    local_frame()
-        : right{ 1.f, 0.f, 0.f }, up{ 0.f, 1.f, 0.f }, front{ 0.f, 0.f, 1.f }
-    {}
+    math::v3 right{ 1.f, 0.f, 0.f };
+    math::v3 up{ 0.f, 1.f, 0.f };
+    math::v3 front{ 0.f, 0.f, 1.f };
 };
-
-#ifdef _MSC_VER
-#pragma warning(pop)
-#endif
 
 utl::vector<math::m4x4>     to_world;
 utl::vector<math::m4x4>     inv_world;
@@ -264,7 +248,11 @@ math::m3x3
 component::local_frame() const
 {
     assert(is_valid());
-    return local_frames[id::index(_id)].frame;
+    const struct local_frame& frame{ local_frames[id::index(_id)] };
+    // Rows: right, up, front (the layout of the former union).
+    return { frame.right.x, frame.right.y, frame.right.z,
+             frame.up.x, frame.up.y, frame.up.z,
+             frame.front.x, frame.front.y, frame.front.z };
 }
 
 DirectX::XMVECTOR
@@ -273,7 +261,8 @@ component::calculate_local_position(math::v3 delta) const
     assert(is_valid());
     const id::id_type index{ id::index(_id) };
     using namespace DirectX;
-    XMMATRIX frame{ XMLoadFloat3x3(&local_frames[index].frame) };
+    const math::m3x3 frame_rows{ local_frame() };
+    XMMATRIX frame{ XMLoadFloat3x3(&frame_rows) };
     XMVECTOR l_pos{ XMLoadFloat3(&delta) };
     l_pos = XMVector3Transform(l_pos, frame);
     XMVECTOR w_pos{ XMLoadFloat3(&positions[index]) };

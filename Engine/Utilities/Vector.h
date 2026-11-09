@@ -195,7 +195,8 @@ public:
             {
                 // NOTE: realoc() will automatically copy the data in the buffer
                 //       if a new region of memory is allocated.
-                void* new_buffer{ realloc(_data, new_capacity * sizeof(T)) };
+                // void* cast: deliberate bitwise relocation (see relocate_with_move; GCC -Wclass-memaccess).
+                void* new_buffer{ realloc(static_cast<void*>(_data), new_capacity * sizeof(T)) };
                 assert(new_buffer);
                 if (new_buffer)
                 {

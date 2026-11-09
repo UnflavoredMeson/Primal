@@ -171,8 +171,8 @@ struct input_source {
     u32                 code{ 0 };
     f32                 multiplier{ 0 };
     bool                is_discrete{ true };
-    axis::type          source_axis{};
-    axis::type          axis{};
+    input::axis::type   source_axis{}; // qualified: the next member is named like its type (GCC -Wchanges-meaning)
+    input::axis::type   axis{};
     modifier_key::key   modifier{};
 };
 

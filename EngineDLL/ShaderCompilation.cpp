@@ -15,6 +15,7 @@
 #include "Content/ContentToEngine.h"
 #include "Utilities/IOStream.h"
 
+#include <csignal>
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
@@ -38,7 +39,11 @@ public:
     using CComPtr<T>::CComPtr;
     T* Get() const { return this->p; }
 };
+#if defined(__clang__)
 #define DEBUG_BREAK() __builtin_debugtrap()
+#else
+#define DEBUG_BREAK() std::raise(SIGTRAP) // GCC has no __builtin_debugtrap (same as PRIMAL_VK_DEBUG_BREAK)
+#endif
 #endif
 
 void

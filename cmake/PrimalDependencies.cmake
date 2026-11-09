@@ -17,6 +17,12 @@ FetchContent_MakeAvailable(DirectXMath)
 if(NOT TARGET Microsoft::DirectXMath)
     add_library(Microsoft::DirectXMath ALIAS DirectXMath)
 endif()
+# Third-party headers: include them as system headers so their warnings (e.g. GCC -Wunused-but-set-variable in
+# DirectXMathMatrix.inl) aren't reported. (FetchContent's SYSTEM option doesn't reach this INTERFACE target.)
+if(TARGET DirectXMath)
+    get_target_property(_dxmath_includes DirectXMath INTERFACE_INCLUDE_DIRECTORIES)
+    set_target_properties(DirectXMath PROPERTIES INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${_dxmath_includes}")
+endif()
 
 # SDL3 (system package) for standalone windows, input and the event loop.
 find_package(SDL3 3.2 REQUIRED CONFIG COMPONENTS SDL3-shared)
