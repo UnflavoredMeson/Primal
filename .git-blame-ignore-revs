@@ -4,3 +4,6 @@
 
 # PascalCase type names, trailing return types, ufps clang-format, ::/std:: qualified global calls
 78376889ed4fe803a46d778f5c546e0502114f7b
+
+# clang-tidy auto-fixes (const, braces, structured bindings, noexcept), #endif comments removed
+53f3c85f7ba0973b649722ec4e21eb29806ff50a
