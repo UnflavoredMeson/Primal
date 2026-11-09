@@ -52,7 +52,7 @@
     <ClInclude Include="Graphics\Direct3D12\D3D12Shaders.h" />
     <ClInclude Include="Graphics\Direct3D12\D3D12Surface.h" />
     <ClInclude Include="Graphics\Direct3D12\D3D12Upload.h" />
-    <ClInclude Include="Graphics\Direct3D12\Shaders\SharedTypes.h" />
+    <ClInclude Include="Graphics\Shaders\SharedTypes.h" />
     <ClInclude Include="Graphics\GraphicsPlatformInterface.h" />
     <ClInclude Include="Graphics\Renderer.h" />
     <ClInclude Include="Graphics\Vulkan\VulkanCommonHeaders.h" />
@@ -67,7 +67,6 @@
     <ClInclude Include="Graphics\Vulkan\VulkanPostProcess.h" />
     <ClInclude Include="Graphics\Vulkan\VulkanResources.h" />
     <ClInclude Include="Graphics\Vulkan\VulkanShaders.h" />
-    <ClInclude Include="Graphics\Vulkan\VulkanSharedTypes.h" />
     <ClInclude Include="Graphics\Vulkan\VulkanSurface.h" />
     <ClInclude Include="Graphics\Vulkan\VulkanUpload.h" />
     <ClInclude Include="ThirdParty\vma\vk_mem_alloc.h" />

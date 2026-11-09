@@ -2,7 +2,7 @@
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "D3D12LightCulling.h"
 #include "D3D12Core.h"
-#include "Shaders/SharedTypes.h"
+#include "Graphics/Shaders/SharedTypes.h"
 #include "D3D12Shaders.h"
 #include "D3D12Light.h"
 #include "D3D12Camera.h"

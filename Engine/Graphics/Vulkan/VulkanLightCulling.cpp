@@ -7,7 +7,7 @@
 #include "VulkanLight.h"
 #include "VulkanResources.h"
 #include "VulkanShaders.h"
-#include "VulkanSharedTypes.h"
+#include "Graphics/Shaders/SharedTypes.h"
 
 namespace primal::graphics::vulkan::delight {
 namespace {

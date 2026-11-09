@@ -22,6 +22,14 @@
   </Project>
   <Project Path="EngineTest/EngineTest.vcxproj" Id="2bc60d31-ec9b-45ef-ac9d-aeffb3617859">
     <BuildDependency Project="Engine/Engine.vcxproj" />
+    <BuildDependency Project="ShaderCompilerTool/ShaderCompilerTool.vcxproj" />
+    <BuildType Solution="DebugEditor|*" Project="Debug" />
+    <BuildType Solution="ReleaseEditor|*" Project="Release" />
+    <Build Solution="DebugEditor|*" Project="false" />
+    <Build Solution="ReleaseEditor|*" Project="false" />
+  </Project>
+  <Project Path="ShaderCompilerTool/ShaderCompilerTool.vcxproj" Id="12e4ef18-de73-4bf4-a5f6-c07a98fe86c6">
+    <BuildDependency Project="Engine/Engine.vcxproj" />
     <BuildType Solution="DebugEditor|*" Project="Debug" />
     <BuildType Solution="ReleaseEditor|*" Project="Release" />
     <Build Solution="DebugEditor|*" Project="false" />

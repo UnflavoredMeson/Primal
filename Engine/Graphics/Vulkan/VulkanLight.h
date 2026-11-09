@@ -5,11 +5,13 @@
 #include "VulkanCommonHeaders.h"
 #include "VulkanHelpers.h"
 
-namespace primal::graphics::vulkan {
-struct vulkan_frame_info;
-
+namespace primal::graphics {
 namespace hlsl {
 struct AmbientLightParameters;
+}
+
+namespace vulkan {
+struct vulkan_frame_info;
 }
 }
 

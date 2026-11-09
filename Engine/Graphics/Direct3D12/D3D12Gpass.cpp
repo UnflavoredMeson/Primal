@@ -6,7 +6,7 @@
 #include "D3D12Light.h"
 #include "D3D12Camera.h"
 #include "D3D12LightCulling.h"
-#include "Shaders/SharedTypes.h"
+#include "Graphics/Shaders/SharedTypes.h"
 #include "Components/Entity.h"
 #include "Components/Transform.h"
 

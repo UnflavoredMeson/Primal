@@ -10,7 +10,7 @@
 #include "VulkanPostProcess.h"
 #include "VulkanResources.h"
 #include "VulkanShaders.h"
-#include "VulkanSharedTypes.h"
+#include "Graphics/Shaders/SharedTypes.h"
 #include "VulkanSurface.h"
 #include "VulkanUpload.h"
 #include <algorithm>
