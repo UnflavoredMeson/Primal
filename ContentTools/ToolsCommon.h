@@ -10,10 +10,14 @@
 #include <wrl.h>
 
 #ifndef EDITOR_INTERFACE
+#if defined(_MSC_VER)
 #define EDITOR_INTERFACE extern "C" __declspec(dllexport)
+#else
+#define EDITOR_INTERFACE extern "C" __attribute__((visibility("default")))
+#endif
 #endif
 
-class Progressiona
+class Progression
 {
   public:
     using progress_callback = void (*)(s32, s32);

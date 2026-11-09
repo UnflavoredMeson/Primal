@@ -28,4 +28,6 @@ InsertNewlineAtEOF: true
 # u32 without including it). Sort once the headers are self-contained.
 SortIncludes: Never
 # Braces on every if/else/for/while/do body, even single statements.
+# One-line `if (x) { return; }` is not available: AllowShortBlocksOnASingleLine: Always would collapse every short
+# block (and an inline member's body onto its own line as `{ return _x; }`), and clang-format has no "leave as is".
 InsertBraces: true
