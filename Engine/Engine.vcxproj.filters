@@ -39,7 +39,7 @@
     <ClInclude Include="Content\ContentToEngine.h" />
     <ClInclude Include="EngineAPI\Camera.h" />
     <ClInclude Include="Graphics\Direct3D12\D3D12Camera.h" />
-    <ClInclude Include="Graphics\Direct3D12\Shaders\SharedTypes.h" />
+    <ClInclude Include="Graphics\Shaders\SharedTypes.h" />
     <ClInclude Include="EngineAPI\Light.h" />
     <ClInclude Include="Graphics\Direct3D12\D3D12Light.h" />
     <ClInclude Include="EngineAPI\Input.h" />
@@ -61,7 +61,6 @@
     <ClInclude Include="Graphics\Vulkan\VulkanPostProcess.h" />
     <ClInclude Include="Graphics\Vulkan\VulkanResources.h" />
     <ClInclude Include="Graphics\Vulkan\VulkanShaders.h" />
-    <ClInclude Include="Graphics\Vulkan\VulkanSharedTypes.h" />
     <ClInclude Include="Graphics\Vulkan\VulkanSurface.h" />
     <ClInclude Include="Graphics\Vulkan\VulkanUpload.h" />
     <ClInclude Include="ThirdParty\vma\vk_mem_alloc.h" />

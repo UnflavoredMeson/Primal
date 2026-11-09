@@ -9,7 +9,7 @@
 #include "VulkanLight.h"
 #include "VulkanLightCulling.h"
 #include "VulkanResources.h"
-#include "VulkanSharedTypes.h"
+#include "Graphics/Shaders/SharedTypes.h"
 
 namespace primal::graphics::vulkan::gpass {
 namespace {

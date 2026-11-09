@@ -4,7 +4,7 @@
 #include "VulkanLight.h"
 #include "VulkanCore.h"
 #include "VulkanResources.h"
-#include "VulkanSharedTypes.h"
+#include "Graphics/Shaders/SharedTypes.h"
 #include "EngineAPI/GameEntity.h"
 #include "Components/Transform.h"
 #include "VulkanContent.h"

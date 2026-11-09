@@ -97,7 +97,7 @@ struct engine_shader_info
 };
 
 // NOTE: the HLSL sources are shared by the Direct3D 12 and Vulkan backends.
-constexpr const char* shaders_source_path{ "../../Engine/Graphics/Direct3D12/Shaders/" };
+constexpr const char* shaders_source_path{ "../../Engine/Graphics/Shaders/" };
 
 constexpr engine_shader_info engine_shader_files[]
 {

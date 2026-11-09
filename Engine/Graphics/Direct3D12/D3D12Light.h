@@ -3,11 +3,13 @@
 #pragma once
 #include "D3D12CommonHeaders.h"
 
-namespace primal::graphics::d3d12 {
-struct d3d12_frame_info;
-
+namespace primal::graphics {
 namespace hlsl {
 struct AmbientLightParameters;
+}
+
+namespace d3d12 {
+struct d3d12_frame_info;
 }
 }
 
