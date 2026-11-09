@@ -3,43 +3,58 @@
 #pragma once
 #include "../Components/ComponentsCommon.h"
 
-namespace primal::transform {
+namespace primal::transform
+{
 
-struct space {
-    enum frame : u32 {
+struct Space
+{
+    enum Frame : u32
+    {
         absolute,
         local,
         world,
     };
 };
 
-DEFINE_TYPED_ID(transform_id);
+DEFINE_TYPED_ID(TransformId);
 
-class component final
+class Component final
 {
-public:
-    constexpr explicit component(transform_id id) : _id{ id } {}
-    constexpr component() : _id{ id::invalid_id } {}
-    constexpr transform_id get_id() const { return _id; }
-    constexpr bool is_valid() const { return id::is_valid(_id); }
+  public:
+    constexpr explicit Component(TransformId id)
+        : _id{id}
+    {
+    }
+    constexpr Component()
+        : _id{id::invalid_id}
+    {
+    }
+    constexpr auto get_id() const -> TransformId
+    {
+        return _id;
+    }
+    constexpr auto is_valid() const -> bool
+    {
+        return id::is_valid(_id);
+    }
 
     // TODO: we might want to add a parameter to rotation and position
     //       to get them with respect to the local frame or world space.
-    math::v4 rotation() const;
-    math::v3 position() const;
-    math::v3 scale() const;
-    math::v3 right() const;
-    math::v3 up() const;
-    math::v3 front() const;
-    math::m3x3 local_frame() const;
+    auto rotation() const -> math::v4;
+    auto position() const -> math::v3;
+    auto scale() const -> math::v3;
+    auto right() const -> math::v3;
+    auto up() const -> math::v3;
+    auto front() const -> math::v3;
+    auto local_frame() const -> math::m3x3;
 
-    DirectX::XMVECTOR calculate_local_position(math::v3 delta) const;
-    DirectX::XMVECTOR calculate_absolute_rotation(math::v3 rotation) const;
-    DirectX::XMVECTOR calculate_local_rotation(math::v3 delta) const;
-    DirectX::XMVECTOR calculate_world_rotation(math::v3 delta) const;
+    auto calculate_local_position(math::v3 delta) const -> DirectX::XMVECTOR;
+    auto calculate_absolute_rotation(math::v3 rotation) const -> DirectX::XMVECTOR;
+    auto calculate_local_rotation(math::v3 delta) const -> DirectX::XMVECTOR;
+    auto calculate_world_rotation(math::v3 delta) const -> DirectX::XMVECTOR;
 
-private:
-    transform_id _id;
+  private:
+    TransformId _id;
 };
 
 }

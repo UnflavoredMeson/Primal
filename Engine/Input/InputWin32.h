@@ -10,15 +10,16 @@
 
 #include <Windows.h>
 
-namespace primal::input {
+namespace primal::input
+{
 
-HRESULT process_input_message(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
+auto process_input_message(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) -> HRESULT;
 
 // Maps a virtual key code to an input code. Returns u32_invalid_id for unmapped keys.
-u32 map_virtual_key(u32 virtual_key);
+auto map_virtual_key(u32 virtual_key) -> u32;
 
 // Currently held modifier keys as modifier_key::key flags.
-u32 modifier_keys();
+auto modifier_keys() -> u32;
 
 }
 

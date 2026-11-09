@@ -12,56 +12,60 @@
 #include <filesystem>
 #include <iterator>
 
-namespace primal::content {
-namespace {
+namespace primal::content
+{
+namespace
+{
 
-utl::vector<game_entity::entity> entities;
-transform::init_info transform_info{};
-script::init_info script_info{};
+utl::vector<game_entity::Entity> entities;
+transform::InitInfo transform_info{};
+script::InitInfo script_info{};
 
 // NOTE: reads 4 bytes. (Reading *data directly only reads the lowest byte of the u32.)
-u32
-read_u32(const u8*& data)
+auto read_u32(const u8 *&data) -> u32
 {
     u32 value;
-    memcpy(&value, data, sizeof(u32));
+    std::memcpy(&value, data, sizeof(u32));
     data += sizeof(u32);
     return value;
 }
 
-bool
-read_transform(const u8*& data, game_entity::entity_info& info)
+auto read_transform(const u8 *&data, game_entity::EntityInfo &info) -> bool
 {
     using namespace DirectX;
     f32 rotation[3];
 
     assert(!info.transform);
-    memcpy(&transform_info.position[0], data, sizeof(transform_info.position)); data += sizeof(transform_info.position);
-    memcpy(&rotation[0], data, sizeof(rotation)); data += sizeof(rotation);
-    memcpy(&transform_info.scale[0], data, sizeof(transform_info.scale)); data += sizeof(transform_info.scale);
+    std::memcpy(&transform_info.position[0], data, sizeof(transform_info.position));
+    data += sizeof(transform_info.position);
+    std::memcpy(&rotation[0], data, sizeof(rotation));
+    data += sizeof(rotation);
+    std::memcpy(&transform_info.scale[0], data, sizeof(transform_info.scale));
+    data += sizeof(transform_info.scale);
 
-    XMFLOAT3A rot{ &rotation[0] };
-    XMVECTOR quat{ XMQuaternionRotationRollPitchYawFromVector(XMLoadFloat3A(&rot)) };
+    XMFLOAT3A rot{&rotation[0]};
+    XMVECTOR quat{XMQuaternionRotationRollPitchYawFromVector(XMLoadFloat3A(&rot))};
     XMFLOAT4A rot_quat{};
     XMStoreFloat4A(&rot_quat, quat);
-    memcpy(&transform_info.rotation[0], &rot_quat.x, sizeof(transform_info.rotation));
+    std::memcpy(&transform_info.rotation[0], &rot_quat.x, sizeof(transform_info.rotation));
 
     info.transform = &transform_info;
 
     return true;
 }
 
-bool
-read_script(const u8*& data, game_entity::entity_info& info)
+auto read_script(const u8 *&data, game_entity::EntityInfo &info) -> bool
 {
     assert(!info.script);
-    const u32 name_length{ read_u32(data) };
-    if (!name_length) return false;
+    const u32 name_length{read_u32(data)};
+    if (!name_length)
+        return false;
     // if a script name is longer than 255 characters then something is probably
     // very wrong, either with the binary writer or the game programmer.
     assert(name_length < 256);
     char script_name[256]{};
-    memcpy(&script_name[0], data, name_length); data += name_length;
+    std::memcpy(&script_name[0], data, name_length);
+    data += name_length;
     // make the name a zero-terminated c-string.
     script_name[name_length] = 0;
     script_info.script_creator = script::detail::get_script_creator(script::detail::string_hash()(script_name));
@@ -69,32 +73,31 @@ read_script(const u8*& data, game_entity::entity_info& info)
     return script_info.script_creator != nullptr;
 }
 
-bool
-read_geometry(const u8*&, game_entity::entity_info&)
+auto read_geometry(const u8 *&, game_entity::EntityInfo &) -> bool
 {
     return false;
 }
 
-using component_reader = bool(*)(const u8*&, game_entity::entity_info&);
-component_reader component_readers[]
-{
+using component_reader = bool (*)(const u8 *&, game_entity::EntityInfo &);
+component_reader component_readers[]{
     read_transform,
     read_script,
     read_geometry,
 };
-static_assert(std::size(component_readers) == component_type::count);
+static_assert(std::size(component_readers) == ComponentType::count);
 
-bool
-read_file(std::filesystem::path path, std::unique_ptr<u8[]>& data, u64& size)
+auto read_file(std::filesystem::path path, std::unique_ptr<u8[]> &data, u64 &size) -> bool
 {
-    if (!std::filesystem::exists(path)) return false;
+    if (!std::filesystem::exists(path))
+        return false;
 
     size = std::filesystem::file_size(path);
     assert(size);
-    if (!size) return false;
+    if (!size)
+        return false;
     data = std::make_unique<u8[]>(size);
-    std::ifstream file{ path, std::ios::in | std::ios::binary };
-    if (!file || !file.read((char*)data.get(), size))
+    std::ifstream file{path, std::ios::in | std::ios::binary};
+    if (!file || !file.read((char *)data.get(), size))
     {
         file.close();
         return false;
@@ -104,40 +107,44 @@ read_file(std::filesystem::path path, std::unique_ptr<u8[]>& data, u64& size)
     return true;
 }
 
-} // anonymous namespace
+}
 
-bool
-load_game()
+auto load_game() -> bool
 {
     // read game.bin and create the entities.
     std::unique_ptr<u8[]> game_data{};
-    u64 size{ 0 };
-    if (!read_file("game.bin", game_data, size)) return false;
+    u64 size{0};
+    if (!read_file("game.bin", game_data, size))
+        return false;
     assert(game_data.get());
-    const u8* at{ game_data.get() };
-    constexpr u32 su32{ sizeof(u32) };
-    const u32 num_entities{ read_u32(at) };
-    if (!num_entities) return false;
+    const u8 *at{game_data.get()};
+    constexpr u32 su32{sizeof(u32)};
+    const u32 num_entities{read_u32(at)};
+    if (!num_entities)
+        return false;
 
-    for (u32 entity_index{ 0 }; entity_index < num_entities; ++entity_index)
+    for (u32 entity_index{0}; entity_index < num_entities; ++entity_index)
     {
-        game_entity::entity_info info{};
-        //const u32 entity_type{ *at }; 
-        // skip over entity type (for now):
+        game_entity::EntityInfo info{};
+        // const u32 entity_type{ *at };
+        //  skip over entity type (for now):
         at += su32;
-        const u32 num_components{ read_u32(at) };
-        if (!num_components) return false;
+        const u32 num_components{read_u32(at)};
+        if (!num_components)
+            return false;
 
-        for (u32 component_index{ 0 }; component_index < num_components; ++component_index)
+        for (u32 component_index{0}; component_index < num_components; ++component_index)
         {
-            const u32 component_type{ read_u32(at) };
-            assert(component_type < component_type::count);
-            if (!component_readers[component_type](at, info)) return false;
+            const u32 component_type{read_u32(at)};
+            assert(component_type < ComponentType::count);
+            if (!component_readers[component_type](at, info))
+                return false;
         }
 
         assert(info.transform);
-        game_entity::entity entity{ game_entity::create(info) };
-        if (!entity.is_valid()) return false;
+        game_entity::Entity entity{game_entity::create(info)};
+        if (!entity.is_valid())
+            return false;
         entities.emplace_back(entity);
     }
 
@@ -145,8 +152,7 @@ load_game()
     return true;
 }
 
-void
-unload_game()
+auto unload_game() -> void
 {
     for (auto entity : entities)
     {
@@ -154,8 +160,7 @@ unload_game()
     }
 }
 
-bool
-load_engine_shaders(std::unique_ptr<u8[]>& shaders, u64& size)
+auto load_engine_shaders(std::unique_ptr<u8[]> &shaders, u64 &size) -> bool
 {
     auto path = graphics::get_engine_shaders_path();
     return read_file(path, shaders, size);

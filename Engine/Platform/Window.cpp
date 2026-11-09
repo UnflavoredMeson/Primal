@@ -3,79 +3,69 @@
 #if INCLUDE_WINDOW_CPP
 #include "Window.h"
 
-namespace primal::platform {
+namespace primal::platform
+{
 
-void
-window::set_fullscreen(bool is_fullscreen) const
+auto Window::set_fullscreen(bool is_fullscreen) const -> void
 {
     assert(is_valid());
     set_window_fullscreen(_id, is_fullscreen);
 }
 
-bool
-window::is_fullscreen() const
+auto Window::is_fullscreen() const -> bool
 {
     assert(is_valid());
     return is_window_fullscreen(_id);
 }
 
-const native_window_handle*
-window::handle() const
+auto Window::handle() const -> const NativeWindowHandle *
 {
     assert(is_valid());
     return get_window_handle(_id);
 }
 
-void
-window::set_caption(const char* caption) const
+auto Window::set_caption(const char *caption) const -> void
 {
     assert(is_valid());
     set_window_caption(_id, caption);
 }
 
-math::u32v4
-window::size() const
+auto Window::size() const -> math::u32v4
 {
     assert(is_valid());
     return get_window_size(_id);
 }
 
-void
-window::resize(u32 width, u32 height) const
+auto Window::resize(u32 width, u32 height) const -> void
 {
     assert(is_valid());
     resize_window(_id, width, height);
 }
 
-u32
-window::width() const
+auto Window::width() const -> u32
 {
-    math::u32v4 s{ size() };
+    math::u32v4 s{size()};
     return s.z - s.x;
 }
 
-u32
-window::height() const
+auto Window::height() const -> u32
 {
-    math::u32v4 s{ size() };
+    math::u32v4 s{size()};
     return s.w - s.y;
 }
 
-bool
-window::is_closed() const
+auto Window::is_closed() const -> bool
 {
     assert(is_valid());
     return is_window_closed(_id);
 }
-void
-window::close() const
+auto Window::close() const -> void
 {
     assert(is_valid());
     close_window(_id);
 }
 
-void
-window::set_has_graphics_surface(bool has_surface) const
+auto Window::set_has_graphics_surface(bool has_surface) const -> void
 {
     assert(is_valid());
     set_window_has_graphics_surface(_id, has_surface);

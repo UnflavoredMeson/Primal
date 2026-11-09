@@ -21,12 +21,11 @@
 #include "../Engine/Platform/PlatformTypes.h"
 #include "../Engine/Platform/Platform.h"
 
-int
-run_test()
+auto run_test() -> int
 {
     primal::platform::set_current_directory_to_executable_path();
-    engine_test test{};
-    const bool initialized{ test.initialize() };
+    EngineTest test{};
+    const bool initialized{test.initialize()};
     if (initialized)
     {
 #if TEST_ENTITY_COMPONENTS
@@ -43,6 +42,7 @@ run_test()
 }
 
 #if PRIMAL_PLATFORM_WINDOWS
+// NOLINTNEXTLINE(modernize-use-trailing-return-type): calling convention (keeps the classic return type, T02)
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 {
 #if _DEBUG
@@ -50,13 +50,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
     // When a leak is detected, call _CrtSetBreakAlloc(N) with leak number N to
     // break at leak site.
 #endif
-    return run_test();
+    return ::run_test();
 }
 #elif PRIMAL_PLATFORM_LINUX
 // NOTE: there is no _CrtSetDbgFlag on Linux. For leak checking, configure with
 //       -DPRIMAL_ENABLE_SANITIZERS=ON (AddressSanitizer includes LeakSanitizer).
-int main()
+auto main() -> int
 {
-    return run_test();
+    return ::run_test();
 }
 #endif

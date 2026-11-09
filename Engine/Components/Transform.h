@@ -3,17 +3,20 @@
 #pragma once
 #include "ComponentsCommon.h"
 
-namespace primal::transform {
+namespace primal::transform
+{
 
-struct init_info
+struct InitInfo
 {
     f32 position[3]{};
     f32 rotation[4]{};
     f32 scale[3]{1.f, 1.f, 1.f};
 };
 
-struct component_flags {
-    enum flags : u32 {
+struct ComponentFlags
+{
+    enum Flags : u32
+    {
         rotation = 0x01,
         position = 0x02,
         scale = 0x04,
@@ -22,19 +25,19 @@ struct component_flags {
     };
 };
 
-struct component_cache
+struct ComponentCache
 {
-    math::v4        rotation;
-    math::v3        position;
-    math::v3        scale;
-    transform_id    id;
-    u32             flags;
+    math::v4 rotation;
+    math::v3 position;
+    math::v3 scale;
+    TransformId id;
+    u32 flags;
 };
 
-component create(init_info info, game_entity::entity entity);
-void remove(component c);
+auto create(InitInfo info, game_entity::Entity entity) -> Component;
+auto remove(Component c) -> void;
 
-void get_transform_matrices(const game_entity::entity_id id, math::m4x4& world, math::m4x4& inverse_world);
-void get_updated_components_flags(const game_entity::entity_id *const ids, u32 count, u8 *const flags);
-void update(const component_cache *const cache, u32 count);
+auto get_transform_matrices(const game_entity::EntityId id, math::m4x4 &world, math::m4x4 &inverse_world) -> void;
+auto get_updated_components_flags(const game_entity::EntityId *const ids, u32 count, u8 *const flags) -> void;
+auto update(const ComponentCache *const cache, u32 count) -> void;
 }

@@ -7,20 +7,23 @@
 using namespace DirectX;
 using namespace Microsoft::WRL;
 
-namespace primal::tools {
-namespace {
+namespace primal::tools
+{
+namespace
+{
 
-namespace shaders {
+namespace shaders
+{
 #include "EnvMapProcessing_EquirectangularToCubeMapCS.inc"
 #include "EnvMapProcessing_PrefilterDiffuseEnvMapCS.inc"
 #include "EnvMapProcessing_PrefilterSpecularEnvMapCS.inc"
 #include "EnvMapProcessing_ComputeBrdfIntegrationLutCS.inc"
 };
 
-constexpr u32 prefiltered_diffuse_cubemap_size{ 32 };
-constexpr u32 prefiltered_specular_cubemap_size{ 256 };
-constexpr u32 roughness_mip_levels{ 6 };
-constexpr u32 brdf_integration_lut_size{ 256 };
+constexpr u32 prefiltered_diffuse_cubemap_size{32};
+constexpr u32 prefiltered_specular_cubemap_size{256};
+constexpr u32 roughness_mip_levels{6};
+constexpr u32 brdf_integration_lut_size{256};
 
 struct ShaderConstants
 {
@@ -28,23 +31,23 @@ struct ShaderConstants
     u32 CubeMapOutSize;
     u32 SampleCount;
     f32 Roughness;
-private:
+
+  private:
     //    u32 _pad[1];
 };
 
-math::v3
-get_sample_direction_equirectangular(u32 face, f32 u, f32 v)
+auto get_sample_direction_equirectangular(u32 face, f32 u, f32 v) -> math::v3
 {
     math::v3 directions[6]{
-        {-u,    1.f, -v},   // X+ Left
-        { u,   -1.f, -v},   // X- Right
-        { v,    u,    1.f}, // Y+ Bottom
-        {-v,    u,   -1.f}, // Y- Top
-        { 1.f,  u,   -v},   // Z+ Front
-        {-1.f, -u,   -v},   // Z- Back
+        {-u, 1.f, -v},  // X+ Left
+        {u, -1.f, -v},  // X- Right
+        {v, u, 1.f},    // Y+ Bottom
+        {-v, u, -1.f},  // Y- Top
+        {1.f, u, -v},   // Z+ Front
+        {-1.f, -u, -v}, // Z- Back
     };
 
-    XMVECTOR dir{ XMLoadFloat3(&directions[face]) };
+    XMVECTOR dir{XMLoadFloat3(&directions[face])};
     dir = XMVector3Normalize(dir);
     math::v3 normalized_dir;
     XMStoreFloat3(&normalized_dir, dir);
@@ -52,81 +55,80 @@ get_sample_direction_equirectangular(u32 face, f32 u, f32 v)
     return normalized_dir;
 }
 
-math::v2
-direction_to_equirectangular(const math::v3& dir)
+auto direction_to_equirectangular(const math::v3 &dir) -> math::v2
 {
-    const f32 phi{ atan2f(dir.y, dir.x) };
-    const f32 theta{ XMScalarACos(dir.z) };
-    const f32 s{ phi * math::inv_two_pi + 0.5f };
-    const f32 t{ theta * math::inv_pi };
+    const f32 phi{std::atan2f(dir.y, dir.x)};
+    const f32 theta{XMScalarACos(dir.z)};
+    const f32 s{phi * math::inv_two_pi + 0.5f};
+    const f32 t{theta * math::inv_pi};
 
-    return { s, t };
+    return {s, t};
 }
 
-void
-sample_cube_face(const Image& env_map, const Image& cube_face, u32 face_index, bool mirror)
+auto sample_cube_face(const Image &env_map, const Image &cube_face, u32 face_index, bool mirror) -> void
 {
     assert(cube_face.width == cube_face.height);
-    const f32 inv_width{ 1.f / (f32)cube_face.width };
-    const f32 inv_height{ 1.f / (f32)cube_face.height };
-    const u32 row_pitch{ (u32)cube_face.rowPitch };
-    const u32 env_width{ (u32)env_map.width - 1 };
-    const u32 env_height{ (u32)env_map.height - 1 };
-    const u32 env_row_pitch{ (u32)env_map.rowPitch };
+    const f32 inv_width{1.f / (f32)cube_face.width};
+    const f32 inv_height{1.f / (f32)cube_face.height};
+    const u32 row_pitch{(u32)cube_face.rowPitch};
+    const u32 env_width{(u32)env_map.width - 1};
+    const u32 env_height{(u32)env_map.height - 1};
+    const u32 env_row_pitch{(u32)env_map.rowPitch};
     // assume both env_map and cube_face are using DXGI_FORMAT_R32G32B32A32_FLOAT
-    constexpr u32 bytes_per_pixel{ sizeof(f32) * 4 };
+    constexpr u32 bytes_per_pixel{sizeof(f32) * 4};
 
-    for (u32 y{ 0 }; y < cube_face.height; ++y)
+    for (u32 y{0}; y < cube_face.height; ++y)
     {
-        const f32 v{ (y * inv_height) * 2.f - 1.f };
+        const f32 v{(y * inv_height) * 2.f - 1.f};
 
-        for (u32 x{ 0 }; x < cube_face.width; ++x)
+        for (u32 x{0}; x < cube_face.width; ++x)
         {
-            const f32 u{ (x * inv_width) * 2.f - 1.f };
+            const f32 u{(x * inv_width) * 2.f - 1.f};
 
-            const math::v3 sample_direction{ get_sample_direction_equirectangular(face_index, u, v) };
-            math::v2 uv{ direction_to_equirectangular(sample_direction) };
+            const math::v3 sample_direction{get_sample_direction_equirectangular(face_index, u, v)};
+            math::v2 uv{direction_to_equirectangular(sample_direction)};
             assert(uv.x >= 0.f && uv.x <= 1.f && uv.y >= 0.f && uv.y <= 1.f);
 
-            if (mirror) uv.x = 1.f - uv.x;
-            const f32 pos_x{ uv.x * env_width };
-            const f32 pos_y{ uv.y * env_height };
-            u8* dst_pixel{ &cube_face.pixels[row_pitch * y + x * bytes_per_pixel] };
+            if (mirror)
+                uv.x = 1.f - uv.x;
+            const f32 pos_x{uv.x * env_width};
+            const f32 pos_y{uv.y * env_height};
+            u8 *dst_pixel{&cube_face.pixels[row_pitch * y + x * bytes_per_pixel]};
 
-            u8 *const src_pixel{ &env_map.pixels[env_row_pitch * (u32)pos_y + (u32)pos_x * bytes_per_pixel] };
-            memcpy(dst_pixel, src_pixel, bytes_per_pixel);
+            u8 *const src_pixel{&env_map.pixels[env_row_pitch * (u32)pos_y + (u32)pos_x * bytes_per_pixel]};
+            std::memcpy(dst_pixel, src_pixel, bytes_per_pixel);
         }
     }
 }
 
-void
-reset_d3d11_context(ID3D11DeviceContext* ctx)
+auto reset_d3d11_context(ID3D11DeviceContext *ctx) -> void
 {
-    u8 zero_mem_block[D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT * sizeof(void*)];
-    memset(&zero_mem_block, 0, sizeof(zero_mem_block));
+    u8 zero_mem_block[D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT * sizeof(void *)];
+    std::memset(&zero_mem_block, 0, sizeof(zero_mem_block));
 
-    ctx->CSSetUnorderedAccessViews(0, D3D11_1_UAV_SLOT_COUNT, (ID3D11UnorderedAccessView**)&zero_mem_block[0], nullptr);
-    ctx->CSSetShaderResources(0, D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT, (ID3D11ShaderResourceView**)&zero_mem_block[0]);
-    ctx->CSSetConstantBuffers(0, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT, (ID3D11Buffer**)&zero_mem_block[0]);
+    ctx->CSSetUnorderedAccessViews(
+        0, D3D11_1_UAV_SLOT_COUNT, (ID3D11UnorderedAccessView **)&zero_mem_block[0], nullptr);
+    ctx->CSSetShaderResources(
+        0, D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT, (ID3D11ShaderResourceView **)&zero_mem_block[0]);
+    ctx->CSSetConstantBuffers(
+        0, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT, (ID3D11Buffer **)&zero_mem_block[0]);
 }
 
-HRESULT
-set_constants(ID3D11DeviceContext* ctx, ID3D11Buffer* constant_buffer, ShaderConstants constants)
+auto set_constants(ID3D11DeviceContext *ctx, ID3D11Buffer *constant_buffer, ShaderConstants constants) -> HRESULT
 {
     D3D11_MAPPED_SUBRESOURCE mapped_buffer{};
-    HRESULT hr{ ctx->Map(constant_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_buffer) };
+    HRESULT hr{ctx->Map(constant_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_buffer)};
     if (FAILED(hr) || !mapped_buffer.pData)
     {
         return hr;
     }
 
-    memcpy(mapped_buffer.pData, &constants, sizeof(ShaderConstants));
+    std::memcpy(mapped_buffer.pData, &constants, sizeof(ShaderConstants));
     ctx->Unmap(constant_buffer, 0);
     return hr;
 }
 
-HRESULT
-create_constant_buffer(ID3D11Device* device, ID3D11Buffer** constant_buffer)
+auto create_constant_buffer(ID3D11Device *device, ID3D11Buffer **constant_buffer) -> HRESULT
 {
     D3D11_BUFFER_DESC desc{};
     desc.ByteWidth = sizeof(ShaderConstants);
@@ -136,12 +138,11 @@ create_constant_buffer(ID3D11Device* device, ID3D11Buffer** constant_buffer)
     desc.MiscFlags = 0;
     desc.StructureByteStride = 0;
 
-    HRESULT hr{ device->CreateBuffer(&desc, nullptr, constant_buffer) };
+    HRESULT hr{device->CreateBuffer(&desc, nullptr, constant_buffer)};
     return hr;
 }
 
-HRESULT
-create_linear_sampler(ID3D11Device* device, ID3D11SamplerState** linear_sampler)
+auto create_linear_sampler(ID3D11Device *device, ID3D11SamplerState **linear_sampler) -> HRESULT
 {
     D3D11_SAMPLER_DESC desc{};
     desc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
@@ -155,9 +156,13 @@ create_linear_sampler(ID3D11Device* device, ID3D11SamplerState** linear_sampler)
     return device->CreateSamplerState(&desc, linear_sampler);
 }
 
-HRESULT
-create_cubemap_srv(ID3D11Device* device, DXGI_FORMAT format, u32 first_array_slice, u32 mip_levels,
-                   ID3D11Resource* cubemaps, ID3D11ShaderResourceView** cubemap_srv)
+auto create_cubemap_srv(
+    ID3D11Device *device,
+    DXGI_FORMAT format,
+    u32 first_array_slice,
+    u32 mip_levels,
+    ID3D11Resource *cubemaps,
+    ID3D11ShaderResourceView **cubemap_srv) -> HRESULT
 {
     D3D11_SHADER_RESOURCE_VIEW_DESC desc{};
     desc.Format = format;
@@ -169,9 +174,14 @@ create_cubemap_srv(ID3D11Device* device, DXGI_FORMAT format, u32 first_array_sli
     return device->CreateShaderResourceView(cubemaps, &desc, cubemap_srv);
 }
 
-HRESULT
-create_texture_2d_uav(ID3D11Device* device, DXGI_FORMAT format, u32 array_size, u32 first_array_slice,
-                      u32 mip_slice, ID3D11Resource* texture, ID3D11UnorderedAccessView** texture_uav)
+auto create_texture_2d_uav(
+    ID3D11Device *device,
+    DXGI_FORMAT format,
+    u32 array_size,
+    u32 first_array_slice,
+    u32 mip_slice,
+    ID3D11Resource *texture,
+    ID3D11UnorderedAccessView **texture_uav) -> HRESULT
 {
     D3D11_UNORDERED_ACCESS_VIEW_DESC desc{};
     desc.Format = format;
@@ -183,28 +193,35 @@ create_texture_2d_uav(ID3D11Device* device, DXGI_FORMAT format, u32 array_size, 
     return device->CreateUnorderedAccessView(texture, &desc, texture_uav);
 }
 
-HRESULT
-download_texture_2d(ID3D11DeviceContext* ctx, u32 width, u32 height, u32 array_size, u32 mip_levels, DXGI_FORMAT format, bool is_cubemap,
-                    ID3D11Texture2D* gpu_resource, ID3D11Texture2D* cpu_resource, ScratchImage& result)
+auto download_texture_2d(
+    ID3D11DeviceContext *ctx,
+    u32 width,
+    u32 height,
+    u32 array_size,
+    u32 mip_levels,
+    DXGI_FORMAT format,
+    bool is_cubemap,
+    ID3D11Texture2D *gpu_resource,
+    ID3D11Texture2D *cpu_resource,
+    ScratchImage &result) -> HRESULT
 {
     ctx->CopyResource(cpu_resource, gpu_resource);
 
-    HRESULT hr{ is_cubemap ?
-        result.InitializeCube(format, width, height, array_size / 6, mip_levels) :
-        result.Initialize2D(format, width, height, array_size, mip_levels)
-    };
+    HRESULT hr{
+        is_cubemap ? result.InitializeCube(format, width, height, array_size / 6, mip_levels)
+                   : result.Initialize2D(format, width, height, array_size, mip_levels)};
 
     if (FAILED(hr))
     {
         return hr;
     }
 
-    for (u32 img_idx{ 0 }; img_idx < array_size; ++img_idx)
+    for (u32 img_idx{0}; img_idx < array_size; ++img_idx)
     {
-        for (u32 mip{ 0 }; mip < mip_levels; ++mip)
+        for (u32 mip{0}; mip < mip_levels; ++mip)
         {
             D3D11_MAPPED_SUBRESOURCE mapped_resource{};
-            const u32 resource_idx{ mip + (img_idx * mip_levels) };
+            const u32 resource_idx{mip + (img_idx * mip_levels)};
             hr = ctx->Map(cpu_resource, resource_idx, D3D11_MAP_READ, 0, &mapped_resource);
             if (FAILED(hr))
             {
@@ -212,13 +229,13 @@ download_texture_2d(ID3D11DeviceContext* ctx, u32 width, u32 height, u32 array_s
                 return hr;
             }
 
-            const Image& img{ *result.GetImage(mip, img_idx, 0) };
-            u8* src{ (u8*)mapped_resource.pData };
-            u8* dst{ img.pixels };
+            const Image &img{*result.GetImage(mip, img_idx, 0)};
+            u8 *src{(u8 *)mapped_resource.pData};
+            u8 *dst{img.pixels};
 
-            for (u32 row{ 0 }; row < img.height; ++row)
+            for (u32 row{0}; row < img.height; ++row)
             {
-                memcpy(dst, src, img.rowPitch);
+                std::memcpy(dst, src, img.rowPitch);
                 src += mapped_resource.RowPitch;
                 dst += img.rowPitch;
             }
@@ -230,11 +247,14 @@ download_texture_2d(ID3D11DeviceContext* ctx, u32 width, u32 height, u32 array_s
     return hr;
 }
 
-void
-dispatch(ID3D11DeviceContext* ctx,
-         ID3D11ShaderResourceView* *const srv_array, ID3D11UnorderedAccessView* *const uav_array,
-         ID3D11Buffer* *const buffers_array, ID3D11SamplerState* *const samplers_array,
-         ID3D11ComputeShader* shader, math::u32v3 group_count)
+auto dispatch(
+    ID3D11DeviceContext *ctx,
+    ID3D11ShaderResourceView **const srv_array,
+    ID3D11UnorderedAccessView **const uav_array,
+    ID3D11Buffer **const buffers_array,
+    ID3D11SamplerState **const samplers_array,
+    ID3D11ComputeShader *shader,
+    math::u32v3 group_count) -> void
 {
     ctx->CSSetShaderResources(0, 1, srv_array);
     ctx->CSSetUnorderedAccessViews(0, 1, uav_array, nullptr);
@@ -244,11 +264,15 @@ dispatch(ID3D11DeviceContext* ctx,
     ctx->Dispatch(group_count.x, group_count.y, group_count.z);
 }
 
-} // anonymous namespace
+}
 
-HRESULT
-equirectangular_to_cubemap(const Image* env_maps, u32 env_map_count, u32 cubemap_size,
-                           bool use_prefilter_size, bool mirror_cubemap, ScratchImage& cube_maps)
+auto equirectangular_to_cubemap(
+    const Image *env_maps,
+    u32 env_map_count,
+    u32 cubemap_size,
+    bool use_prefilter_size,
+    bool mirror_cubemap,
+    ScratchImage &cube_maps) -> HRESULT
 {
     if (use_prefilter_size)
     {
@@ -256,7 +280,7 @@ equirectangular_to_cubemap(const Image* env_maps, u32 env_map_count, u32 cubemap
     }
 
     assert(env_maps && env_map_count);
-    HRESULT hr{ S_OK };
+    HRESULT hr{S_OK};
 
     // Initialize 1 texture cube for each image.
     ScratchImage working_scratch{};
@@ -266,9 +290,9 @@ equirectangular_to_cubemap(const Image* env_maps, u32 env_map_count, u32 cubemap
         return hr;
     }
 
-    for (u32 i{ 0 }; i < env_map_count; ++i)
+    for (u32 i{0}; i < env_map_count; ++i)
     {
-        const Image& env_map{ env_maps[i] };
+        const Image &env_map{env_maps[i]};
         assert(math::is_equal((f32)env_map.width / (f32)env_map.height, 2.f));
 
         // NOTE: all env_maps are equirectangular images with the same size and format.
@@ -277,7 +301,8 @@ equirectangular_to_cubemap(const Image* env_maps, u32 env_map_count, u32 cubemap
         ScratchImage f32_env_map{};
         if (env_maps[0].format != DXGI_FORMAT_R32G32B32A32_FLOAT)
         {
-            hr = Convert(env_map, DXGI_FORMAT_R32G32B32A32_FLOAT, TEX_FILTER_DEFAULT, TEX_THRESHOLD_DEFAULT, f32_env_map);
+            hr = Convert(
+                env_map, DXGI_FORMAT_R32G32B32A32_FLOAT, TEX_FILTER_DEFAULT, TEX_THRESHOLD_DEFAULT, f32_env_map);
             if (FAILED(hr))
             {
                 return hr;
@@ -289,27 +314,34 @@ equirectangular_to_cubemap(const Image* env_maps, u32 env_map_count, u32 cubemap
         }
 
         assert(f32_env_map.GetImageCount() == 1);
-        const Image* dst_images{ &working_scratch.GetImages()[i * 6] };
-        const Image& env_map_image{ f32_env_map.GetImages()[i] };
-        const bool mirror{ mirror_cubemap };
+        const Image *dst_images{&working_scratch.GetImages()[i * 6]};
+        const Image &env_map_image{f32_env_map.GetImages()[i]};
+        const bool mirror{mirror_cubemap};
 
         std::thread threads[]{
-            std::thread{ [&] {sample_cube_face(env_map_image, dst_images[0], 0, mirror); } },
-            std::thread{ [&] {sample_cube_face(env_map_image, dst_images[1], 1, mirror); } },
-            std::thread{ [&] {sample_cube_face(env_map_image, dst_images[2], 2, mirror); } },
-            std::thread{ [&] {sample_cube_face(env_map_image, dst_images[3], 3, mirror); } },
-            std::thread{ [&] {sample_cube_face(env_map_image, dst_images[4], 4, mirror); } },
+            std::thread{[&] { sample_cube_face(env_map_image, dst_images[0], 0, mirror); }},
+            std::thread{[&] { sample_cube_face(env_map_image, dst_images[1], 1, mirror); }},
+            std::thread{[&] { sample_cube_face(env_map_image, dst_images[2], 2, mirror); }},
+            std::thread{[&] { sample_cube_face(env_map_image, dst_images[3], 3, mirror); }},
+            std::thread{[&] { sample_cube_face(env_map_image, dst_images[4], 4, mirror); }},
         };
 
         sample_cube_face(f32_env_map.GetImages()[i], dst_images[5], 5, mirror);
 
-        for (u32 face{ 0 }; face < 5; ++face) threads[face].join();
+        for (u32 face{0}; face < 5; ++face)
+            threads[face].join();
     }
 
     if (env_maps[0].format != DXGI_FORMAT_R32G32B32A32_FLOAT)
     {
-        hr = Convert(working_scratch.GetImages(), working_scratch.GetImageCount(), working_scratch.GetMetadata(), env_maps[0].format,
-                     TEX_FILTER_DEFAULT, TEX_THRESHOLD_DEFAULT, cube_maps);
+        hr = Convert(
+            working_scratch.GetImages(),
+            working_scratch.GetImageCount(),
+            working_scratch.GetMetadata(),
+            env_maps[0].format,
+            TEX_FILTER_DEFAULT,
+            TEX_THRESHOLD_DEFAULT,
+            cube_maps);
     }
     else
     {
@@ -319,9 +351,14 @@ equirectangular_to_cubemap(const Image* env_maps, u32 env_map_count, u32 cubemap
     return hr;
 }
 
-HRESULT
-equirectangular_to_cubemap(ID3D11Device* device, const Image* env_maps, u32 env_map_count, u32 cubemap_size,
-                           bool use_prefilter_size, bool mirror_cubemap, ScratchImage& cubemaps_out)
+auto equirectangular_to_cubemap(
+    ID3D11Device *device,
+    const Image *env_maps,
+    u32 env_map_count,
+    u32 cubemap_size,
+    bool use_prefilter_size,
+    bool mirror_cubemap,
+    ScratchImage &cubemaps_out) -> HRESULT
 {
     if (use_prefilter_size)
     {
@@ -329,13 +366,13 @@ equirectangular_to_cubemap(ID3D11Device* device, const Image* env_maps, u32 env_
     }
 
     assert(env_maps && env_map_count);
-    const DXGI_FORMAT  format{ env_maps[0].format };
-    const u32 array_size{ env_map_count * 6 };
+    const DXGI_FORMAT format{env_maps[0].format};
+    const u32 array_size{env_map_count * 6};
     ComPtr<ID3D11DeviceContext> ctx{};
     device->GetImmediateContext(ctx.GetAddressOf());
     assert(ctx.Get());
 
-    HRESULT hr{ S_OK };
+    HRESULT hr{S_OK};
 
     // Create output resources
     ComPtr<ID3D11Texture2D> cubemaps{};
@@ -346,7 +383,7 @@ equirectangular_to_cubemap(ID3D11Device* device, const Image* env_maps, u32 env_
         desc.MipLevels = 1;
         desc.ArraySize = array_size;
         desc.Format = format;
-        desc.SampleDesc = { 1, 0 };
+        desc.SampleDesc = {1, 0};
         desc.Usage = D3D11_USAGE_DEFAULT;
         desc.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
         desc.CPUAccessFlags = 0;
@@ -370,9 +407,11 @@ equirectangular_to_cubemap(ID3D11Device* device, const Image* env_maps, u32 env_
     }
 
     ComPtr<ID3D11ComputeShader> shader{};
-    hr = device->CreateComputeShader(shaders::EnvMapProcessing_EquirectangularToCubeMapCS,
-                                     sizeof(shaders::EnvMapProcessing_EquirectangularToCubeMapCS),
-                                     nullptr, shader.GetAddressOf());
+    hr = device->CreateComputeShader(
+        shaders::EnvMapProcessing_EquirectangularToCubeMapCS,
+        sizeof(shaders::EnvMapProcessing_EquirectangularToCubeMapCS),
+        nullptr,
+        shader.GetAddressOf());
     if (FAILED(hr))
     {
         return hr;
@@ -406,16 +445,17 @@ equirectangular_to_cubemap(ID3D11Device* device, const Image* env_maps, u32 env_
 
     reset_d3d11_context(ctx.Get());
 
-    for (u32 i{ 0 }; i < env_map_count; ++i)
+    for (u32 i{0}; i < env_map_count; ++i)
     {
         ComPtr<ID3D11UnorderedAccessView> cubemap_uav{};
-        hr = create_texture_2d_uav(device, env_maps[0].format, 6, i * 6, 0, cubemaps.Get(), cubemap_uav.ReleaseAndGetAddressOf());
+        hr = create_texture_2d_uav(
+            device, env_maps[0].format, 6, i * 6, 0, cubemaps.Get(), cubemap_uav.ReleaseAndGetAddressOf());
         if (FAILED(hr))
         {
             return hr;
         }
 
-        const Image& src{ env_maps[i] };
+        const Image &src{env_maps[i]};
 
         // Upload source image to GPU
         ComPtr<ID3D11Texture2D> env_map{};
@@ -426,7 +466,7 @@ equirectangular_to_cubemap(ID3D11Device* device, const Image* env_maps, u32 env_
             desc.MipLevels = 1;
             desc.ArraySize = 1;
             desc.Format = format;
-            desc.SampleDesc = { 1, 0 };
+            desc.SampleDesc = {1, 0};
             desc.Usage = D3D11_USAGE_IMMUTABLE;
             desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
             desc.CPUAccessFlags = 0;
@@ -450,28 +490,46 @@ equirectangular_to_cubemap(ID3D11Device* device, const Image* env_maps, u32 env_
             return hr;
         }
 
-        const u32 block_size{ (cubemap_size + 15) >> 4 };
-        dispatch(ctx.Get(), env_map_srv.GetAddressOf(), cubemap_uav.GetAddressOf(), constant_buffer.GetAddressOf(),
-                 linear_sampler.GetAddressOf(), shader.Get(), { block_size, block_size, 6 });
+        const u32 block_size{(cubemap_size + 15) >> 4};
+        dispatch(
+            ctx.Get(),
+            env_map_srv.GetAddressOf(),
+            cubemap_uav.GetAddressOf(),
+            constant_buffer.GetAddressOf(),
+            linear_sampler.GetAddressOf(),
+            shader.Get(),
+            {block_size, block_size, 6});
     }
 
     reset_d3d11_context(ctx.Get());
-    return download_texture_2d(ctx.Get(), cubemap_size, cubemap_size, array_size, 1, format, true,
-                               cubemaps.Get(), cubemaps_cpu.Get(), cubemaps_out);
+    return download_texture_2d(
+        ctx.Get(),
+        cubemap_size,
+        cubemap_size,
+        array_size,
+        1,
+        format,
+        true,
+        cubemaps.Get(),
+        cubemaps_cpu.Get(),
+        cubemaps_out);
 }
 
-HRESULT
-prefilter_diffuse(ID3D11Device* device, const ScratchImage& cubemaps, u32 sample_count, ScratchImage& prefiltered_diffuse)
+auto prefilter_diffuse(
+    ID3D11Device *device,
+    const ScratchImage &cubemaps,
+    u32 sample_count,
+    ScratchImage &prefiltered_diffuse) -> HRESULT
 {
-    const TexMetadata& meta_data{ cubemaps.GetMetadata() };
-    const u32 array_size{ (u32)meta_data.arraySize };
-    const u32 cubemap_count{ array_size / 6 };
+    const TexMetadata &meta_data{cubemaps.GetMetadata()};
+    const u32 array_size{(u32)meta_data.arraySize};
+    const u32 cubemap_count{array_size / 6};
     assert(device && meta_data.IsCubemap() && cubemap_count && !(array_size % 6));
     ComPtr<ID3D11DeviceContext> ctx{};
     device->GetImmediateContext(ctx.GetAddressOf());
     assert(ctx.Get());
 
-    HRESULT hr{ S_OK };
+    HRESULT hr{S_OK};
 
     // Upload source cubemaps and create output resources
     ComPtr<ID3D11Texture2D> cubemaps_in{};
@@ -484,17 +542,17 @@ prefilter_diffuse(ID3D11Device* device, const ScratchImage& cubemaps, u32 sample
         desc.MipLevels = (u32)meta_data.mipLevels;
         desc.ArraySize = array_size;
         desc.Format = meta_data.format;
-        desc.SampleDesc = { 1, 0 };
+        desc.SampleDesc = {1, 0};
         desc.Usage = D3D11_USAGE_DEFAULT;
         desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
         desc.CPUAccessFlags = 0;
         desc.MiscFlags = D3D11_RESOURCE_MISC_TEXTURECUBE;
 
         {
-            const u32 image_count{ (u32)cubemaps.GetImageCount() };
-            const Image* images{ cubemaps.GetImages() };
+            const u32 image_count{(u32)cubemaps.GetImageCount()};
+            const Image *images{cubemaps.GetImages()};
             utl::vector<D3D11_SUBRESOURCE_DATA> input_data(image_count);
-            for (u32 i{ 0 }; i < image_count; ++i)
+            for (u32 i{0}; i < image_count; ++i)
             {
                 input_data[i].pSysMem = images[i].pixels;
                 input_data[i].SysMemPitch = (u32)images[i].rowPitch;
@@ -528,9 +586,11 @@ prefilter_diffuse(ID3D11Device* device, const ScratchImage& cubemaps, u32 sample
     };
 
     ComPtr<ID3D11ComputeShader> shader{};
-    hr = device->CreateComputeShader(shaders::EnvMapProcessing_PrefilterDiffuseEnvMapCS,
-                                     sizeof(shaders::EnvMapProcessing_PrefilterDiffuseEnvMapCS),
-                                     nullptr, shader.GetAddressOf());
+    hr = device->CreateComputeShader(
+        shaders::EnvMapProcessing_PrefilterDiffuseEnvMapCS,
+        sizeof(shaders::EnvMapProcessing_PrefilterDiffuseEnvMapCS),
+        nullptr,
+        shader.GetAddressOf());
     if (FAILED(hr))
     {
         return hr;
@@ -564,46 +624,65 @@ prefilter_diffuse(ID3D11Device* device, const ScratchImage& cubemaps, u32 sample
 
     reset_d3d11_context(ctx.Get());
 
-    for (u32 i{ 0 }; i < cubemap_count; ++i)
+    for (u32 i{0}; i < cubemap_count; ++i)
     {
         ComPtr<ID3D11ShaderResourceView> cubemap_in_srv{};
-        hr = create_cubemap_srv(device, meta_data.format, i * 6, 1, cubemaps_in.Get(), cubemap_in_srv.ReleaseAndGetAddressOf());
+        hr = create_cubemap_srv(
+            device, meta_data.format, i * 6, 1, cubemaps_in.Get(), cubemap_in_srv.ReleaseAndGetAddressOf());
         if (FAILED(hr))
         {
             return hr;
         }
 
         ComPtr<ID3D11UnorderedAccessView> cubemap_out_uav{};
-        hr = create_texture_2d_uav(device, meta_data.format, 6, i * 6, 0, cubemaps_out.Get(), cubemap_out_uav.ReleaseAndGetAddressOf());
+        hr = create_texture_2d_uav(
+            device, meta_data.format, 6, i * 6, 0, cubemaps_out.Get(), cubemap_out_uav.ReleaseAndGetAddressOf());
         if (FAILED(hr))
         {
             return hr;
         }
 
-        const u32 block_size{ (prefiltered_diffuse_cubemap_size + 15) >> 4 };
-        dispatch(ctx.Get(), cubemap_in_srv.GetAddressOf(), cubemap_out_uav.GetAddressOf(), constant_buffer.GetAddressOf(),
-                 linear_sampler.GetAddressOf(), shader.Get(), { block_size, block_size, 6 });
+        const u32 block_size{(prefiltered_diffuse_cubemap_size + 15) >> 4};
+        dispatch(
+            ctx.Get(),
+            cubemap_in_srv.GetAddressOf(),
+            cubemap_out_uav.GetAddressOf(),
+            constant_buffer.GetAddressOf(),
+            linear_sampler.GetAddressOf(),
+            shader.Get(),
+            {block_size, block_size, 6});
     }
 
     reset_d3d11_context(ctx.Get());
 
-    return download_texture_2d(ctx.Get(), prefiltered_diffuse_cubemap_size, prefiltered_diffuse_cubemap_size,
-                               array_size, 1, meta_data.format, true,
-                               cubemaps_out.Get(), cubemaps_cpu.Get(), prefiltered_diffuse);
+    return download_texture_2d(
+        ctx.Get(),
+        prefiltered_diffuse_cubemap_size,
+        prefiltered_diffuse_cubemap_size,
+        array_size,
+        1,
+        meta_data.format,
+        true,
+        cubemaps_out.Get(),
+        cubemaps_cpu.Get(),
+        prefiltered_diffuse);
 }
 
-HRESULT
-prefilter_specular(ID3D11Device* device, const ScratchImage& cubemaps, u32 sample_count, ScratchImage& prefiltered_specular)
+auto prefilter_specular(
+    ID3D11Device *device,
+    const ScratchImage &cubemaps,
+    u32 sample_count,
+    ScratchImage &prefiltered_specular) -> HRESULT
 {
-    const TexMetadata& meta_data{ cubemaps.GetMetadata() };
-    const u32 array_size{ (u32)meta_data.arraySize };
-    const u32 cubemap_count{ array_size / 6 };
+    const TexMetadata &meta_data{cubemaps.GetMetadata()};
+    const u32 array_size{(u32)meta_data.arraySize};
+    const u32 cubemap_count{array_size / 6};
     assert(device && meta_data.IsCubemap() && cubemap_count && !(array_size % 6));
     ComPtr<ID3D11DeviceContext> ctx{};
     device->GetImmediateContext(ctx.GetAddressOf());
     assert(ctx.Get());
 
-    HRESULT hr{ S_OK };
+    HRESULT hr{S_OK};
 
     // Upload source cubemaps and create output resources
     ComPtr<ID3D11Texture2D> cubemaps_in{};
@@ -616,17 +695,17 @@ prefilter_specular(ID3D11Device* device, const ScratchImage& cubemaps, u32 sampl
         desc.MipLevels = (u32)meta_data.mipLevels;
         desc.ArraySize = array_size;
         desc.Format = meta_data.format;
-        desc.SampleDesc = { 1, 0 };
+        desc.SampleDesc = {1, 0};
         desc.Usage = D3D11_USAGE_DEFAULT;
         desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
         desc.CPUAccessFlags = 0;
         desc.MiscFlags = D3D11_RESOURCE_MISC_TEXTURECUBE;
 
         {
-            const u32 image_count{ (u32)cubemaps.GetImageCount() };
-            const Image* images{ cubemaps.GetImages() };
+            const u32 image_count{(u32)cubemaps.GetImageCount()};
+            const Image *images{cubemaps.GetImages()};
             utl::vector<D3D11_SUBRESOURCE_DATA> input_data(image_count);
-            for (u32 i{ 0 }; i < image_count; ++i)
+            for (u32 i{0}; i < image_count; ++i)
             {
                 input_data[i].pSysMem = images[i].pixels;
                 input_data[i].SysMemPitch = (u32)images[i].rowPitch;
@@ -660,9 +739,11 @@ prefilter_specular(ID3D11Device* device, const ScratchImage& cubemaps, u32 sampl
     }
 
     ComPtr<ID3D11ComputeShader> shader{};
-    hr = device->CreateComputeShader(shaders::EnvMapProcessing_PrefilterSpecularEnvMapCS,
-                                     sizeof(shaders::EnvMapProcessing_PrefilterSpecularEnvMapCS),
-                                     nullptr, shader.GetAddressOf());
+    hr = device->CreateComputeShader(
+        shaders::EnvMapProcessing_PrefilterSpecularEnvMapCS,
+        sizeof(shaders::EnvMapProcessing_PrefilterSpecularEnvMapCS),
+        nullptr,
+        shader.GetAddressOf());
     if (FAILED(hr))
     {
         return hr;
@@ -686,10 +767,16 @@ prefilter_specular(ID3D11Device* device, const ScratchImage& cubemaps, u32 sampl
 
     reset_d3d11_context(ctx.Get());
 
-    for (u32 i{ 0 }; i < cubemap_count; ++i)
+    for (u32 i{0}; i < cubemap_count; ++i)
     {
         ComPtr<ID3D11ShaderResourceView> cubemap_in_srv{};
-        hr = create_cubemap_srv(device, meta_data.format, i * 6, (u32)meta_data.mipLevels, cubemaps_in.Get(), cubemap_in_srv.ReleaseAndGetAddressOf());
+        hr = create_cubemap_srv(
+            device,
+            meta_data.format,
+            i * 6,
+            (u32)meta_data.mipLevels,
+            cubemaps_in.Get(),
+            cubemap_in_srv.ReleaseAndGetAddressOf());
         if (FAILED(hr))
         {
             return hr;
@@ -697,10 +784,11 @@ prefilter_specular(ID3D11Device* device, const ScratchImage& cubemaps, u32 sampl
 
         // NOTE: Start from mip level 1, because mip 0 is identical to the source and we can copy it
         // instead of filtering it.
-        for (u32 mip{ 1 }; mip < roughness_mip_levels; ++mip)
+        for (u32 mip{1}; mip < roughness_mip_levels; ++mip)
         {
             ComPtr<ID3D11UnorderedAccessView> cubemap_out_uav{};
-            hr = create_texture_2d_uav(device, meta_data.format, 6, i * 6, mip, cubemaps_out.Get(), cubemap_out_uav.ReleaseAndGetAddressOf());
+            hr = create_texture_2d_uav(
+                device, meta_data.format, 6, i * 6, mip, cubemaps_out.Get(), cubemap_out_uav.ReleaseAndGetAddressOf());
             if (FAILED(hr))
             {
                 return hr;
@@ -717,18 +805,32 @@ prefilter_specular(ID3D11Device* device, const ScratchImage& cubemaps, u32 sampl
                 return hr;
             }
 
-            const u32 block_size{ std::max((u32)1, (u32)((prefiltered_specular_cubemap_size >> mip) + 15) >> 4) };
-            dispatch(ctx.Get(), cubemap_in_srv.GetAddressOf(), cubemap_out_uav.GetAddressOf(), constant_buffer.GetAddressOf(),
-                     linear_sampler.GetAddressOf(), shader.Get(), { block_size, block_size, 6 });
+            const u32 block_size{std::max((u32)1, (u32)((prefiltered_specular_cubemap_size >> mip) + 15) >> 4)};
+            dispatch(
+                ctx.Get(),
+                cubemap_in_srv.GetAddressOf(),
+                cubemap_out_uav.GetAddressOf(),
+                constant_buffer.GetAddressOf(),
+                linear_sampler.GetAddressOf(),
+                shader.Get(),
+                {block_size, block_size, 6});
         }
     }
 
     reset_d3d11_context(ctx.Get());
 
     ScratchImage prefiltered_result{};
-    hr = download_texture_2d(ctx.Get(), prefiltered_specular_cubemap_size, prefiltered_specular_cubemap_size,
-                             array_size, roughness_mip_levels, meta_data.format, true,
-                             cubemaps_out.Get(), cubemaps_cpu.Get(), prefiltered_result);
+    hr = download_texture_2d(
+        ctx.Get(),
+        prefiltered_specular_cubemap_size,
+        prefiltered_specular_cubemap_size,
+        array_size,
+        roughness_mip_levels,
+        meta_data.format,
+        true,
+        cubemaps_out.Get(),
+        cubemaps_cpu.Get(),
+        prefiltered_result);
     if (FAILED(hr))
     {
         return hr;
@@ -736,12 +838,12 @@ prefilter_specular(ID3D11Device* device, const ScratchImage& cubemaps, u32 sampl
 
     assert(meta_data.width == prefiltered_result.GetMetadata().width);
     // Copy mip 0 from the source cubemap
-    for (u32 img_idx{ 0 }; img_idx < array_size; ++img_idx)
+    for (u32 img_idx{0}; img_idx < array_size; ++img_idx)
     {
-        const Image& src{ *cubemaps.GetImage(0, img_idx, 0) };
-        const Image& dst{ *prefiltered_result.GetImage(0, img_idx, 0) };
+        const Image &src{*cubemaps.GetImage(0, img_idx, 0)};
+        const Image &dst{*prefiltered_result.GetImage(0, img_idx, 0)};
 
-        memcpy(dst.pixels, src.pixels, src.slicePitch);
+        std::memcpy(dst.pixels, src.pixels, src.slicePitch);
     }
 
     prefiltered_specular = std::move(prefiltered_result);
@@ -749,16 +851,15 @@ prefilter_specular(ID3D11Device* device, const ScratchImage& cubemaps, u32 sampl
     return hr;
 }
 
-HRESULT
-brdf_integration_lut(ID3D11Device* device, u32 sample_count, ScratchImage& brdf_lut)
+auto brdf_integration_lut(ID3D11Device *device, u32 sample_count, ScratchImage &brdf_lut) -> HRESULT
 {
     ComPtr<ID3D11DeviceContext> ctx{};
     device->GetImmediateContext(ctx.GetAddressOf());
     assert(ctx.Get());
 
-    HRESULT hr{ S_OK };
-    constexpr u32 lut_size{ brdf_integration_lut_size };
-    constexpr DXGI_FORMAT format{ DXGI_FORMAT_R16G16_FLOAT };
+    HRESULT hr{S_OK};
+    constexpr u32 lut_size{brdf_integration_lut_size};
+    constexpr DXGI_FORMAT format{DXGI_FORMAT_R16G16_FLOAT};
 
     ComPtr<ID3D11Texture2D> output{};
     ComPtr<ID3D11Texture2D> output_cpu{};
@@ -768,7 +869,7 @@ brdf_integration_lut(ID3D11Device* device, u32 sample_count, ScratchImage& brdf_
         desc.MipLevels = 1;
         desc.ArraySize = 1;
         desc.Format = format;
-        desc.SampleDesc = { 1, 0 };
+        desc.SampleDesc = {1, 0};
         desc.Usage = D3D11_USAGE_DEFAULT;
         desc.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
         desc.CPUAccessFlags = 0;
@@ -791,9 +892,11 @@ brdf_integration_lut(ID3D11Device* device, u32 sample_count, ScratchImage& brdf_
     }
 
     ComPtr<ID3D11ComputeShader> shader{};
-    hr = device->CreateComputeShader(shaders::EnvMapProcessing_ComputeBrdfIntegrationLutCS,
-                                     sizeof(shaders::EnvMapProcessing_ComputeBrdfIntegrationLutCS),
-                                     nullptr, shader.GetAddressOf());
+    hr = device->CreateComputeShader(
+        shaders::EnvMapProcessing_ComputeBrdfIntegrationLutCS,
+        sizeof(shaders::EnvMapProcessing_ComputeBrdfIntegrationLutCS),
+        nullptr,
+        shader.GetAddressOf());
     if (FAILED(hr))
     {
         return hr;
@@ -833,13 +936,20 @@ brdf_integration_lut(ID3D11Device* device, u32 sample_count, ScratchImage& brdf_
         return hr;
     }
 
-    ID3D11ShaderResourceView* srv{ nullptr };
-    const u32 block_size{ (lut_size + 15) >> 4 };
-    dispatch(ctx.Get(), &srv, output_uav.GetAddressOf(), constant_buffer.GetAddressOf(),
-             linear_sampler.GetAddressOf(), shader.Get(), { block_size, block_size, 1 });
+    ID3D11ShaderResourceView *srv{nullptr};
+    const u32 block_size{(lut_size + 15) >> 4};
+    dispatch(
+        ctx.Get(),
+        &srv,
+        output_uav.GetAddressOf(),
+        constant_buffer.GetAddressOf(),
+        linear_sampler.GetAddressOf(),
+        shader.Get(),
+        {block_size, block_size, 1});
 
     reset_d3d11_context(ctx.Get());
 
-    return download_texture_2d(ctx.Get(), lut_size, lut_size, 1, 1, format, false, output.Get(), output_cpu.Get(), brdf_lut);
+    return download_texture_2d(
+        ctx.Get(), lut_size, lut_size, 1, 1, format, false, output.Get(), output_cpu.Get(), brdf_lut);
 }
 }

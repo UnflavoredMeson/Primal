@@ -40,31 +40,35 @@
 #define PRIMAL_VK_PRINTF_FORMAT(format_index, first_arg)
 #endif
 
-namespace primal::graphics::vulkan {
+namespace primal::graphics::vulkan
+{
 // Same as d3d12::frame_buffer_count: the CPU can record up to this many frames ahead of the GPU.
-constexpr u32 frame_buffer_count{ 3 };
+constexpr u32 frame_buffer_count{3};
 // Vulkan 1.3 core: dynamic rendering, synchronization2, maintenance4 (+ 1.2 timeline semaphores).
-constexpr u32 minimum_api_version{ VK_API_VERSION_1_3 };
+constexpr u32 minimum_api_version{VK_API_VERSION_1_3};
 
 // printf-style logging for the backend. Writes to stderr and, on Windows, to the debugger output
 // (OutputDebugStringA), because a WinMain process has no console. Defined in VulkanCore.cpp.
-void log_message(const char* format, ...) PRIMAL_VK_PRINTF_FORMAT(1, 2); // NOLINT(modernize-avoid-variadic-functions)
+// NOTE: the attribute goes first: after a trailing return type it would apply to the type and be ignored.
+PRIMAL_VK_PRINTF_FORMAT(1, 2)
+auto log_message(const char *format, ...) -> void; // NOLINT(modernize-avoid-variadic-functions)
 
-namespace detail {
+namespace detail
+{
 // Logs a failed Vulkan call. Returns true if the call succeeded (result >= 0, which includes
 // VK_SUBOPTIMAL_KHR and the other positive success codes).
-inline bool
-check_result(VkResult result, const char* call, const char* file, u32 line)
+inline auto check_result(VkResult result, const char *call, const char *file, u32 line) -> bool
 {
-    if (result >= 0) return true;
+    if (result >= 0)
+        return true;
     log_message("Vulkan error %d in: %s\nLine: %u\n%s\n", (s32)result, file, line, call);
 #ifdef _DEBUG
     PRIMAL_VK_DEBUG_BREAK();
 #endif
     return false;
 }
-} // namespace detail
-} // namespace primal::graphics::vulkan
+}
+}
 
 // Checks that a Vulkan call succeeded (logs and breaks into the debugger in debug builds).
 // Unlike DXCall, it's an expression in all configurations: it evaluates to true on success, so
@@ -76,11 +80,11 @@ check_result(VkResult result, const char* call, const char* file, u32 line)
 #ifdef _DEBUG
 // Names a Vulkan object for validation messages and RenderDoc (VK_EXT_debug_utils).
 #define NAME_VK_OBJECT(handle, type, name) ::primal::graphics::vulkan::core::set_object_name((u64)(handle), type, name)
-#define NAME_VK_OBJECT_INDEXED(handle, type, n, name)                                  \
-    {                                                                                  \
-        char full_name[128];                                                           \
-        if (std::snprintf(full_name, sizeof(full_name), "%s[%u]", name, (u32)(n)) > 0) \
-            NAME_VK_OBJECT(handle, type, full_name);                                   \
+#define NAME_VK_OBJECT_INDEXED(handle, type, n, name)                                                                  \
+    {                                                                                                                  \
+        char full_name[128];                                                                                           \
+        if (std::snprintf(full_name, sizeof(full_name), "%s[%u]", name, (u32)(n)) > 0)                                 \
+            NAME_VK_OBJECT(handle, type, full_name);                                                                   \
     }
 #else
 #define NAME_VK_OBJECT(handle, type, name)

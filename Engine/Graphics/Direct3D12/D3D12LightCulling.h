@@ -3,26 +3,29 @@
 #pragma once
 #include "D3D12CommonHeaders.h"
 
-namespace primal::graphics::d3d12 {
-struct d3d12_frame_info;
+namespace primal::graphics::d3d12
+{
+struct D3D12FrameInfo;
 }
 
-namespace primal::graphics::d3d12::delight {
+namespace primal::graphics::d3d12::delight
+{
 
-constexpr u32 light_culling_tile_size{ 32 };
+constexpr u32 light_culling_tile_size{32};
 
-bool initialize();
-void shutdown();
+auto initialize() -> bool;
+auto shutdown() -> void;
 
-[[nodiscard]] id::id_type add_culler();
-void remove_culler(id::id_type id);
+[[nodiscard]] auto add_culler() -> id::id_type;
+auto remove_culler(id::id_type id) -> void;
 
-void cull_lights(id3d12_graphics_command_list *const cmd_list,
-                 const d3d12_frame_info& d3d12_info,
-                 d3dx::d3d12_resource_barrier& barriers);
+auto cull_lights(
+    id3d12_graphics_command_list *const cmd_list,
+    const D3D12FrameInfo &d3d12_info,
+    d3dx::D3D12ResourceBarrier &barriers) -> void;
 
 // TODO: temporary for visualizing light culling. Remove later.
-D3D12_GPU_VIRTUAL_ADDRESS frustums(id::id_type light_culling_id, u32 frame_index);
-D3D12_GPU_VIRTUAL_ADDRESS light_grid_opaque(id::id_type light_culling_id, u32 frame_index);
-D3D12_GPU_VIRTUAL_ADDRESS light_index_list_opaque(id::id_type light_culling_id, u32 frame_index);
+auto frustums(id::id_type light_culling_id, u32 frame_index) -> D3D12_GPU_VIRTUAL_ADDRESS;
+auto light_grid_opaque(id::id_type light_culling_id, u32 frame_index) -> D3D12_GPU_VIRTUAL_ADDRESS;
+auto light_index_list_opaque(id::id_type light_culling_id, u32 frame_index) -> D3D12_GPU_VIRTUAL_ADDRESS;
 }

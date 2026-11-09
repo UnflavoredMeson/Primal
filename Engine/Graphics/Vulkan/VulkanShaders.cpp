@@ -4,35 +4,39 @@
 #include "Content/ContentLoader.h"
 #include "Content/ContentToEngine.h"
 
-namespace primal::graphics::vulkan::shaders {
-namespace {
+namespace primal::graphics::vulkan::shaders
+{
+namespace
+{
 
 // Each element in this array points to an offset within the shaders blob.
-content::compiled_shader_ptr engine_shaders[engine_shader::count]{};
+content::compiled_shader_ptr engine_shaders[EngineShader::count]{};
 
 // The contents of shaders.bin: a header and the compiled engine shaders (see content::engine_shaders_header).
 // The records are 8-byte aligned in the file, so engine_shaders point straight into this blob.
 std::unique_ptr<u8[]> engine_shaders_blob{};
 
-bool
-load_engine_shaders()
+auto load_engine_shaders() -> bool
 {
     assert(!engine_shaders_blob);
-    u64 size{ 0 };
-    const bool loaded{ content::load_engine_shaders(engine_shaders_blob, size) };
+    u64 size{0};
+    const bool loaded{content::load_engine_shaders(engine_shaders_blob, size)};
     if (!loaded || !engine_shaders_blob || !size)
     {
-        log_message("Vulkan: couldn't load the engine shaders (shaders/vulkan/shaders.bin). Compile them with "
-                    "compile_shaders(graphics_platform::vulkan).\n");
+        log_message(
+            "Vulkan: couldn't load the engine shaders (shaders/vulkan/shaders.bin). Compile them with "
+            "compile_shaders(GraphicsPlatform::vulkan).\n");
         engine_shaders_blob.reset();
         return false;
     }
 
-    if (!content::get_engine_shaders(engine_shaders_blob.get(), size, &engine_shaders[0], engine_shader::count))
+    if (!content::get_engine_shaders(engine_shaders_blob.get(), size, &engine_shaders[0], EngineShader::count))
     {
-        log_message("Vulkan: shaders/vulkan/shaders.bin is corrupt or from another version (delete it to recompile).\n");
+        log_message(
+            "Vulkan: shaders/vulkan/shaders.bin is corrupt or from another version (delete it to recompile).\n");
         engine_shaders_blob.reset();
-        for (auto& shader : engine_shaders) shader = {};
+        for (auto &shader : engine_shaders)
+            shader = {};
         return false;
     }
 
@@ -45,31 +49,28 @@ load_engine_shaders()
     return true;
 }
 
-} // anonymous namespace
+}
 
-bool
-initialize()
+auto initialize() -> bool
 {
     return load_engine_shaders();
 }
 
-void
-shutdown()
+auto shutdown() -> void
 {
-    for (u32 i{ 0 }; i < engine_shader::count; ++i)
+    for (u32 i{0}; i < EngineShader::count; ++i)
     {
         engine_shaders[i] = {};
     }
     engine_shaders_blob.reset();
 }
 
-vkx::shader_bytecode
-get_engine_shader(engine_shader::id id)
+auto get_engine_shader(EngineShader::Id id) -> vkx::ShaderBytecode
 {
-    assert(id < engine_shader::count);
-    const content::compiled_shader_ptr shader{ engine_shaders[id] };
+    assert(id < EngineShader::count);
+    const content::compiled_shader_ptr shader{engine_shaders[id]};
     assert(shader && shader->byte_code_size());
-    return { (const u32*)shader->byte_code(), shader->byte_code_size(), vkx::spirv_entry_point };
+    return {(const u32 *)shader->byte_code(), shader->byte_code_size(), vkx::spirv_entry_point};
 }
 
-} // namespace primal::graphics::vulkan::shaders
+}

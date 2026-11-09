@@ -3,14 +3,16 @@
 #pragma once
 #include "CommonHeaders.h"
 
-namespace primal::graphics {
-
-DEFINE_TYPED_ID(light_id);
-
-class light
+namespace primal::graphics
 {
-public:
-    enum type : u32 {
+
+DEFINE_TYPED_ID(LightId);
+
+class Light
+{
+  public:
+    enum Type : u32
+    {
         directional,
         point,
         spot,
@@ -19,31 +21,44 @@ public:
         count
     };
 
-    constexpr explicit light(light_id id, u64 light_set_key) : _light_set_key{ light_set_key }, _id{ id } {}
-    constexpr light() = default;
-    constexpr light_id get_id() const { return _id; }
-    constexpr u64 light_set_key() const { return _light_set_key; }
-    constexpr bool is_valid() const { return id::is_valid(_id); }
+    constexpr explicit Light(LightId id, u64 light_set_key)
+        : _light_set_key{light_set_key}
+        , _id{id}
+    {
+    }
+    constexpr Light() = default;
+    constexpr auto get_id() const -> LightId
+    {
+        return _id;
+    }
+    constexpr auto light_set_key() const -> u64
+    {
+        return _light_set_key;
+    }
+    constexpr auto is_valid() const -> bool
+    {
+        return id::is_valid(_id);
+    }
 
-    void is_enabled(bool is_enabled) const;
-    void intensity(f32 intensity) const;
-    void color(math::v3 color) const;
-    void attenuation(math::v3 attenuation) const;
-    void range(f32 range) const;
-    void cone_angles(f32 umbra, f32 penumbra) const;
+    auto is_enabled(bool is_enabled) const -> void;
+    auto intensity(f32 intensity) const -> void;
+    auto color(math::v3 color) const -> void;
+    auto attenuation(math::v3 attenuation) const -> void;
+    auto range(f32 range) const -> void;
+    auto cone_angles(f32 umbra, f32 penumbra) const -> void;
 
-    bool is_enabled() const;
-    f32 intensity() const;
-    math::v3 color() const;
-    math::v3 attenuation() const;
-    f32 range() const;
-    f32 umbra() const;
-    f32 penumbra() const;
-    type light_type() const;
-    id::id_type entity_id() const;
+    auto is_enabled() const -> bool;
+    auto intensity() const -> f32;
+    auto color() const -> math::v3;
+    auto attenuation() const -> math::v3;
+    auto range() const -> f32;
+    auto umbra() const -> f32;
+    auto penumbra() const -> f32;
+    auto light_type() const -> Type;
+    auto entity_id() const -> id::id_type;
 
-private:
-    u64         _light_set_key{ 0 };
-    light_id    _id{ id::invalid_id };
+  private:
+    u64 _light_set_key{0};
+    LightId _id{id::invalid_id};
 };
 }

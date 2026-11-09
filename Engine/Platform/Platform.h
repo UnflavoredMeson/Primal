@@ -5,14 +5,15 @@
 #include "Window.h"
 #include <filesystem>
 
-namespace primal::platform {
+namespace primal::platform
+{
 
-struct window_init_info;
+struct WindowInitInfo;
 
-window create_window(const window_init_info* const init_info = nullptr);
-void remove_window(window_id id);
+auto create_window(const WindowInitInfo *const init_info = nullptr) -> Window;
+auto remove_window(WindowId id) -> void;
 
 // Sets the working directory to the folder of the running executable.
 // Returns the new working directory, or an empty path on failure.
-std::filesystem::path set_current_directory_to_executable_path();
+auto set_current_directory_to_executable_path() -> std::filesystem::path;
 }

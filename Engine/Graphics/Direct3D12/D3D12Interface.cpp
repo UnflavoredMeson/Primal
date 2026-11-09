@@ -8,10 +8,10 @@
 #include "D3D12Camera.h"
 #include "Graphics/GraphicsPlatformInterface.h"
 
-namespace primal::graphics::d3d12 {
+namespace primal::graphics::d3d12
+{
 
-void
-get_platform_interface(platform_interface& pi)
+auto get_platform_interface(PlatformInterface &pi) -> void
 {
     pi.initialize = core::initialize;
     pi.shutdown = core::shutdown;
@@ -46,7 +46,7 @@ get_platform_interface(platform_interface& pi)
     pi.resources.add_render_item = content::render_item::add;
     pi.resources.remove_render_item = content::render_item::remove;
 
-    pi.platform = graphics_platform::direct3d12;
+    pi.platform = GraphicsPlatform::direct3d12;
 }
 
 }

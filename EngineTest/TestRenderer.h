@@ -3,10 +3,10 @@
 #pragma once
 #include "Test.h"
 
-class engine_test : public test
+class EngineTest : public Test
 {
-public: 
-    bool initialize() override;
-    void run() override;
-    void shutdown() override;
+  public:
+    auto initialize() -> bool override;
+    auto run() -> void override;
+    auto shutdown() -> void override;
 };

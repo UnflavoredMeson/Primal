@@ -3,17 +3,20 @@
 #pragma once
 #include "D3D12CommonHeaders.h"
 
-namespace primal::graphics::d3d12 {
-struct d3d12_frame_info;
+namespace primal::graphics::d3d12
+{
+struct D3D12FrameInfo;
 }
 
-namespace primal::graphics::d3d12::fx {
+namespace primal::graphics::d3d12::fx
+{
 
-bool initialize();
-void shutdown();
+auto initialize() -> bool;
+auto shutdown() -> void;
 
-void post_process(id3d12_graphics_command_list* cmd_list,
-                  const d3d12_frame_info& d3d12_info,
-                  D3D12_CPU_DESCRIPTOR_HANDLE target_rtv);
+auto post_process(
+    id3d12_graphics_command_list *cmd_list,
+    const D3D12FrameInfo &d3d12_info,
+    D3D12_CPU_DESCRIPTOR_HANDLE target_rtv) -> void;
 
 }

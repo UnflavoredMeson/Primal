@@ -19,12 +19,12 @@
 #define TEST_SURFACES 0
 #endif
 
-class test
+class Test
 {
-public:
-    virtual bool initialize() = 0;
-    virtual void run() = 0;
-    virtual void shutdown() = 0;
+  public:
+    virtual auto initialize() -> bool = 0;
+    virtual auto run() -> void = 0;
+    virtual auto shutdown() -> void = 0;
 };
 
 #if PRIMAL_PLATFORM_WINDOWS
@@ -32,32 +32,37 @@ public:
 #else
 #include <cstdio>
 #endif
-class time_it
+class TimeIt
 {
-public:
+  public:
     using clock = std::chrono::steady_clock;
     using time_stamp = clock::time_point;
 
     // Average frame time per second.
-    constexpr float dt_avg() const { return _dt_avg * 1e-6f; }
+    constexpr auto dt_avg() const -> float
+    {
+        return _dt_avg * 1e-6f;
+    }
 
-    void begin()
+    auto begin() -> void
     {
         _start = clock::now();
     }
 
-    void end()
+    auto end() -> void
     {
         auto dt = clock::now() - _start;
-        _us_avg += ((float)std::chrono::duration_cast<std::chrono::microseconds>(dt).count() - _us_avg) / (float)_counter;
+        _us_avg +=
+            ((float)std::chrono::duration_cast<std::chrono::microseconds>(dt).count() - _us_avg) / (float)_counter;
         ++_counter;
         _dt_avg = _us_avg;
 
         if (std::chrono::duration_cast<std::chrono::seconds>(clock::now() - _seconds).count() >= 1)
         {
-            const std::string msg{ "Avg. frame (ms): " + std::to_string(_us_avg * 0.001f) + " " + std::to_string(_counter) + " fps\n" };
+            const std::string msg{
+                "Avg. frame (ms): " + std::to_string(_us_avg * 0.001f) + " " + std::to_string(_counter) + " fps\n"};
 #if PRIMAL_PLATFORM_WINDOWS
-            OutputDebugStringA(msg.c_str());
+            ::OutputDebugStringA(msg.c_str());
 #else
             std::fputs(msg.c_str(), stderr);
 #endif
@@ -67,10 +72,10 @@ public:
         }
     }
 
-private:
-    float       _dt_avg{ 16.7f };
-    float       _us_avg{ 0.f };
-    int         _counter{ 1 };
-    time_stamp  _start;
-    time_stamp  _seconds{ clock::now() };
+  private:
+    float _dt_avg{16.7f};
+    float _us_avg{0.f};
+    int _counter{1};
+    time_stamp _start;
+    time_stamp _seconds{clock::now()};
 };

@@ -6,95 +6,146 @@
 #include "ScriptComponent.h"
 #include "GeometryComponent.h"
 
-namespace primal::game_entity {
-
-DEFINE_TYPED_ID(entity_id);
-
-class entity
+namespace primal::game_entity
 {
-public:
-    constexpr explicit entity(entity_id id) : _id{ id } {}
-    constexpr entity() : _id{ id::invalid_id } {}
-    [[nodiscard]] constexpr entity_id get_id() const { return _id; }
-    [[nodiscard]] constexpr bool is_valid() const { return id::is_valid(_id); }
 
-    [[nodiscard]] transform::component transform() const;
-    [[nodiscard]] script::component script() const;
-    [[nodiscard]] geometry::component geometry() const;
+DEFINE_TYPED_ID(EntityId);
 
-    [[nodiscard]] math::v4 rotation() const { return transform().rotation(); }
-    [[nodiscard]] math::v3 position() const { return transform().position(); }
-    [[nodiscard]] math::v3 scale() const { return transform().scale(); }
-    [[nodiscard]] math::v3 right() const { return transform().right(); }
-    [[nodiscard]] math::v3 up() const { return transform().up(); }
-    [[nodiscard]] math::v3 front() const { return transform().front(); }
-    [[nodiscard]] math::m3x3 local_frame() const { return transform().local_frame(); }
-
-private:
-    entity_id _id;
-};
-} // namespace game_entity
-
-namespace primal::script {
-class entity_script : public game_entity::entity
+class Entity
 {
-public:
-    virtual ~entity_script() = default;
-    virtual void begin_play() {}
-    virtual void update(f32) {}
-protected:
-    constexpr explicit entity_script(game_entity::entity entity)
-        : game_entity::entity{ entity.get_id() } {}
+  public:
+    constexpr explicit Entity(EntityId id)
+        : _id{id}
+    {
+    }
+    constexpr Entity()
+        : _id{id::invalid_id}
+    {
+    }
+    [[nodiscard]] constexpr auto get_id() const -> EntityId
+    {
+        return _id;
+    }
+    [[nodiscard]] constexpr auto is_valid() const -> bool
+    {
+        return id::is_valid(_id);
+    }
 
-    void set_rotation(math::v4 rotation_quaternion) const { set_rotation(this, rotation_quaternion); }
-    void set_position(math::v3 position) const { set_position(this, position); }
-    void set_scale(math::v3 scale) const { set_scale(this, scale); }
+    [[nodiscard]] auto transform() const -> transform::Component;
+    [[nodiscard]] auto script() const -> script::Component;
+    [[nodiscard]] auto geometry() const -> geometry::Component;
 
-    static void set_rotation(const game_entity::entity *const entity, math::v4 rotation_quaternion);
-    static void set_position(const game_entity::entity *const entity, math::v3 position);
-    static void set_scale(const game_entity::entity *const entity, math::v3 scale);
+    [[nodiscard]] auto rotation() const -> math::v4
+    {
+        return transform().rotation();
+    }
+    [[nodiscard]] auto position() const -> math::v3
+    {
+        return transform().position();
+    }
+    [[nodiscard]] auto scale() const -> math::v3
+    {
+        return transform().scale();
+    }
+    [[nodiscard]] auto right() const -> math::v3
+    {
+        return transform().right();
+    }
+    [[nodiscard]] auto up() const -> math::v3
+    {
+        return transform().up();
+    }
+    [[nodiscard]] auto front() const -> math::v3
+    {
+        return transform().front();
+    }
+    [[nodiscard]] auto local_frame() const -> math::m3x3
+    {
+        return transform().local_frame();
+    }
+
+  private:
+    EntityId _id;
+};
+}
+
+namespace primal::script
+{
+class EntityScript : public game_entity::Entity
+{
+  public:
+    virtual ~EntityScript() = default;
+    virtual auto begin_play() -> void
+    {
+    }
+    virtual auto update(f32) -> void
+    {
+    }
+
+  protected:
+    constexpr explicit EntityScript(game_entity::Entity entity)
+        : game_entity::Entity{entity.get_id()}
+    {
+    }
+
+    auto set_rotation(math::v4 rotation_quaternion) const -> void
+    {
+        set_rotation(this, rotation_quaternion);
+    }
+    auto set_position(math::v3 position) const -> void
+    {
+        set_position(this, position);
+    }
+    auto set_scale(math::v3 scale) const -> void
+    {
+        set_scale(this, scale);
+    }
+
+    static auto set_rotation(const game_entity::Entity *const entity, math::v4 rotation_quaternion) -> void;
+    static auto set_position(const game_entity::Entity *const entity, math::v3 position) -> void;
+    static auto set_scale(const game_entity::Entity *const entity, math::v3 scale) -> void;
 };
 
-namespace detail {
-using script_ptr = std::unique_ptr<entity_script>;
-using script_creator = script_ptr(*)(game_entity::entity entity);
+namespace detail
+{
+using script_ptr = std::unique_ptr<EntityScript>;
+using script_creator = script_ptr (*)(game_entity::Entity entity);
 using string_hash = std::hash<std::string>;
 
-u8 register_script(size_t, script_creator);
+auto register_script(size_t, script_creator) -> u8;
 #ifdef USE_WITH_EDITOR
 extern "C" __declspec(dllexport)
-#endif //USE_WITH_EDITOR
-script_creator get_script_creator(size_t tag);
+#endif // USE_WITH_EDITOR
+auto get_script_creator(size_t tag) -> script_creator;
 
-template<class script_class>
-script_ptr create_script(game_entity::entity entity)
+template <class script_class>
+auto create_script(game_entity::Entity entity) -> script_ptr
 {
     assert(entity.is_valid());
     return std::make_unique<script_class>(entity);
 }
 
 #ifdef USE_WITH_EDITOR
-u8 add_script_name(const char* name);
+auto add_script_name(const char *name) -> u8;
 
-#define REGISTER_SCRIPT(TYPE)                                           \
-        namespace {                                                     \
-        const u8 _reg_##TYPE                                            \
-        { primal::script::detail::register_script(                      \
-              primal::script::detail::string_hash()(#TYPE),             \
-              &primal::script::detail::create_script<TYPE>) };          \
-        const u8 _name_##TYPE                                           \
-        { primal::script::detail::add_script_name(#TYPE) };             \
-        }                                                               
+#define REGISTER_SCRIPT(TYPE)                                                                                          \
+    namespace                                                                                                          \
+    {                                                                                                                  \
+    const u8 _reg_##TYPE{primal::script::detail::register_script(                                                      \
+        primal::script::detail::string_hash()(#TYPE),                                                                  \
+        &primal::script::detail::create_script<TYPE>)};                                                                \
+    const u8 _name_##TYPE{primal::script::detail::add_script_name(#TYPE)};                                             \
+    }
 
 #else
-#define REGISTER_SCRIPT(TYPE)                                           \
-        namespace {                                                     \
-        const u8 _reg_##TYPE                                            \
-        { primal::script::detail::register_script(                      \
-              primal::script::detail::string_hash()(#TYPE),             \
-              &primal::script::detail::create_script<TYPE>) };          \
-        }
+#define REGISTER_SCRIPT(TYPE)                                                                                          \
+    namespace                                                                                                          \
+    {                                                                                                                  \
+    const u8 _reg_##TYPE{primal::script::detail::register_script(                                                      \
+        primal::script::detail::string_hash()(#TYPE),                                                                  \
+        &primal::script::detail::create_script<TYPE>)};                                                                \
+    }
 
 #endif // USE_WITH_EDITOR
-} // namespace detail
-} // namespace script
+}
+}

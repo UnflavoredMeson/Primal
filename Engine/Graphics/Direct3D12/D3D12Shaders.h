@@ -3,10 +3,13 @@
 #pragma once
 #include "D3D12CommonHeaders.h"
 
-namespace primal::graphics::d3d12::shaders {
+namespace primal::graphics::d3d12::shaders
+{
 
-struct engine_shader {
-    enum id : u32 {
+struct EngineShader
+{
+    enum Id : u32
+    {
         fullscreen_triangle_vs = 0,
         post_process_ps,
         grid_frustums_cs,
@@ -16,8 +19,8 @@ struct engine_shader {
     };
 };
 
-bool initialize();
-void shutdown();
+auto initialize() -> bool;
+auto shutdown() -> void;
 
-D3D12_SHADER_BYTECODE get_engine_shader(engine_shader::id id);
+auto get_engine_shader(EngineShader::Id id) -> D3D12_SHADER_BYTECODE;
 }

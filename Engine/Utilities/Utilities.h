@@ -7,15 +7,16 @@
 
 #if USE_STL_VECTOR
 #include <vector>
-namespace primal::utl {
-template<typename T>
+namespace primal::utl
+{
+template <typename T>
 using vector = std::vector<T>;
 
-template<typename T>
-void erase_unordered(T& v, size_t index)
+template <typename T>
+auto erase_unordered(T &v, size_t index) -> void
 {
-    if(v.size() > 1)
-    { 
+    if (v.size() > 1)
+    {
         std::iter_swap(v.begin() + index, v.end() - 1);
         v.pop_back();
     }
@@ -28,9 +29,10 @@ void erase_unordered(T& v, size_t index)
 #else
 #include "Vector.h"
 
-namespace primal::utl {
-template<typename T>
-void erase_unordered(T& v, size_t index)
+namespace primal::utl
+{
+template <typename T>
+auto erase_unordered(T &v, size_t index) -> void
 {
     v.erase_unordered(index);
 }
@@ -40,14 +42,15 @@ void erase_unordered(T& v, size_t index)
 
 #if USE_STL_DEQUE
 #include <deque>
-namespace primal::utl {
-template<typename T>
+namespace primal::utl
+{
+template <typename T>
 using deque = std::deque<T>;
 }
 #endif
 
-
-namespace primal::utl {
+namespace primal::utl
+{
 
 // TODO: implement our own containers
 

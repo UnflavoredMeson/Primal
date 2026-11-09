@@ -3,29 +3,34 @@
 #pragma once
 #include "D3D12CommonHeaders.h"
 
-namespace primal::graphics::d3d12 {
-
-namespace camera { class d3d12_camera; }
-
-struct d3d12_frame_info
+namespace primal::graphics::d3d12
 {
-    const frame_info*           info{ nullptr };
-    camera::d3d12_camera*       camera{ nullptr };
-    D3D12_GPU_VIRTUAL_ADDRESS   global_shader_data{ 0 };
-    u32                         surface_width{ 0 };
-    u32                         surface_height{ 0 };
-    id::id_type                 light_culling_id{ id::invalid_id };
-    u32                         frame_index{ 0 };
+
+namespace camera
+{
+class D3D12Camera;
+}
+
+struct D3D12FrameInfo
+{
+    const FrameInfo *info{nullptr};
+    camera::D3D12Camera *camera{nullptr};
+    D3D12_GPU_VIRTUAL_ADDRESS global_shader_data{0};
+    u32 surface_width{0};
+    u32 surface_height{0};
+    id::id_type light_culling_id{id::invalid_id};
+    u32 frame_index{0};
 };
 }
 
-namespace primal::graphics::d3d12::core {
+namespace primal::graphics::d3d12::core
+{
 
-bool initialize();
-void shutdown();
+auto initialize() -> bool;
+auto shutdown() -> void;
 
-template<typename T>
-constexpr void release(T*& resource)
+template <typename T>
+constexpr auto release(T *&resource) -> void
 {
     if (resource)
     {
@@ -34,12 +39,13 @@ constexpr void release(T*& resource)
     }
 }
 
-namespace detail {
-void deferred_release(IUnknown* resource);
+namespace detail
+{
+auto deferred_release(IUnknown *resource) -> void;
 }
 
-template<typename T>
-constexpr void deferred_release(T*& resource)
+template <typename T>
+constexpr auto deferred_release(T *&resource) -> void
 {
     if (resource)
     {
@@ -47,24 +53,24 @@ constexpr void deferred_release(T*& resource)
         resource = nullptr;
     }
 }
-void set_option(renderer_option::option option, const void *const parameter, u32 parameter_size);
-void get_option(renderer_option::option option, void *const parameter, u32 parameter_size);
+auto set_option(RendererOption::Option option, const void *const parameter, u32 parameter_size) -> void;
+auto get_option(RendererOption::Option option, void *const parameter, u32 parameter_size) -> void;
 
-[[nodiscard]] id3d12_device* device();
-[[nodiscard]] descriptor_heap& rtv_heap();
-[[nodiscard]] descriptor_heap& dsv_heap();
-[[nodiscard]] descriptor_heap& srv_heap();
-[[nodiscard]] descriptor_heap& uav_heap();
-[[nodiscard]] constant_buffer& cbuffer();
-[[nodiscard]] u32 current_frame_index();
-void set_deferred_releases_flag(u32 frame_idx);
+[[nodiscard]] auto device() -> id3d12_device *;
+[[nodiscard]] auto rtv_heap() -> DescriptorHeap &;
+[[nodiscard]] auto dsv_heap() -> DescriptorHeap &;
+[[nodiscard]] auto srv_heap() -> DescriptorHeap &;
+[[nodiscard]] auto uav_heap() -> DescriptorHeap &;
+[[nodiscard]] auto cbuffer() -> ConstantBuffer &;
+[[nodiscard]] auto current_frame_index() -> u32;
+auto set_deferred_releases_flag(u32 frame_idx) -> void;
 
-[[nodiscard]] bool allow_tearing();
-[[nodiscard]] bool vsync_enabled();
-[[nodiscard]] surface create_surface(platform::window window);
-void remove_surface(surface_id id);
-void resize_surface(surface_id id, u32, u32);
-[[nodiscard]] u32 surface_width(surface_id id);
-[[nodiscard]] u32 surface_height(surface_id id);
-void render_surface(surface_id id, frame_info info);
+[[nodiscard]] auto allow_tearing() -> bool;
+[[nodiscard]] auto vsync_enabled() -> bool;
+[[nodiscard]] auto create_surface(platform::Window window) -> Surface;
+auto remove_surface(SurfaceId id) -> void;
+auto resize_surface(SurfaceId id, u32, u32) -> void;
+[[nodiscard]] auto surface_width(SurfaceId id) -> u32;
+[[nodiscard]] auto surface_height(SurfaceId id) -> u32;
+auto render_surface(SurfaceId id, FrameInfo info) -> void;
 }

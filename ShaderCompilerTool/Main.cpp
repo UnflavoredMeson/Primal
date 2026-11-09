@@ -14,48 +14,52 @@
 
 using namespace primal;
 
-namespace {
-
-const char*
-platform_name(graphics::graphics_platform platform)
+namespace
 {
-    return platform == graphics::graphics_platform::vulkan ? "vulkan" : "d3d12";
+
+auto platform_name(graphics::GraphicsPlatform platform) -> const char *
+{
+    return platform == graphics::GraphicsPlatform::vulkan ? "vulkan" : "d3d12";
 }
 
-} // anonymous namespace
+}
 
-int
-main(int argc, char** argv)
+auto main(int argc, char **argv) -> int
 {
-    utl::vector<graphics::graphics_platform> platforms;
-    for (int i{ 1 }; i < argc; ++i)
+    utl::vector<graphics::GraphicsPlatform> platforms;
+    for (int i{1}; i < argc; ++i)
     {
-        if (std::strcmp(argv[i], "vulkan") == 0) platforms.emplace_back(graphics::graphics_platform::vulkan);
+        if (std::strcmp(argv[i], "vulkan") == 0)
+            platforms.emplace_back(graphics::GraphicsPlatform::vulkan);
 #if PRIMAL_PLATFORM_WINDOWS
-        else if (std::strcmp(argv[i], "d3d12") == 0) platforms.emplace_back(graphics::graphics_platform::direct3d12);
+        else if (std::strcmp(argv[i], "d3d12") == 0)
+            platforms.emplace_back(graphics::GraphicsPlatform::direct3d12);
 #endif
         else
         {
 #if PRIMAL_PLATFORM_WINDOWS
-            constexpr const char* usage{ "PrimalShaderCompiler [d3d12] [vulkan]" };
+            constexpr const char *usage{"PrimalShaderCompiler [d3d12] [vulkan]"};
 #else
-            constexpr const char* usage{ "PrimalShaderCompiler [vulkan]" };
+            constexpr const char *usage{"PrimalShaderCompiler [vulkan]"};
 #endif
             std::fprintf(stderr, "PrimalShaderCompiler: unknown backend '%s'\nUsage: %s\n", argv[i], usage);
             return 2;
         }
     }
-    if (platforms.empty()) platforms.emplace_back(default_shader_platform);
+    if (platforms.empty())
+        platforms.emplace_back(default_shader_platform);
 
     // The shader source and output paths are relative to the executable's folder (x64/<Config>/), like at run time.
     platform::set_current_directory_to_executable_path();
 
-    for (const graphics::graphics_platform platform : platforms)
+    for (const graphics::GraphicsPlatform platform : platforms)
     {
-        if (!compile_shaders(platform))
+        if (!::compile_shaders(platform))
         {
-            std::fprintf(stderr, "PrimalShaderCompiler: error: failed to compile the engine shaders for %s\n",
-                         platform_name(platform));
+            std::fprintf(
+                stderr,
+                "PrimalShaderCompiler: error: failed to compile the engine shaders for %s\n",
+                platform_name(platform));
             return 1;
         }
     }

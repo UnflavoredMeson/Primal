@@ -5,22 +5,26 @@
 #include "VulkanHelpers.h"
 
 // Counterpart of D3D12Resources.h. Memory comes from the Vulkan Memory Allocator (core::allocator()).
-namespace primal::graphics::vulkan {
+namespace primal::graphics::vulkan
+{
 
-class descriptor_heap;
+class DescriptorHeap;
 
 //// DESCRIPTOR HEAP //////////////////////////////////////////////////////////////////////////////
 // A slot in the resource heap. The index is what shaders use with ResourceDescriptorHeap[index].
-struct descriptor_handle
+struct DescriptorHandle
 {
-    u32 index{ u32_invalid_id };
+    u32 index{u32_invalid_id};
 
-    [[nodiscard]] constexpr bool is_valid() const { return index != u32_invalid_id; }
+    [[nodiscard]] constexpr auto is_valid() const -> bool
+    {
+        return index != u32_invalid_id;
+    }
 
 #ifdef _DEBUG
-private:
-    friend class descriptor_heap;
-    descriptor_heap* _container{ nullptr };
+  private:
+    friend class DescriptorHeap;
+    DescriptorHeap *_container{nullptr};
 #endif
 };
 
@@ -30,71 +34,94 @@ private:
 // NOTE: the set is update-after-bind, so slots can be written while command buffers that use the heap
 //       are pending, as long as those don't use the same slots (freed slots are reused frame_buffer_count
 //       frames later, like in D3D12).
-class descriptor_heap
+class DescriptorHeap
 {
-public:
-    descriptor_heap() = default;
-    DISABLE_COPY_AND_MOVE(descriptor_heap);
-    ~descriptor_heap() { assert(!_pool); }
+  public:
+    DescriptorHeap() = default;
+    DISABLE_COPY_AND_MOVE(DescriptorHeap);
+    ~DescriptorHeap()
+    {
+        assert(!_pool);
+    }
 
-    bool initialize(u32 capacity);
-    void release();
-    void process_deferred_free(u32 frame_idx);
+    auto initialize(u32 capacity) -> bool;
+    auto release() -> void;
+    auto process_deferred_free(u32 frame_idx) -> void;
 
-    [[nodiscard]] descriptor_handle allocate();
-    void free(descriptor_handle& handle);
+    [[nodiscard]] auto allocate() -> DescriptorHandle;
+    auto free(DescriptorHandle &handle) -> void;
 
     // Write a view into a slot. The descriptor type a slot holds can change (mutable descriptors).
-    void write_sampled_image(const descriptor_handle& handle, VkImageView view,
-                             VkImageLayout layout = VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL) const;
-    void write_storage_image(const descriptor_handle& handle, VkImageView view) const; // layout GENERAL
-    void write_storage_buffer(const descriptor_handle& handle, const vkx::buffer_range& range) const;
-    void write_uniform_buffer(const descriptor_handle& handle, const vkx::buffer_range& range) const;
+    auto write_sampled_image(
+        const DescriptorHandle &handle,
+        VkImageView view,
+        VkImageLayout layout = VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL) const -> void;
+    auto write_storage_image(const DescriptorHandle &handle, VkImageView view) const -> void; // layout GENERAL
+    auto write_storage_buffer(const DescriptorHandle &handle, const vkx::BufferRange &range) const -> void;
+    auto write_uniform_buffer(const DescriptorHandle &handle, const vkx::BufferRange &range) const -> void;
 
-    [[nodiscard]] constexpr VkDescriptorSet set() const { return _set; }
-    [[nodiscard]] constexpr VkDescriptorSetLayout set_layout() const { return _set_layout; }
-    [[nodiscard]] constexpr u32 capacity() const { return _capacity; }
-    [[nodiscard]] constexpr u32 size() const { return _size; }
+    [[nodiscard]] constexpr auto set() const -> VkDescriptorSet
+    {
+        return _set;
+    }
+    [[nodiscard]] constexpr auto set_layout() const -> VkDescriptorSetLayout
+    {
+        return _set_layout;
+    }
+    [[nodiscard]] constexpr auto capacity() const -> u32
+    {
+        return _capacity;
+    }
+    [[nodiscard]] constexpr auto size() const -> u32
+    {
+        return _size;
+    }
 
-private:
-    void write(const descriptor_handle& handle, VkDescriptorType type, const VkDescriptorImageInfo* image,
-               const VkDescriptorBufferInfo* buffer) const;
+  private:
+    auto write(
+        const DescriptorHandle &handle,
+        VkDescriptorType type,
+        const VkDescriptorImageInfo *image,
+        const VkDescriptorBufferInfo *buffer) const -> void;
 
-    VkDescriptorPool _pool{ VK_NULL_HANDLE };
-    VkDescriptorSetLayout _set_layout{ VK_NULL_HANDLE };
-    VkDescriptorSet _set{ VK_NULL_HANDLE };
+    VkDescriptorPool _pool{VK_NULL_HANDLE};
+    VkDescriptorSetLayout _set_layout{VK_NULL_HANDLE};
+    VkDescriptorSet _set{VK_NULL_HANDLE};
     std::unique_ptr<u32[]> _free_handles{};
     std::unique_ptr<u8[]> _allocated_slots{};
     utl::vector<u32> _deferred_free_indices[frame_buffer_count]{};
     mutable std::mutex _mutex{}; // also locked by the const write_*() functions
-    u32 _capacity{ 0 };
-    u32 _size{ 0 };
+    u32 _capacity{0};
+    u32 _size{0};
 };
 
 //// BUFFER ///////////////////////////////////////////////////////////////////////////////////////
-struct vulkan_buffer_init_info
+struct VulkanBufferInitInfo
 {
-    const void* data{ nullptr };
-    VkBufferUsageFlags usage{ 0 };
-    u32 size{ 0 };
-    u32 alignment{ 0 };
+    const void *data{nullptr};
+    VkBufferUsageFlags usage{0};
+    u32 size{0};
+    u32 alignment{0};
 };
 
 // A buffer with its own VMA allocation (counterpart of d3d12_buffer). CPU-accessible buffers are
 // persistently mapped (host-visible, write-combined; D3D12's upload heap).
-class vulkan_buffer
+class VulkanBuffer
 {
-public:
-    vulkan_buffer() = default;
-    explicit vulkan_buffer(const vulkan_buffer_init_info& info, bool is_cpu_accessible);
-    DISABLE_COPY(vulkan_buffer);
-    constexpr vulkan_buffer(vulkan_buffer&& o) noexcept
-        : _buffer{ o._buffer }, _allocation{ o._allocation }, _cpu_address{ o._cpu_address }, _size{ o._size }
+  public:
+    VulkanBuffer() = default;
+    explicit VulkanBuffer(const VulkanBufferInitInfo &info, bool is_cpu_accessible);
+    DISABLE_COPY(VulkanBuffer);
+    constexpr VulkanBuffer(VulkanBuffer &&o) noexcept
+        : _buffer{o._buffer}
+        , _allocation{o._allocation}
+        , _cpu_address{o._cpu_address}
+        , _size{o._size}
     {
         o.reset();
     }
 
-    constexpr vulkan_buffer& operator=(vulkan_buffer&& o) noexcept
+    constexpr auto operator=(VulkanBuffer &&o) noexcept -> VulkanBuffer &
     {
         assert(this != &o);
         if (this != &o)
@@ -106,20 +133,32 @@ public:
         return *this;
     }
 
-    ~vulkan_buffer() { release(); }
-
-    void release();
-    [[nodiscard]] constexpr VkBuffer buffer() const { return _buffer; }
-    [[nodiscard]] constexpr u32 size() const { return _size; }
-    // Mapped memory of a CPU-accessible buffer, nullptr otherwise.
-    [[nodiscard]] constexpr u8* cpu_address() const { return _cpu_address; }
-    [[nodiscard]] constexpr vkx::buffer_range range(u64 offset = 0, u64 size = VK_WHOLE_SIZE) const
+    ~VulkanBuffer()
     {
-        return { _buffer, offset, size };
+        release();
     }
 
-private:
-    constexpr void move(vulkan_buffer& o)
+    auto release() -> void;
+    [[nodiscard]] constexpr auto buffer() const -> VkBuffer
+    {
+        return _buffer;
+    }
+    [[nodiscard]] constexpr auto size() const -> u32
+    {
+        return _size;
+    }
+    // Mapped memory of a CPU-accessible buffer, nullptr otherwise.
+    [[nodiscard]] constexpr auto cpu_address() const -> u8 *
+    {
+        return _cpu_address;
+    }
+    [[nodiscard]] constexpr auto range(u64 offset = 0, u64 size = VK_WHOLE_SIZE) const -> vkx::BufferRange
+    {
+        return {_buffer, offset, size};
+    }
+
+  private:
+    constexpr auto move(VulkanBuffer &o) -> void
     {
         _buffer = o._buffer;
         _allocation = o._allocation;
@@ -128,7 +167,7 @@ private:
         o.reset();
     }
 
-    constexpr void reset()
+    constexpr auto reset() -> void
     {
         _buffer = VK_NULL_HANDLE;
         _allocation = VK_NULL_HANDLE;
@@ -136,155 +175,193 @@ private:
         _size = 0;
     }
 
-    VkBuffer _buffer{ VK_NULL_HANDLE };
-    VmaAllocation _allocation{ VK_NULL_HANDLE };
-    u8* _cpu_address{ nullptr };
-    u32 _size{ 0 };
+    VkBuffer _buffer{VK_NULL_HANDLE};
+    VmaAllocation _allocation{VK_NULL_HANDLE};
+    u8 *_cpu_address{nullptr};
+    u32 _size{0};
 };
 
 //// CONSTANT BUFFER //////////////////////////////////////////////////////////////////////////////
 // Linear per-frame allocator for shader constants (counterpart of d3d12::constant_buffer). Core
 // keeps one per frame and clears it at the start of the frame.
-class constant_buffer
+class ConstantBuffer
 {
-public:
+  public:
     // Valid for uniform and storage buffer offsets on every device (the spec's maximum for
     // minUniformBufferOffsetAlignment / minStorageBufferOffsetAlignment), same as D3D12.
-    constexpr static u32 alignment{ 256 };
+    constexpr static u32 alignment{256};
 
-    constant_buffer() = default;
-    explicit constant_buffer(const vulkan_buffer_init_info& info);
-    DISABLE_COPY_AND_MOVE(constant_buffer);
-    ~constant_buffer() { release(); }
+    ConstantBuffer() = default;
+    explicit ConstantBuffer(const VulkanBufferInitInfo &info);
+    DISABLE_COPY_AND_MOVE(ConstantBuffer);
+    ~ConstantBuffer()
+    {
+        release();
+    }
 
-    void release()
+    auto release() -> void
     {
         _buffer.release();
         _cpu_offset = 0;
     }
 
-    constexpr void clear() { _cpu_offset = 0; }
-    [[nodiscard]] u8* allocate(u32 size);
-
-    template<typename T>
-    [[nodiscard]] T* allocate()
+    constexpr auto clear() -> void
     {
-        return (T*)allocate(sizeof(T));
+        _cpu_offset = 0;
+    }
+    [[nodiscard]] auto allocate(u32 size) -> u8 *;
+
+    template <typename T>
+    [[nodiscard]] auto allocate() -> T *
+    {
+        return (T *)allocate(sizeof(T));
     }
 
-    [[nodiscard]] constexpr VkBuffer buffer() const { return _buffer.buffer(); }
-    [[nodiscard]] constexpr u32 size() const { return _buffer.size(); }
-    [[nodiscard]] constexpr u8* cpu_address() const { return _buffer.cpu_address(); }
+    [[nodiscard]] constexpr auto buffer() const -> VkBuffer
+    {
+        return _buffer.buffer();
+    }
+    [[nodiscard]] constexpr auto size() const -> u32
+    {
+        return _buffer.size();
+    }
+    [[nodiscard]] constexpr auto cpu_address() const -> u8 *
+    {
+        return _buffer.cpu_address();
+    }
 
     // The part of the buffer an allocation is in, to bind it as a root CBV/SRV
     // (counterpart of d3d12::constant_buffer::gpu_address()).
-    template<typename T>
-    [[nodiscard]] vkx::buffer_range range(T* const allocation, u64 size = sizeof(T))
+    template <typename T>
+    [[nodiscard]] auto range(T *const allocation, u64 size = sizeof(T)) -> vkx::BufferRange
     {
-        std::scoped_lock lock{ _mutex };
-        const u8* const base{ cpu_address() };
+        std::scoped_lock lock{_mutex};
+        const u8 *const base{cpu_address()};
         assert(base);
-        if (!base) return {};
-        const u8* const address{ (const u8*)allocation };
+        if (!base)
+            return {};
+        const u8 *const address{(const u8 *)allocation};
         assert(address >= base && address + size <= base + _cpu_offset);
-        return { buffer(), (u64)(address - base), size };
+        return {buffer(), (u64)(address - base), size};
     }
 
-    [[nodiscard]] constexpr static vulkan_buffer_init_info get_default_init_info(u32 size)
+    [[nodiscard]] constexpr static auto get_default_init_info(u32 size) -> VulkanBufferInitInfo
     {
         assert(size);
-        vulkan_buffer_init_info info{};
+        VulkanBufferInitInfo info{};
         info.size = size;
         info.alignment = alignment;
         // Root CBVs, root SRVs (structured buffers written by the CPU, e.g. lights) and indirect arguments.
-        info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT;
+        info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                     VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT;
         return info;
     }
 
-private:
-    vulkan_buffer _buffer{};
-    u32 _cpu_offset{ 0 };
+  private:
+    VulkanBuffer _buffer{};
+    u32 _cpu_offset{0};
     std::mutex _mutex{};
 };
 
 //// UAV CLEARABLE BUFFER /////////////////////////////////////////////////////////////////////////
 // A GPU-only storage buffer that can be cleared (counterpart of d3d12::uav_clearable_buffer).
 // D3D12 needs a UAV descriptor in a CPU and a GPU heap to clear it; Vulkan fills it directly.
-class uav_clearable_buffer
+class UavClearableBuffer
 {
-public:
-    uav_clearable_buffer() = default;
-    explicit uav_clearable_buffer(const vulkan_buffer_init_info& info);
-    DISABLE_COPY(uav_clearable_buffer);
-    uav_clearable_buffer(uav_clearable_buffer&& o) noexcept = default;
-    uav_clearable_buffer& operator=(uav_clearable_buffer&& o) noexcept = default;
-    ~uav_clearable_buffer() { release(); }
+  public:
+    UavClearableBuffer() = default;
+    explicit UavClearableBuffer(const VulkanBufferInitInfo &info);
+    DISABLE_COPY(UavClearableBuffer);
+    UavClearableBuffer(UavClearableBuffer &&o) noexcept = default;
+    auto operator=(UavClearableBuffer &&o) noexcept -> UavClearableBuffer & = default;
+    ~UavClearableBuffer()
+    {
+        release();
+    }
 
-    void release() { _buffer.release(); }
+    auto release() -> void
+    {
+        _buffer.release();
+    }
 
     // Same as ClearUnorderedAccessViewUint/Float on an R32 view: every 32-bit element gets values[0].
     // The caller adds the barrier between the clear (copy_dest) and the next use, like a UAV barrier.
-    void clear_uav(VkCommandBuffer cmd, const u32* const values) const
+    auto clear_uav(VkCommandBuffer cmd, const u32 *const values) const -> void
     {
         assert(buffer() && values);
-        vkCmdFillBuffer(cmd, buffer(), 0, VK_WHOLE_SIZE, values[0]);
+        ::vkCmdFillBuffer(cmd, buffer(), 0, VK_WHOLE_SIZE, values[0]);
     }
 
-    void clear_uav(VkCommandBuffer cmd, const f32* const values) const
+    auto clear_uav(VkCommandBuffer cmd, const f32 *const values) const -> void
     {
         assert(values);
-        u32 bits{ 0 };
+        u32 bits{0};
         std::memcpy(&bits, values, sizeof(bits));
         clear_uav(cmd, &bits);
     }
 
-    [[nodiscard]] constexpr VkBuffer buffer() const { return _buffer.buffer(); }
-    [[nodiscard]] constexpr u32 size() const { return _buffer.size(); }
-    [[nodiscard]] constexpr vkx::buffer_range range() const { return _buffer.range(); }
+    [[nodiscard]] constexpr auto buffer() const -> VkBuffer
+    {
+        return _buffer.buffer();
+    }
+    [[nodiscard]] constexpr auto size() const -> u32
+    {
+        return _buffer.size();
+    }
+    [[nodiscard]] constexpr auto range() const -> vkx::BufferRange
+    {
+        return _buffer.range();
+    }
 
-    [[nodiscard]] constexpr static vulkan_buffer_init_info get_default_init_info(u32 size)
+    [[nodiscard]] constexpr static auto get_default_init_info(u32 size) -> VulkanBufferInitInfo
     {
         assert(size);
-        vulkan_buffer_init_info info{};
+        VulkanBufferInitInfo info{};
         info.size = size;
         info.alignment = sizeof(math::v4);
         info.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
         return info;
     }
 
-private:
-    vulkan_buffer _buffer{};
+  private:
+    VulkanBuffer _buffer{};
 };
 
 //// TEXTURE //////////////////////////////////////////////////////////////////////////////////////
-struct vulkan_texture_init_info
+struct VulkanTextureInitInfo
 {
     // Required. sType, imageType, format, extent, mipLevels, arrayLayers, samples and usage must be set.
     // VK_IMAGE_USAGE_SAMPLED_BIT is added (every texture gets an SRV).
-    const VkImageCreateInfo* image_info{ nullptr };
+    const VkImageCreateInfo *image_info{nullptr};
     // Optional SRV view (image is filled in). Default: all mips and layers, 2D / 2D array / cube
     // (VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT with 6 layers) / cube array, aspect from the format.
-    const VkImageViewCreateInfo* srv_view_info{ nullptr };
+    const VkImageViewCreateInfo *srv_view_info{nullptr};
     // The layout the image is in whenever shaders sample it (written into the SRV descriptor).
-    VkImageLayout srv_layout{ VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL };
+    VkImageLayout srv_layout{VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL};
 };
 
 // An image + VMA allocation + SRV in the resource heap (counterpart of d3d12_texture).
 // The image starts in VK_IMAGE_LAYOUT_UNDEFINED; transition it before use (vkx::vulkan_barrier).
-class vulkan_texture
+class VulkanTexture
 {
-public:
-    constexpr static u32 max_mips{ 14 }; // support up to 16k resolutions.
-    vulkan_texture() = default;
-    explicit vulkan_texture(const vulkan_texture_init_info& info);
-    DISABLE_COPY(vulkan_texture);
-    constexpr vulkan_texture(vulkan_texture&& o) noexcept
-        : _image{ o._image }, _allocation{ o._allocation }, _view{ o._view }, _srv{ o._srv }, _format{ o._format }, _aspect{ o._aspect }, _mip_count{ o._mip_count }
+  public:
+    constexpr static u32 max_mips{14}; // support up to 16k resolutions.
+    VulkanTexture() = default;
+    explicit VulkanTexture(const VulkanTextureInitInfo &info);
+    DISABLE_COPY(VulkanTexture);
+    constexpr VulkanTexture(VulkanTexture &&o) noexcept
+        : _image{o._image}
+        , _allocation{o._allocation}
+        , _view{o._view}
+        , _srv{o._srv}
+        , _format{o._format}
+        , _aspect{o._aspect}
+        , _mip_count{o._mip_count}
     {
         o.reset();
     }
 
-    constexpr vulkan_texture& operator=(vulkan_texture&& o) noexcept
+    constexpr auto operator=(VulkanTexture &&o) noexcept -> VulkanTexture &
     {
         assert(this != &o);
         if (this != &o)
@@ -295,19 +372,40 @@ public:
         return *this;
     }
 
-    ~vulkan_texture() { release(); }
+    ~VulkanTexture()
+    {
+        release();
+    }
 
-    void release();
-    [[nodiscard]] constexpr VkImage image() const { return _image; }
+    auto release() -> void;
+    [[nodiscard]] constexpr auto image() const -> VkImage
+    {
+        return _image;
+    }
     // The SRV view (all mips).
-    [[nodiscard]] constexpr VkImageView view() const { return _view; }
-    [[nodiscard]] constexpr descriptor_handle srv() const { return _srv; }
-    [[nodiscard]] constexpr VkFormat format() const { return _format; }
-    [[nodiscard]] constexpr VkImageAspectFlags aspect() const { return _aspect; }
-    [[nodiscard]] constexpr u32 mip_count() const { return _mip_count; }
+    [[nodiscard]] constexpr auto view() const -> VkImageView
+    {
+        return _view;
+    }
+    [[nodiscard]] constexpr auto srv() const -> DescriptorHandle
+    {
+        return _srv;
+    }
+    [[nodiscard]] constexpr auto format() const -> VkFormat
+    {
+        return _format;
+    }
+    [[nodiscard]] constexpr auto aspect() const -> VkImageAspectFlags
+    {
+        return _aspect;
+    }
+    [[nodiscard]] constexpr auto mip_count() const -> u32
+    {
+        return _mip_count;
+    }
 
-private:
-    constexpr void move(vulkan_texture& o)
+  private:
+    constexpr auto move(VulkanTexture &o) -> void
     {
         _image = o._image;
         _allocation = o._allocation;
@@ -319,7 +417,7 @@ private:
         o.reset();
     }
 
-    constexpr void reset()
+    constexpr auto reset() -> void
     {
         _image = VK_NULL_HANDLE;
         _allocation = VK_NULL_HANDLE;
@@ -330,32 +428,33 @@ private:
         _mip_count = 0;
     }
 
-    VkImage _image{ VK_NULL_HANDLE };
-    VmaAllocation _allocation{ VK_NULL_HANDLE };
-    VkImageView _view{ VK_NULL_HANDLE };
-    descriptor_handle _srv{};
-    VkFormat _format{ VK_FORMAT_UNDEFINED };
-    VkImageAspectFlags _aspect{ 0 };
-    u32 _mip_count{ 0 };
+    VkImage _image{VK_NULL_HANDLE};
+    VmaAllocation _allocation{VK_NULL_HANDLE};
+    VkImageView _view{VK_NULL_HANDLE};
+    DescriptorHandle _srv{};
+    VkFormat _format{VK_FORMAT_UNDEFINED};
+    VkImageAspectFlags _aspect{0};
+    u32 _mip_count{0};
 };
 
 //// RENDER TEXTURE ///////////////////////////////////////////////////////////////////////////////
 // A texture that can be rendered to, one color attachment view per mip (counterpart of
 // d3d12_render_texture's RTVs).
-class vulkan_render_texture
+class VulkanRenderTexture
 {
-public:
-    vulkan_render_texture() = default;
-    explicit vulkan_render_texture(const vulkan_texture_init_info& info);
-    DISABLE_COPY(vulkan_render_texture);
-    constexpr vulkan_render_texture(vulkan_render_texture&& o) noexcept
-        : _texture{ std::move(o._texture) }
+  public:
+    VulkanRenderTexture() = default;
+    explicit VulkanRenderTexture(const VulkanTextureInitInfo &info);
+    DISABLE_COPY(VulkanRenderTexture);
+    constexpr VulkanRenderTexture(VulkanRenderTexture &&o) noexcept
+        : _texture{std::move(o._texture)}
     {
-        for (u32 i{ 0 }; i < vulkan_texture::max_mips; ++i) _rtv[i] = o._rtv[i];
+        for (u32 i{0}; i < VulkanTexture::max_mips; ++i)
+            _rtv[i] = o._rtv[i];
         o.reset();
     }
 
-    constexpr vulkan_render_texture& operator=(vulkan_render_texture&& o) noexcept
+    constexpr auto operator=(VulkanRenderTexture &&o) noexcept -> VulkanRenderTexture &
     {
         assert(this != &o);
         if (this != &o)
@@ -366,58 +465,93 @@ public:
         return *this;
     }
 
-    ~vulkan_render_texture() { release(); }
+    ~VulkanRenderTexture()
+    {
+        release();
+    }
 
-    void release();
-    [[nodiscard]] constexpr u32 mip_count() const { return _texture.mip_count(); }
-    [[nodiscard]] constexpr VkImageView rtv(u32 mip_index) const
+    auto release() -> void;
+    [[nodiscard]] constexpr auto mip_count() const -> u32
+    {
+        return _texture.mip_count();
+    }
+    [[nodiscard]] constexpr auto rtv(u32 mip_index) const -> VkImageView
     {
         assert(mip_index < mip_count());
         return _rtv[mip_index];
     }
-    [[nodiscard]] constexpr descriptor_handle srv() const { return _texture.srv(); }
-    [[nodiscard]] constexpr VkImage image() const { return _texture.image(); }
-    [[nodiscard]] constexpr VkFormat format() const { return _texture.format(); }
+    [[nodiscard]] constexpr auto srv() const -> DescriptorHandle
+    {
+        return _texture.srv();
+    }
+    [[nodiscard]] constexpr auto image() const -> VkImage
+    {
+        return _texture.image();
+    }
+    [[nodiscard]] constexpr auto format() const -> VkFormat
+    {
+        return _texture.format();
+    }
 
-private:
-    constexpr void move(vulkan_render_texture& o)
+  private:
+    constexpr auto move(VulkanRenderTexture &o) -> void
     {
         _texture = std::move(o._texture);
-        for (u32 i{ 0 }; i < vulkan_texture::max_mips; ++i) _rtv[i] = o._rtv[i];
+        for (u32 i{0}; i < VulkanTexture::max_mips; ++i)
+            _rtv[i] = o._rtv[i];
         o.reset();
     }
 
-    constexpr void reset()
+    constexpr auto reset() -> void
     {
-        for (u32 i{ 0 }; i < vulkan_texture::max_mips; ++i) _rtv[i] = VK_NULL_HANDLE;
+        for (u32 i{0}; i < VulkanTexture::max_mips; ++i)
+            _rtv[i] = VK_NULL_HANDLE;
     }
 
-    vulkan_texture _texture{};
-    VkImageView _rtv[vulkan_texture::max_mips]{};
+    VulkanTexture _texture{};
+    VkImageView _rtv[VulkanTexture::max_mips]{};
 };
 
 //// DEPTH BUFFER /////////////////////////////////////////////////////////////////////////////////
 // A depth texture (counterpart of d3d12_depth_buffer). D3D12 needs a typeless resource with separate
 // DSV and SRV formats; in Vulkan one depth-aspect view serves as both.
-class vulkan_depth_buffer
+class VulkanDepthBuffer
 {
-public:
-    vulkan_depth_buffer() = default;
+  public:
+    VulkanDepthBuffer() = default;
     // image_info->format must be a depth format (no stencil). Usage gets DEPTH_STENCIL_ATTACHMENT added.
-    explicit vulkan_depth_buffer(const vulkan_texture_init_info& info);
-    DISABLE_COPY(vulkan_depth_buffer);
-    vulkan_depth_buffer(vulkan_depth_buffer&& o) noexcept = default;
-    vulkan_depth_buffer& operator=(vulkan_depth_buffer&& o) noexcept = default;
-    ~vulkan_depth_buffer() { release(); }
+    explicit VulkanDepthBuffer(const VulkanTextureInitInfo &info);
+    DISABLE_COPY(VulkanDepthBuffer);
+    VulkanDepthBuffer(VulkanDepthBuffer &&o) noexcept = default;
+    auto operator=(VulkanDepthBuffer &&o) noexcept -> VulkanDepthBuffer & = default;
+    ~VulkanDepthBuffer()
+    {
+        release();
+    }
 
-    void release() { _texture.release(); }
-    [[nodiscard]] constexpr VkImageView dsv() const { return _texture.view(); }
-    [[nodiscard]] constexpr descriptor_handle srv() const { return _texture.srv(); }
-    [[nodiscard]] constexpr VkImage image() const { return _texture.image(); }
-    [[nodiscard]] constexpr VkFormat format() const { return _texture.format(); }
+    auto release() -> void
+    {
+        _texture.release();
+    }
+    [[nodiscard]] constexpr auto dsv() const -> VkImageView
+    {
+        return _texture.view();
+    }
+    [[nodiscard]] constexpr auto srv() const -> DescriptorHandle
+    {
+        return _texture.srv();
+    }
+    [[nodiscard]] constexpr auto image() const -> VkImage
+    {
+        return _texture.image();
+    }
+    [[nodiscard]] constexpr auto format() const -> VkFormat
+    {
+        return _texture.format();
+    }
 
-private:
-    vulkan_texture _texture{};
+  private:
+    VulkanTexture _texture{};
 };
 
-} // namespace primal::graphics::vulkan
+}

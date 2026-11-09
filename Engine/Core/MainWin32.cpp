@@ -5,7 +5,7 @@
 #include "Platform/PlatformTypes.h"
 #include "Platform/Platform.h"
 
-#ifndef  WIN32_LEAN_AND_MEAN
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif // ! WIN32_LEAN_AND_MEAN
 #include <Windows.h>
@@ -13,10 +13,11 @@
 
 #ifndef USE_WITH_EDITOR
 
-extern bool engine_initialize();
-extern void engine_update();
-extern void engine_shutdown();
+extern auto engine_initialize() -> bool;
+extern auto engine_update() -> void;
+extern auto engine_shutdown() -> void;
 
+// NOLINTNEXTLINE(modernize-use-trailing-return-type): calling convention (keeps the classic return type, T02)
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 {
 #if _DEBUG
@@ -25,14 +26,14 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
     primal::platform::set_current_directory_to_executable_path();
 
-    if (engine_initialize())
+    if (::engine_initialize())
     {
         while (primal::platform::pump_events())
         {
-            engine_update();
+            ::engine_update();
         }
     }
-    engine_shutdown();
+    ::engine_shutdown();
     return 0;
 }
 

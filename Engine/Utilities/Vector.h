@@ -4,13 +4,14 @@
 #include "CommonHeaders.h"
 #include <type_traits>
 
-namespace primal::utl {
+namespace primal::utl
+{
 
 // A vector class similar to std::vector with basic functionality.
 // The user can specify in the template argument whether they want
 // elements' destructor to be called when being removed or while
 // clearing/destructing the vector.
-template<typename T, bool destruct = true>
+template <typename T, bool destruct = true>
 class vector
 {
     // Items are relocated (when growing or erasing) with realloc()/memcpy() unless that would break
@@ -19,8 +20,10 @@ class vector
     // themselves; MSVC's happen to survive a byte copy. Types that can't be moved (DISABLE_MOVE)
     // keep the bitwise relocation the engine relies on, and so does vector<T, false> (used by
     // free_list), whose storage may contain destroyed items.
-    static constexpr bool relocate_with_move{ destruct && !std::is_trivially_copyable_v<T> && std::is_move_constructible_v<T> };
-public:
+    static constexpr bool relocate_with_move{
+        destruct && !std::is_trivially_copyable_v<T> && std::is_move_constructible_v<T>};
+
+  public:
     // Default constructor. Doesn't allocate memory.
     constexpr vector() = default;
 
@@ -31,36 +34,38 @@ public:
     }
 
     // Constructor resizes the vector and initializes 'count' items using 'value'.
-    constexpr explicit vector(u64 count, const T& value)
+    constexpr explicit vector(u64 count, const T &value)
     {
         resize(count, value);
     }
 
     // Copy-constructor. Constructs by copying another vector. The items
     // in the copied vector must be copyable.
-    constexpr vector(const vector& o)
+    constexpr vector(const vector &o)
     {
         *this = o;
     }
 
     // Move-constructor. Constructs by moving another vector.
     // The original vector will be empty after move.
-    constexpr vector(vector&& o)
-        : _capacity{ o._capacity }, _size{ o._size }, _data{ o._data }
+    constexpr vector(vector &&o)
+        : _capacity{o._capacity}
+        , _size{o._size}
+        , _data{o._data}
     {
         o.reset();
     }
 
     // Copy-assignment operator. Clears this vector and copies items
     // from another vector. The items must be copyable.
-    constexpr vector& operator=(const vector& o)
+    constexpr auto operator=(const vector &o) -> vector &
     {
         assert(this != std::addressof(o));
         if (this != std::addressof(o))
         {
             clear();
             reserve(o._size);
-            for (const auto& item : o)
+            for (const auto &item : o)
             {
                 emplace_back(item);
             }
@@ -72,7 +77,7 @@ public:
 
     // Move-assignment operator. Frees all resources in this vector and
     // moves the other vector into this one.
-    constexpr vector& operator=(vector&& o)
+    constexpr auto operator=(vector &&o) -> vector &
     {
         assert(this != std::addressof(o));
         if (this != std::addressof(o))
@@ -85,23 +90,26 @@ public:
     }
 
     // Destructs the vector and its items as specified in template argument
-    ~vector() { destroy(); }
+    ~vector()
+    {
+        destroy();
+    }
 
     // Inserts an item at the end of the vector by copying 'value'.
-    constexpr void push_back(const T& value)
+    constexpr auto push_back(const T &value) -> void
     {
         emplace_back(value);
     }
 
     // Inserts an item at the end of the vector by moving 'value'.
-    constexpr void push_back(T&& value)
+    constexpr auto push_back(T &&value) -> void
     {
         emplace_back(std::move(value));
     }
 
     // Copy- or move-constructs an item at the end of the vector.
-    template<typename... params>
-    constexpr decltype(auto) emplace_back(params&&... p)
+    template <typename... params>
+    constexpr auto emplace_back(params &&...p) -> decltype(auto)
     {
         if (_size == _capacity)
         {
@@ -109,16 +117,15 @@ public:
         }
         assert(_size < _capacity);
 
-        T *const item{ new (std::addressof(_data[_size])) T(std::forward<params>(p)...) };
+        T *const item{new (std::addressof(_data[_size])) T(std::forward<params>(p)...)};
         ++_size;
         return *item;
     }
 
     // Resizes the vector and initializes new items with their default value.
-    constexpr void resize(u64 new_size)
+    constexpr auto resize(u64 new_size) -> void
     {
-        static_assert(std::is_default_constructible<T>::value,
-                      "Type must be default-constructible.");
+        static_assert(std::is_default_constructible<T>::value, "Type must be default-constructible.");
 
         if (new_size > _size)
         {
@@ -143,10 +150,9 @@ public:
     }
 
     // Resizes the vector and initializes new items by copying 'value'.
-    constexpr void resize(u64 new_size, const T& value)
+    constexpr auto resize(u64 new_size, const T &value) -> void
     {
-        static_assert(std::is_copy_constructible<T>::value,
-                      "Type must be copy-constructible.");
+        static_assert(std::is_copy_constructible<T>::value, "Type must be copy-constructible.");
 
         if (new_size > _size)
         {
@@ -171,22 +177,22 @@ public:
     }
 
     // Allocates memory to contain the specified number of items.
-    constexpr void reserve(u64 new_capacity)
+    constexpr auto reserve(u64 new_capacity) -> void
     {
         if (new_capacity > _capacity)
         {
             if constexpr (relocate_with_move)
             {
-                T *const new_buffer{ static_cast<T*>(malloc(new_capacity * sizeof(T))) };
+                T *const new_buffer{static_cast<T *>(std::malloc(new_capacity * sizeof(T)))};
                 assert(new_buffer);
                 if (new_buffer)
                 {
-                    for (u64 i{ 0 }; i < _size; ++i)
+                    for (u64 i{0}; i < _size; ++i)
                     {
                         new (std::addressof(new_buffer[i])) T(std::move(_data[i]));
                         _data[i].~T();
                     }
-                    free(_data);
+                    std::free(_data);
                     _data = new_buffer;
                     _capacity = new_capacity;
                 }
@@ -196,11 +202,11 @@ public:
                 // NOTE: realoc() will automatically copy the data in the buffer
                 //       if a new region of memory is allocated.
                 // void* cast: deliberate bitwise relocation (see relocate_with_move; GCC -Wclass-memaccess).
-                void* new_buffer{ realloc(static_cast<void*>(_data), new_capacity * sizeof(T)) };
+                void *new_buffer{std::realloc(static_cast<void *>(_data), new_capacity * sizeof(T))};
                 assert(new_buffer);
                 if (new_buffer)
                 {
-                    _data = static_cast<T*>(new_buffer);
+                    _data = static_cast<T *>(new_buffer);
                     _capacity = new_capacity;
                 }
             }
@@ -208,24 +214,24 @@ public:
     }
 
     // Removes the item at specified index.
-    constexpr T *const erase(u64 index)
+    constexpr auto erase(u64 index) -> T *const
     {
         assert(_data && index < _size);
         return erase(std::addressof(_data[index]));
     }
 
     // Removes the item at specified location.
-    constexpr T *const erase(T *const item)
+    constexpr auto erase(T *const item) -> T *const
     {
-        assert(_data && item >= std::addressof(_data[0]) &&
-               item < std::addressof(_data[_size]));
-        if constexpr (destruct) item->~T();
+        assert(_data && item >= std::addressof(_data[0]) && item < std::addressof(_data[_size]));
+        if constexpr (destruct)
+            item->~T();
         --_size;
         if (item < std::addressof(_data[_size]))
         {
             if constexpr (relocate_with_move)
             {
-                for (T* at{ item }; at < std::addressof(_data[_size]); ++at)
+                for (T *at{item}; at < std::addressof(_data[_size]); ++at)
                 {
                     new (at) T(std::move(*(at + 1)));
                     (at + 1)->~T();
@@ -233,7 +239,7 @@ public:
             }
             else
             {
-                memmove(item, item + 1, (std::addressof(_data[_size]) - item) * sizeof(T));
+                std::memmove(item, item + 1, (std::addressof(_data[_size]) - item) * sizeof(T));
             }
         }
 
@@ -241,18 +247,18 @@ public:
     }
 
     // Same as erase() but faster because it just copies the last item.
-    constexpr T *const erase_unordered(u64 index)
+    constexpr auto erase_unordered(u64 index) -> T *const
     {
         assert(_data && index < _size);
         return erase_unordered(std::addressof(_data[index]));
     }
 
     // Same as erase() but faster because it just copies the last item.
-    constexpr T *const erase_unordered(T *const item)
+    constexpr auto erase_unordered(T *const item) -> T *const
     {
-        assert(_data && item >= std::addressof(_data[0]) &&
-               item < std::addressof(_data[_size]));
-        if constexpr (destruct) item->~T();
+        assert(_data && item >= std::addressof(_data[0]) && item < std::addressof(_data[_size]));
+        if constexpr (destruct)
+            item->~T();
         --_size;
         if (item < std::addressof(_data[_size]))
         {
@@ -263,7 +269,7 @@ public:
             }
             else
             {
-                memcpy(item, std::addressof(_data[_size]), sizeof(T));
+                std::memcpy(item, std::addressof(_data[_size]), sizeof(T));
             }
         }
 
@@ -271,7 +277,7 @@ public:
     }
 
     // Clears the vector and destructs items as specified in template argument.
-    constexpr void clear()
+    constexpr auto clear() -> void
     {
         if constexpr (destruct)
         {
@@ -281,7 +287,7 @@ public:
     }
 
     // Swaps two vectors
-    constexpr void swap(vector& o)
+    constexpr auto swap(vector &o) -> void
     {
         if (this != std::addressof(o))
         {
@@ -292,45 +298,44 @@ public:
     }
 
     // Pointer to the start of data. Might be null.
-    [[nodiscard]] constexpr T* data()
+    [[nodiscard]] constexpr auto data() -> T *
     {
         return _data;
     }
 
     // Pointer to the start of data. Might be null.
-    [[nodiscard]] constexpr T *const data() const
+    [[nodiscard]] constexpr auto data() const -> T *const
     {
         return _data;
     }
 
     // Returns true if vector is empty.
-    [[nodiscard]] constexpr bool empty() const
+    [[nodiscard]] constexpr auto empty() const -> bool
     {
         return _size == 0;
     }
 
     // Return the number of items in the vector.
-    [[nodiscard]] constexpr u64 size() const
+    [[nodiscard]] constexpr auto size() const -> u64
     {
         return _size;
     }
 
     // Returns the current capacity of the vector.
-    [[nodiscard]] constexpr u64 capacity() const
+    [[nodiscard]] constexpr auto capacity() const -> u64
     {
         return _capacity;
     }
 
     // Indexing operator. Returns a reference to the item at specified index.
-    [[nodiscard]] constexpr T& operator[](u64 index)
+    [[nodiscard]] constexpr auto operator[](u64 index) -> T &
     {
         assert(_data && index < _size);
         return _data[index];
     }
 
-
     // Indexing operator. Returns a constant reference to the item at specified index.
-    [[nodiscard]] constexpr const T& operator[](u64 index) const
+    [[nodiscard]] constexpr auto operator[](u64 index) const -> const T &
     {
         assert(_data && index < _size);
         return _data[index];
@@ -338,7 +343,7 @@ public:
 
     // Returns a reference to the first item. Will fault the application if called
     // when the vector is empty.
-    [[nodiscard]] constexpr T& front()
+    [[nodiscard]] constexpr auto front() -> T &
     {
         assert(_data && _size);
         return _data[0];
@@ -346,7 +351,7 @@ public:
 
     // Returns a constant reference to the first item. Will fault the application
     //  if called when the vector is empty.
-    [[nodiscard]] constexpr const T& front() const
+    [[nodiscard]] constexpr auto front() const -> const T &
     {
         assert(_data && _size);
         return _data[0];
@@ -354,7 +359,7 @@ public:
 
     // Returns a reference to the last item. Will fault the application if called
     // when the vector is empty.
-    [[nodiscard]] constexpr T& back()
+    [[nodiscard]] constexpr auto back() -> T &
     {
         assert(_data && _size);
         return _data[_size - 1];
@@ -362,40 +367,40 @@ public:
 
     // Returns a constant reference to the last item. Will fault the application
     //  if called when the vector is empty.
-    [[nodiscard]] constexpr const T& back() const
+    [[nodiscard]] constexpr auto back() const -> const T &
     {
         assert(_data && _size);
         return _data[_size - 1];
     }
 
     // Returns a pointer to the first item. Returns null when vector is empty.
-    [[nodiscard]] constexpr T* begin()
+    [[nodiscard]] constexpr auto begin() -> T *
     {
         return std::addressof(_data[0]);
     }
 
     // Returns a constant pointer to the first item. Returns null when vector is empty.
-    [[nodiscard]] constexpr const T* begin() const
+    [[nodiscard]] constexpr auto begin() const -> const T *
     {
         return std::addressof(_data[0]);
     }
 
     // Returns a pointer to the last item. Returns null when vector is empty.
-    [[nodiscard]] constexpr T* end()
-    {
-        assert(!(_data == nullptr && _size>0));
-        return std::addressof(_data[_size]);
-    }
-
-    // Returns a constant pointer to the last item. Returns null when vector is empty.
-    [[nodiscard]] constexpr const T* end() const
+    [[nodiscard]] constexpr auto end() -> T *
     {
         assert(!(_data == nullptr && _size > 0));
         return std::addressof(_data[_size]);
     }
 
-private:
-    constexpr void move(vector& o)
+    // Returns a constant pointer to the last item. Returns null when vector is empty.
+    [[nodiscard]] constexpr auto end() const -> const T *
+    {
+        assert(!(_data == nullptr && _size > 0));
+        return std::addressof(_data[_size]);
+    }
+
+  private:
+    constexpr auto move(vector &o) -> void
     {
         _capacity = o._capacity;
         _size = o._size;
@@ -403,14 +408,14 @@ private:
         o.reset();
     }
 
-    constexpr void reset()
+    constexpr auto reset() -> void
     {
         _capacity = 0;
         _size = 0;
         _data = nullptr;
     }
 
-    constexpr void destruct_range(u64 first, u64 last)
+    constexpr auto destruct_range(u64 first, u64 last) -> void
     {
         assert(destruct);
         assert(first <= _size && last <= _size && first <= last);
@@ -423,17 +428,18 @@ private:
         }
     }
 
-    constexpr void destroy()
+    constexpr auto destroy() -> void
     {
-        assert([&] {return _capacity ? _data != nullptr : _data == nullptr; }());
+        assert([&] { return _capacity ? _data != nullptr : _data == nullptr; }());
         clear();
         _capacity = 0;
-        if (_data) free(_data);
+        if (_data)
+            std::free(_data);
         _data = nullptr;
     }
 
-    u64 _capacity{ 0 };
-    u64 _size{ 0 };
-    T*  _data{ nullptr };
+    u64 _capacity{0};
+    u64 _size{0};
+    T *_data{nullptr};
 };
 }

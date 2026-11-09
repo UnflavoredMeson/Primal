@@ -7,12 +7,15 @@
 #include "D3D12GPass.h"
 #include "D3D12LightCulling.h"
 
-namespace primal::graphics::d3d12::fx {
-namespace {
-
-struct fx_root_param_indices
+namespace primal::graphics::d3d12::fx
 {
-    enum : u32 {
+namespace
+{
+
+struct FxRootParamIndices
+{
+    enum : u32
+    {
         global_shader_data,
         root_constants,
 
@@ -24,50 +27,52 @@ struct fx_root_param_indices
     };
 };
 
-ID3D12RootSignature*        fx_root_sig{ nullptr };
-ID3D12PipelineState*        fx_pso{ nullptr };
+ID3D12RootSignature *fx_root_sig{nullptr};
+ID3D12PipelineState *fx_pso{nullptr};
 
-bool
-create_fx_pso_and_root_signature()
+auto create_fx_pso_and_root_signature() -> bool
 {
     assert(!fx_root_sig && !fx_pso);
     // Create FX root signature
-    using idx = fx_root_param_indices;
-    d3dx::d3d12_root_parameter parameters[idx::count]{};
+    using idx = FxRootParamIndices;
+    d3dx::D3D12RootParameter parameters[idx::count]{};
     parameters[idx::global_shader_data].as_cbv(D3D12_SHADER_VISIBILITY_PIXEL, 0);
     parameters[idx::root_constants].as_constants(2, D3D12_SHADER_VISIBILITY_PIXEL, 1);
     parameters[idx::frustums].as_srv(D3D12_SHADER_VISIBILITY_PIXEL, 0);
     parameters[idx::light_grid_opaque].as_srv(D3D12_SHADER_VISIBILITY_PIXEL, 1);
 
-    const D3D12_STATIC_SAMPLER_DESC samplers[]
-    {
+    const D3D12_STATIC_SAMPLER_DESC samplers[]{
         d3dx::static_sampler(d3dx::sampler_state.static_point, 0, 0, D3D12_SHADER_VISIBILITY_PIXEL),
         d3dx::static_sampler(d3dx::sampler_state.static_linear, 1, 0, D3D12_SHADER_VISIBILITY_PIXEL),
     };
 
-    d3dx::d3d12_root_signature_desc root_signature
-    { 
-        &parameters[0], _countof(parameters), d3dx::d3d12_root_signature_desc::default_flags,
-        &samplers[0], _countof(samplers)
-    };
+    d3dx::D3D12RootSignatureDesc root_signature{
+        &parameters[0],
+        _countof(parameters),
+        d3dx::D3D12RootSignatureDesc::default_flags,
+        &samplers[0],
+        _countof(samplers)};
     root_signature.Flags &= ~D3D12_ROOT_SIGNATURE_FLAG_DENY_PIXEL_SHADER_ROOT_ACCESS;
     fx_root_sig = root_signature.create();
     assert(fx_root_sig);
     NAME_D3D12_OBJECT(fx_root_sig, L"Post-process FX Root Signature");
 
     // Create FX PSO
-    struct {
-        d3dx::d3d12_pipeline_state_subobject_root_signature         root_signature{ fx_root_sig };
-        d3dx::d3d12_pipeline_state_subobject_vs                     vs{ shaders::get_engine_shader(shaders::engine_shader::fullscreen_triangle_vs) };
-        d3dx::d3d12_pipeline_state_subobject_ps                     ps{ shaders::get_engine_shader(shaders::engine_shader::post_process_ps) };
-        d3dx::d3d12_pipeline_state_subobject_primitive_topology     primitive_topology{ D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE };
-        d3dx::d3d12_pipeline_state_subobject_render_target_formats  render_target_formats;
-        d3dx::d3d12_pipeline_state_subobject_rasterizer             rasterizer{ d3dx::rasterizer_state.no_cull };
+    struct
+    {
+        d3dx::d3d12_pipeline_state_subobject_root_signature root_signature{fx_root_sig};
+        d3dx::d3d12_pipeline_state_subobject_vs vs{
+            shaders::get_engine_shader(shaders::EngineShader::fullscreen_triangle_vs)};
+        d3dx::d3d12_pipeline_state_subobject_ps ps{shaders::get_engine_shader(shaders::EngineShader::post_process_ps)};
+        d3dx::d3d12_pipeline_state_subobject_primitive_topology primitive_topology{
+            D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE};
+        d3dx::d3d12_pipeline_state_subobject_render_target_formats render_target_formats;
+        d3dx::d3d12_pipeline_state_subobject_rasterizer rasterizer{d3dx::rasterizer_state.no_cull};
     } stream;
 
     D3D12_RT_FORMAT_ARRAY rtf_array{};
     rtf_array.NumRenderTargets = 1;
-    rtf_array.RTFormats[0] = d3d12_surface::default_back_buffer_format;
+    rtf_array.RTFormats[0] = D3D12Surface::default_back_buffer_format;
 
     stream.render_target_formats = rtf_array;
 
@@ -77,40 +82,39 @@ create_fx_pso_and_root_signature()
     return fx_root_sig && fx_pso;
 }
 
-} // anonymous namespace
+}
 
-bool
-initialize()
+auto initialize() -> bool
 {
     return create_fx_pso_and_root_signature();
 }
 
-void
-shutdown()
+auto shutdown() -> void
 {
     core::release(fx_root_sig);
     core::release(fx_pso);
 }
 
-void
-post_process(id3d12_graphics_command_list* cmd_list,
-             const d3d12_frame_info& d3d12_info,
-             D3D12_CPU_DESCRIPTOR_HANDLE target_rtv)
+auto post_process(
+    id3d12_graphics_command_list *cmd_list,
+    const D3D12FrameInfo &d3d12_info,
+    D3D12_CPU_DESCRIPTOR_HANDLE target_rtv) -> void
 {
-    const u32 frame_index{ d3d12_info.frame_index };
-    const id::id_type light_culling_id{ d3d12_info.light_culling_id };
+    const u32 frame_index{d3d12_info.frame_index};
+    const id::id_type light_culling_id{d3d12_info.light_culling_id};
 
     cmd_list->SetGraphicsRootSignature(fx_root_sig);
     cmd_list->SetPipelineState(fx_pso);
 
-    using idx = fx_root_param_indices;
+    using idx = FxRootParamIndices;
     cmd_list->SetGraphicsRootConstantBufferView(idx::global_shader_data, d3d12_info.global_shader_data);
     cmd_list->SetGraphicsRoot32BitConstant(idx::root_constants, gpass::main_buffer().srv().index, 0);
     cmd_list->SetGraphicsRoot32BitConstant(idx::root_constants, gpass::depth_buffer().srv().index, 1);
     cmd_list->SetGraphicsRootShaderResourceView(idx::frustums, delight::frustums(light_culling_id, frame_index));
-    cmd_list->SetGraphicsRootShaderResourceView(idx::light_grid_opaque, delight::light_grid_opaque(light_culling_id, frame_index));
+    cmd_list->SetGraphicsRootShaderResourceView(
+        idx::light_grid_opaque, delight::light_grid_opaque(light_culling_id, frame_index));
     cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    // NOTE: we don't need to clear the render target, because each pixel will 
+    // NOTE: we don't need to clear the render target, because each pixel will
     //       be overwritten by pixels from gpass main buffer.
     //       We also don't need a depth buffer.
     cmd_list->OMSetRenderTargets(1, &target_rtv, 1, nullptr);

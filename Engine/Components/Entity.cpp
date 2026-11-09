@@ -5,37 +5,39 @@
 #include "Script.h"
 #include "Geometry.h"
 
-namespace primal::game_entity {
-namespace {
+namespace primal::game_entity
+{
+namespace
+{
 
-utl::vector<transform::component>       transforms;
-utl::vector<script::component>          scripts;
-utl::vector<geometry::component>        geometries;
+utl::vector<transform::Component> transforms;
+utl::vector<script::Component> scripts;
+utl::vector<geometry::Component> geometries;
 
-utl::vector<id::generation_type>        generations;
-utl::deque<entity_id>                   free_ids;
+utl::vector<id::generation_type> generations;
+utl::deque<EntityId> free_ids;
 
-} // anonymous namespace
+}
 
-entity
-create(entity_info info)
+auto create(EntityInfo info) -> Entity
 {
     assert(info.transform); // All game entities must have a transform component
-    if (!info.transform) return {};
+    if (!info.transform)
+        return {};
 
-    entity_id id{};
+    EntityId id{};
 
     if (free_ids.size() > id::min_deleted_elements)
     {
         id = free_ids.front();
         assert(!is_alive(id));
         free_ids.pop_front();
-        id = entity_id{ id::new_generation(id) };
+        id = EntityId{id::new_generation(id)};
         ++generations[id::index(id)];
     }
     else
     {
-        id = entity_id{ (id::id_type)generations.size() };
+        id = EntityId{(id::id_type)generations.size()};
         generations.push_back(0);
 
         // Resize components
@@ -45,14 +47,15 @@ create(entity_info info)
         geometries.emplace_back();
     }
 
-    const entity new_entity{ id };
-    const id::id_type index{ id::index(id) };
+    const Entity new_entity{id};
+    const id::id_type index{id::index(id)};
 
     // Create transform component
     assert(!transforms[index].is_valid());
     transforms[index] = transform::create(*info.transform, new_entity);
     assert(transforms[index].get_id() == id);
-    if (!transforms[index].is_valid()) return {};
+    if (!transforms[index].is_valid())
+        return {};
 
     // Create script component
     if (info.script && info.script->script_creator)
@@ -73,10 +76,9 @@ create(entity_info info)
     return new_entity;
 }
 
-void
-remove(entity_id id)
+auto remove(EntityId id) -> void
 {
-    const id::id_type index{ id::index(id) };
+    const id::id_type index{id::index(id)};
     assert(is_alive(id));
 
     if (geometries[index].is_valid())
@@ -100,15 +102,15 @@ remove(entity_id id)
     }
 }
 
-bool
-update_component(entity_id id, entity_info info, component_type::type type)
+auto update_component(EntityId id, EntityInfo info, ComponentType::Type type) -> bool
 {
-    assert(is_alive(id) && type != component_type::transform);
-    if (type == component_type::transform) return false;
-    entity entity{ id };
-    const id::id_type index{ id::index(id) };
+    assert(is_alive(id) && type != ComponentType::transform);
+    if (type == ComponentType::transform)
+        return false;
+    Entity entity{id};
+    const id::id_type index{id::index(id)};
 
-    if (type == component_type::script)
+    if (type == ComponentType::script)
     {
         if (scripts[index].is_valid())
         {
@@ -118,7 +120,7 @@ update_component(entity_id id, entity_info info, component_type::type type)
 
         if (info.script && info.script->script_creator)
         {
-            script::component new_script{ script::create(*info.script, entity) };
+            script::Component new_script{script::create(*info.script, entity)};
             assert(new_script.is_valid());
 
             if (new_script.is_valid())
@@ -128,7 +130,7 @@ update_component(entity_id id, entity_info info, component_type::type type)
             }
         }
     }
-    else if (type == component_type::geometry)
+    else if (type == ComponentType::geometry)
     {
         if (geometries[index].is_valid())
         {
@@ -138,7 +140,7 @@ update_component(entity_id id, entity_info info, component_type::type type)
 
         if (info.geometry)
         {
-            geometry::component new_geometry{ geometry::create(*info.geometry, entity) };
+            geometry::Component new_geometry{geometry::create(*info.geometry, entity)};
             assert(new_geometry.is_valid());
 
             if (new_geometry.is_valid())
@@ -152,31 +154,27 @@ update_component(entity_id id, entity_info info, component_type::type type)
     return false;
 }
 
-bool
-is_alive(entity_id id)
+auto is_alive(EntityId id) -> bool
 {
     assert(id::is_valid(id));
-    const id::id_type index{ id::index(id) };
+    const id::id_type index{id::index(id)};
     assert(index < generations.size());
     return generations[index] == id::generation(id) && transforms[index].is_valid();
 }
 
-transform::component
-entity::transform() const
+auto Entity::transform() const -> transform::Component
 {
     assert(is_alive(_id));
     return transforms[id::index(_id)];
 }
 
-script::component
-entity::script() const
+auto Entity::script() const -> script::Component
 {
     assert(is_alive(_id));
     return scripts[id::index(_id)];
 }
 
-geometry::component
-entity::geometry() const
+auto Entity::geometry() const -> geometry::Component
 {
     assert(is_alive(_id));
     return geometries[id::index(_id)];

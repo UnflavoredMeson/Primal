@@ -178,7 +178,7 @@ enum TextureDimension : int
     TextureCube,
 }
 
-// NOTE: should be the same as primal::content::texture_flags::flags enumeration in ContentToEngine.h
+// NOTE: should be the same as primal::content::TextureFlags::Flags enumeration in ContentToEngine.h
 [Flags]
 enum TextureFlags : int
 {

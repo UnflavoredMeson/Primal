@@ -8,16 +8,17 @@
 
 union SDL_Event;
 
-namespace primal::input {
-    // Updates the input state from an SDL keyboard, mouse button, mouse motion or mouse wheel event.
-    // Other events are ignored.
-    void process_input_event(const SDL_Event &event);
+namespace primal::input
+{
+// Updates the input state from an SDL keyboard, mouse button, mouse motion or mouse wheel event.
+// Other events are ignored.
+auto process_input_event(const SDL_Event &event) -> void;
 
-    // Maps an SDL_Scancode to an input code. Returns u32_invalid_id for unmapped keys.
-    u32 map_scancode(u32 scancode);
+// Maps an SDL_Scancode to an input code. Returns u32_invalid_id for unmapped keys.
+auto map_scancode(u32 scancode) -> u32;
 
-    // Currently held modifier keys as modifier_key::key flags.
-    u32 modifier_keys();
+// Currently held modifier keys as modifier_key::key flags.
+auto modifier_keys() -> u32;
 }
 
 #endif // PRIMAL_PLATFORM_LINUX

@@ -6,10 +6,13 @@
 #include "EngineAPI/Camera.h"
 #include "EngineAPI/Light.h"
 
-namespace primal::graphics {
+namespace primal::graphics
+{
 
-struct renderer_option {
-    enum option :u64 {
+struct RendererOption
+{
+    enum Option : u64
+    {
         vsync,
         raytracing,
         msaa,
@@ -18,85 +21,99 @@ struct renderer_option {
     };
 };
 
-struct frame_info
+struct FrameInfo
 {
-    id::id_type*    render_item_ids{ nullptr };
-    f32*            thresholds{ nullptr };
-    u64             light_set_key{ 0 };
-    f32             last_frame_time{ 16.7f };
-    f32             average_frame_time{ 16.7f };
-    u32             render_item_count{ 0 };
-    graphics::camera_id camera_id{ id::invalid_id }; // qualified: a member named like its type (GCC -Wchanges-meaning)
+    id::id_type *render_item_ids{nullptr};
+    f32 *thresholds{nullptr};
+    u64 light_set_key{0};
+    f32 last_frame_time{16.7f};
+    f32 average_frame_time{16.7f};
+    u32 render_item_count{0};
+    graphics::CameraId camera_id{id::invalid_id}; // qualified: a member named like its type (GCC -Wchanges-meaning)
 };
 
-DEFINE_TYPED_ID(surface_id);
+DEFINE_TYPED_ID(SurfaceId);
 
-class surface
+class Surface
 {
-public:
-    constexpr explicit surface(surface_id id) : _id{ id } {}
-    constexpr surface() = default;
-    constexpr surface_id get_id() const { return _id; }
-    constexpr bool is_valid() const { return id::is_valid(_id); }
+  public:
+    constexpr explicit Surface(SurfaceId id)
+        : _id{id}
+    {
+    }
+    constexpr Surface() = default;
+    constexpr auto get_id() const -> SurfaceId
+    {
+        return _id;
+    }
+    constexpr auto is_valid() const -> bool
+    {
+        return id::is_valid(_id);
+    }
 
-    void resize(u32 width, u32 height) const;
-    u32 width() const;
-    u32 height() const;
-    void render(frame_info info) const;
-private:
-    surface_id _id{ id::invalid_id };
+    auto resize(u32 width, u32 height) const -> void;
+    auto width() const -> u32;
+    auto height() const -> u32;
+    auto render(FrameInfo info) const -> void;
+
+  private:
+    SurfaceId _id{id::invalid_id};
 };
 
-struct render_surface
+struct RenderSurface
 {
-    platform::window            window{};
-    primal::graphics::surface   surface{};
+    platform::Window window{};
+    primal::graphics::Surface surface{};
 };
 
-struct directional_light_params {};
-
-struct point_light_params
+struct DirectionalLightParams
 {
-    math::v3    attenuation;
-    f32         range;
 };
 
-struct spot_light_params
+struct PointLightParams
 {
-    math::v3    attenuation;
-    f32         range;
+    math::v3 attenuation;
+    f32 range;
+};
+
+struct SpotLightParams
+{
+    math::v3 attenuation;
+    f32 range;
     // Umbra angle in radians [0, pi)
-    f32         umbra;
+    f32 umbra;
     // Penumbra angle in radians [umbra, pi)
-    f32         penumbra;
+    f32 penumbra;
 };
 
-struct ambient_params
+struct AmbientParams
 {
     id::id_type diffuse_texture_id;
     id::id_type specular_texture_id;
     id::id_type brdf_lut_texture_id;
 };
 
-struct light_init_info
+struct LightInitInfo
 {
-    u64                             light_set_key{ 0 };
-    id::id_type                     entity_id{ id::invalid_id };
-    light::type                     type{};
-    f32                             intensity{ 1.f };
-    math::v3                        color{ 1.f, 1.f, 1.f };
+    u64 light_set_key{0};
+    id::id_type entity_id{id::invalid_id};
+    Light::Type type{};
+    f32 intensity{1.f};
+    math::v3 color{1.f, 1.f, 1.f};
     union
     {
-        directional_light_params    directional_params;
-        point_light_params          point_params;
-        spot_light_params           spot_params;
-        graphics::ambient_params    ambient_params;
+        DirectionalLightParams directional_params;
+        PointLightParams point_params;
+        SpotLightParams spot_params;
+        graphics::AmbientParams ambient_params;
     };
-    bool                            is_enabled{ true };
+    bool is_enabled{true};
 };
 
-struct light_parameter {
-    enum parameter : u32 {
+struct LightParameter
+{
+    enum Parameter : u32
+    {
         is_enabled,
         intensity,
         color,
@@ -111,8 +128,10 @@ struct light_parameter {
     };
 };
 
-struct camera_parameter {
-    enum parameter : u32 {
+struct CameraParameter
+{
+    enum Parameter : u32
+    {
         up_vector,
         field_of_view,
         aspect_ratio,
@@ -132,16 +151,18 @@ struct camera_parameter {
     };
 };
 
-struct camera_init_info
+struct CameraInitInfo
 {
-    id::id_type     entity_id{ id::invalid_id };
-    camera::type    type{};
-    math::v3        up;
-    union {
+    id::id_type entity_id{id::invalid_id};
+    Camera::Type type{};
+    math::v3 up;
+    union
+    {
         f32 field_of_view;
         f32 view_width;
     };
-    union {
+    union
+    {
         f32 aspect_ratio;
         f32 view_height;
     };
@@ -149,14 +170,14 @@ struct camera_init_info
     f32 far_z;
 };
 
-struct perspective_camera_init_info : public camera_init_info
+struct PerspectiveCameraInitInfo : public CameraInitInfo
 {
-    explicit perspective_camera_init_info(id::id_type id)
+    explicit PerspectiveCameraInitInfo(id::id_type id)
     {
         assert(id::is_valid(id));
         entity_id = id;
-        type = camera::perspective;
-        up = { 0.f, 1.f, 0.f };
+        type = Camera::perspective;
+        up = {0.f, 1.f, 0.f};
         field_of_view = 0.25f;
         aspect_ratio = 16.f / 10.f;
         near_z = 0.1f;
@@ -164,14 +185,14 @@ struct perspective_camera_init_info : public camera_init_info
     }
 };
 
-struct orthographic_camera_init_info : public camera_init_info
+struct OrthographicCameraInitInfo : public CameraInitInfo
 {
-    explicit orthographic_camera_init_info(id::id_type id)
+    explicit OrthographicCameraInitInfo(id::id_type id)
     {
         assert(id::is_valid(id));
         entity_id = id;
-        type = camera::orthographic;
-        up = { 0.f, 1.f, 0.f };
+        type = Camera::orthographic;
+        up = {0.f, 1.f, 0.f};
         view_width = 1920;
         view_height = 1080;
         near_z = 0.01f;
@@ -179,8 +200,10 @@ struct orthographic_camera_init_info : public camera_init_info
     }
 };
 
-struct shader_flags {
-    enum flags : u32 {
+struct ShaderFlags
+{
+    enum Flags : u32
+    {
         none = 0x0,
         vertex = 0x01,
         hull = 0x02,
@@ -193,8 +216,10 @@ struct shader_flags {
     };
 };
 
-struct shader_type {
-    enum type : u32 {
+struct ShaderType
+{
+    enum Type : u32
+    {
         vertex = 0,
         hull,
         domain,
@@ -208,8 +233,10 @@ struct shader_type {
     };
 };
 
-struct material_type {
-    enum type : u32 {
+struct MaterialType
+{
+    enum Type : u32
+    {
         opaque,
         // transparent, unlit, clear_coat, cloth, skin, foliage, hair, etc.
 
@@ -217,27 +244,37 @@ struct material_type {
     };
 };
 
-struct material_surface
+struct MaterialSurface
 {
-    u8  base_color[4]{ 255, 255, 255, 255 };
-    u8  emissive[3]{ 0, 0, 0 };
-    u8  metallic{ 0 };
-    u8  roughness{ 225 };
-    u8  input_mask{ 0 }; // A set bit means to use a texture for the corresponding surface property
-    u16 emissive_intensity{ 0 };
+    u8 base_color[4]{255, 255, 255, 255};
+    u8 emissive[3]{0, 0, 0};
+    u8 metallic{0};
+    u8 roughness{225};
+    u8 input_mask{0}; // A set bit means to use a texture for the corresponding surface property
+    u16 emissive_intensity{0};
 };
 
-struct material_init_info
+struct MaterialInitInfo
 {
-    id::id_type*        texture_ids;
-    material_surface    surface;
-    material_type::type type;
-    u32                 texture_count; // NOTE: textures are optional, so, texture count may be 0 and texture_ids may be nullptr.
-    id::id_type         shader_ids[shader_type::count]{ id::invalid_id, id::invalid_id, id::invalid_id, id::invalid_id, id::invalid_id, id::invalid_id, id::invalid_id, id::invalid_id };
+    id::id_type *texture_ids;
+    MaterialSurface surface;
+    MaterialType::Type type;
+    u32 texture_count; // NOTE: textures are optional, so, texture count may be 0 and texture_ids may be nullptr.
+    id::id_type shader_ids[ShaderType::count]{
+        id::invalid_id,
+        id::invalid_id,
+        id::invalid_id,
+        id::invalid_id,
+        id::invalid_id,
+        id::invalid_id,
+        id::invalid_id,
+        id::invalid_id};
 };
 
-struct primitive_topology {
-    enum type : u32 {
+struct PrimitiveTopology
+{
+    enum Type : u32
+    {
         point_list = 1,
         line_list,
         line_strip,
@@ -249,7 +286,7 @@ struct primitive_topology {
 };
 
 #ifndef PRIMAL_PLUS
-enum class graphics_platform :u32
+enum class GraphicsPlatform : u32
 {
     direct3d12 = 0,
     vulkan = 1,
@@ -258,42 +295,45 @@ enum class graphics_platform :u32
 #include "Graphics/GraphicsPlatform.h"
 #endif
 
-bool initialize(graphics_platform platform);
-void shutdown();
+auto initialize(GraphicsPlatform platform) -> bool;
+auto shutdown() -> void;
 
-void set_option(renderer_option::option option, const void *const parameter, u32 parameter_size);
-void get_option(renderer_option::option option, void *const parameter, u32 parameter_size);
+auto set_option(RendererOption::Option option, const void *const parameter, u32 parameter_size) -> void;
+auto get_option(RendererOption::Option option, void *const parameter, u32 parameter_size) -> void;
 
 // Get the location of compiled engine shaders relative to the executable's path.
 // The path is for the graphics API that's currently in use.
-const char* get_engine_shaders_path();
+auto get_engine_shaders_path() -> const char *;
 
 // Get the location of compiled engine shaders, for the specified platform, relative to the executable's path.
 // The path is for the graphics API that's currently in use.
-const char* get_engine_shaders_path(graphics_platform platform);
+auto get_engine_shaders_path(GraphicsPlatform platform) -> const char *;
 
-surface create_surface(platform::window window);
-void remove_surface(surface_id id);
+auto create_surface(platform::Window window) -> Surface;
+auto remove_surface(SurfaceId id) -> void;
 
-void create_light_set(u64 light_set_key);
-void remove_light_set(u64 light_set_key);
+auto create_light_set(u64 light_set_key) -> void;
+auto remove_light_set(u64 light_set_key) -> void;
 
-light create_light(light_init_info info);
-void remove_light(light_id id, u64 light_set_key);
+auto create_light(LightInitInfo info) -> Light;
+auto remove_light(LightId id, u64 light_set_key) -> void;
 
-camera create_camera(camera_init_info info);
-void remove_camera(camera_id id);
+auto create_camera(CameraInitInfo info) -> Camera;
+auto remove_camera(CameraId id) -> void;
 
-void add_mesh(const u8 *const data, id::id_type *const ids, u32 count);
-void remove_mesh(const id::id_type *const ids, u32 count);
+auto add_mesh(const u8 *const data, id::id_type *const ids, u32 count) -> void;
+auto remove_mesh(const id::id_type *const ids, u32 count) -> void;
 
-id::id_type add_texture(const u8 *const data);
-void remove_texture(id::id_type id);
+auto add_texture(const u8 *const data) -> id::id_type;
+auto remove_texture(id::id_type id) -> void;
 
-id::id_type add_material(material_init_info info);
-void remove_material(id::id_type id);
+auto add_material(MaterialInitInfo info) -> id::id_type;
+auto remove_material(id::id_type id) -> void;
 
-id::id_type add_render_item(id::id_type entity_id, id::id_type geometry_content_id,
-                            u32 material_count, const id::id_type *const material_ids);
-void remove_render_item(id::id_type id);
+auto add_render_item(
+    id::id_type entity_id,
+    id::id_type geometry_content_id,
+    u32 material_count,
+    const id::id_type *const material_ids) -> id::id_type;
+auto remove_render_item(id::id_type id) -> void;
 }

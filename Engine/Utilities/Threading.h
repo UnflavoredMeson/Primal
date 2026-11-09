@@ -5,49 +5,58 @@
 #include <atomic>
 #include <immintrin.h> // _mm_pause
 
-namespace primal::utl {
+namespace primal::utl
+{
 
 #if PRIMAL_PLATFORM_WINDOWS
-class ticket_mutex {
-public:
-    ticket_mutex() = default;
-    DISABLE_COPY_AND_MOVE(ticket_mutex);
+class TicketMutex
+{
+  public:
+    TicketMutex() = default;
+    DISABLE_COPY_AND_MOVE(TicketMutex);
 
-    void lock()
+    auto lock() -> void
     {
-        const u64 ticket{ (u64)_InterlockedExchangeAdd64((__int64 volatile*)&_ticket, 1) };
-        while (_serving != ticket) { _mm_pause(); }
+        const u64 ticket{(u64)_InterlockedExchangeAdd64((__int64 volatile *)&_ticket, 1)};
+        while (_serving != ticket)
+        {
+            _mm_pause();
+        }
     }
 
-    void unlock()
+    auto unlock() -> void
     {
-        _InterlockedExchangeAdd64((__int64 volatile*)&_serving, 1);
+        _InterlockedExchangeAdd64((__int64 volatile *)&_serving, 1);
     }
 
-private:
-    u64 volatile _ticket{ 0 };
-    u64 volatile _serving{ 0 };
+  private:
+    u64 volatile _ticket{0};
+    u64 volatile _serving{0};
 };
 #else
-class ticket_mutex {
-public:
-    ticket_mutex() = default;
-    DISABLE_COPY_AND_MOVE(ticket_mutex);
+class TicketMutex
+{
+  public:
+    TicketMutex() = default;
+    DISABLE_COPY_AND_MOVE(TicketMutex);
 
-    void lock()
+    auto lock() -> void
     {
-        const u64 ticket{ _ticket.fetch_add(1, std::memory_order_acquire) };
-        while (_serving != ticket) { _mm_pause(); }
+        const u64 ticket{_ticket.fetch_add(1, std::memory_order_acquire)};
+        while (_serving != ticket)
+        {
+            _mm_pause();
+        }
     }
 
-    void unlock()
+    auto unlock() -> void
     {
         _serving.fetch_add(1, std::memory_order_release);
     }
 
-private:
-    std::atomic<u64> _ticket{ 0 };
-    std::atomic<u64> _serving{ 0 };
+  private:
+    std::atomic<u64> _ticket{0};
+    std::atomic<u64> _serving{0};
 };
 #endif
 }

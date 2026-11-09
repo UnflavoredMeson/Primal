@@ -5,7 +5,7 @@
 #include "PlatformDetection.h"
 
 #ifdef _MSC_VER
-#pragma warning(disable: 4530) // disable exception warning
+#pragma warning(disable : 4530) // disable exception warning
 #endif
 
 // C/C++ headers
@@ -18,15 +18,15 @@
 #include <cstring>
 
 #ifndef DISABLE_COPY
-#define DISABLE_COPY(T)                     \
-            explicit T(const T&) = delete;  \
-            T& operator=(const T&) = delete;
+#define DISABLE_COPY(T)                                                                                                \
+    explicit T(const T &) = delete;                                                                                    \
+    auto operator=(const T &)->T & = delete;
 #endif
 
 #ifndef DISABLE_MOVE
-#define DISABLE_MOVE(T)                 \
-            explicit T(T&&) = delete;   \
-            T& operator=(T&&) = delete;
+#define DISABLE_MOVE(T)                                                                                                \
+    explicit T(T &&) = delete;                                                                                         \
+    auto operator=(T &&)->T & = delete;
 #endif
 
 #ifndef DISABLE_COPY_AND_MOVE
@@ -39,12 +39,13 @@
 #define DEBUG_OP(x)
 #endif
 
-namespace primal {
-constexpr const struct version_t
+namespace primal
 {
-    const int major{ 0 };
-    const int minor{ 0 };
-    const int revision{ 1 };
+constexpr const struct Version
+{
+    const int major{0};
+    const int minor{0};
+    const int revision{1};
 } version;
 }
 

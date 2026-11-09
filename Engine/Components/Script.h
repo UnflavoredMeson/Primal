@@ -3,15 +3,16 @@
 #pragma once
 #include "ComponentsCommon.h"
 
-namespace primal::script {
+namespace primal::script
+{
 
-struct init_info
+struct InitInfo
 {
     detail::script_creator script_creator;
 };
 
-component create(init_info info, game_entity::entity entity);
-void remove(component c);
-void update(f32 dt);
+auto create(InitInfo info, game_entity::Entity entity) -> Component;
+auto remove(Component c) -> void;
+auto update(f32 dt) -> void;
 
 }

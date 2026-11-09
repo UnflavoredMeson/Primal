@@ -11,46 +11,48 @@
 
 using namespace primal;
 
-class engine_test : public test
+class EngineTest : public Test
 {
-public:
-    bool initialize() override
+  public:
+    auto initialize() -> bool override
     {
-        srand((u32)time(nullptr));
+        std::srand((u32)std::time(nullptr));
         return true;
     }
 
-    void run() override
+    auto run() -> void override
     {
-        do {
-            for (u32 i{ 0 }; i < 10000; ++i)
+        do
+        {
+            for (u32 i{0}; i < 10000; ++i)
             {
                 create_random();
                 remove_random();
                 _num_entities = (u32)_entities.size();
             }
             print_results();
-        } while (getchar() != 'q');
+        } while (std::getchar() != 'q');
     }
 
-    void shutdown() override
-    { }
-
-private:
-    void create_random()
+    auto shutdown() -> void override
     {
-        u32 count = rand() % 20;
-        if (_entities.empty()) count = 1000;
-        transform::init_info transform_info{};
-        game_entity::entity_info entity_info
-        {
+    }
+
+  private:
+    auto create_random() -> void
+    {
+        u32 count = std::rand() % 20;
+        if (_entities.empty())
+            count = 1000;
+        transform::InitInfo transform_info{};
+        game_entity::EntityInfo entity_info{
             &transform_info,
         };
 
         while (count > 0)
         {
             ++_added;
-            game_entity::entity entity{ game_entity::create(entity_info) };
+            game_entity::Entity entity{game_entity::create(entity_info)};
             assert(entity.is_valid() && id::is_valid(entity.get_id()));
             _entities.push_back(entity);
             assert(game_entity::is_alive(entity.get_id()));
@@ -58,14 +60,15 @@ private:
         }
     }
 
-    void remove_random()
+    auto remove_random() -> void
     {
-        u32 count = rand() % 20;
-        if (_entities.size() < 1000) return;
+        u32 count = std::rand() % 20;
+        if (_entities.size() < 1000)
+            return;
         while (count > 0)
         {
-            const u32 index{ (u32)rand() % (u32)_entities.size() };
-            const game_entity::entity entity{ _entities[index] };
+            const u32 index{(u32)std::rand() % (u32)_entities.size()};
+            const game_entity::Entity entity{_entities[index]};
             assert(entity.is_valid() && id::is_valid(entity.get_id()));
             if (entity.is_valid())
             {
@@ -78,15 +81,15 @@ private:
         }
     }
 
-    void print_results()
+    auto print_results() -> void
     {
         std::cout << "Entities created: " << _added << "\n";
         std::cout << "Entities deleted: " << _removed << "\n";
     }
 
-    utl::vector<game_entity::entity> _entities;
+    utl::vector<game_entity::Entity> _entities;
 
-    u32 _added{ 0 };
-    u32 _removed{ 0 };
-    u32 _num_entities{ 0 };
+    u32 _added{0};
+    u32 _removed{0};
+    u32 _num_entities{0};
 };

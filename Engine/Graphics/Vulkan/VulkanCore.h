@@ -5,41 +5,44 @@
 #include "VulkanHelpers.h"
 #include <type_traits>
 
-namespace primal::graphics::vulkan::camera {
-class vulkan_camera;
+namespace primal::graphics::vulkan::camera
+{
+class VulkanCamera;
 }
 
-namespace primal::graphics::vulkan {
-class descriptor_heap;
-class constant_buffer;
+namespace primal::graphics::vulkan
+{
+class DescriptorHeap;
+class ConstantBuffer;
 
 // Per-surface frame data for the render modules (counterpart of d3d12_frame_info).
-struct vulkan_frame_info
+struct VulkanFrameInfo
 {
-    const frame_info* info{ nullptr };
-    camera::vulkan_camera* camera{ nullptr }; // null when frame_info has no camera (nothing is drawn then)
-    vkx::buffer_range global_shader_data{}; // hlsl::GlobalShaderData in the frame's constant buffer
-    u32 surface_width{ 0 };
-    u32 surface_height{ 0 };
-    id::id_type surface_id{ id::invalid_id };
-    id::id_type light_culling_id{ id::invalid_id };
-    u32 frame_index{ 0 };
+    const FrameInfo *info{nullptr};
+    camera::VulkanCamera *camera{nullptr}; // null when frame_info has no camera (nothing is drawn then)
+    vkx::BufferRange global_shader_data{}; // hlsl::GlobalShaderData in the frame's constant buffer
+    u32 surface_width{0};
+    u32 surface_height{0};
+    id::id_type surface_id{id::invalid_id};
+    id::id_type light_culling_id{id::invalid_id};
+    u32 frame_index{0};
 };
-} // namespace primal::graphics::vulkan
+}
 
-namespace primal::graphics::vulkan::core {
+namespace primal::graphics::vulkan::core
+{
 
-bool initialize();
-void shutdown();
+auto initialize() -> bool;
+auto shutdown() -> void;
 
-namespace detail {
+namespace detail
+{
 // allocation: the VMA allocation of a buffer or image (destroyed together), or nullptr.
-void deferred_release(VkObjectType type, u64 handle, VmaAllocation allocation = VK_NULL_HANDLE);
+auto deferred_release(VkObjectType type, u64 handle, VmaAllocation allocation = VK_NULL_HANDLE) -> void;
 
 // Maps a Vulkan handle type to its VkObjectType. (64-bit handles are distinct pointer types.)
-template<typename T>
-consteval VkObjectType
-object_type()
+template <typename T>
+consteval auto object_type() -> VkObjectType
 {
     if constexpr (std::is_same_v<T, VkSwapchainKHR>)
         return VK_OBJECT_TYPE_SWAPCHAIN_KHR;
@@ -66,13 +69,12 @@ object_type()
     else
         static_assert(sizeof(T) == 0, "Add the handle type here and to destroy_object() in VulkanCore.cpp.");
 }
-} // namespace detail
+}
 
 // Destroys a Vulkan object once the GPU can't be using it anymore (frame_buffer_count frames
 // from now), like d3d12::core::deferred_release(). Sets the handle to VK_NULL_HANDLE.
-template<typename T>
-void
-deferred_release(T& handle)
+template <typename T>
+auto deferred_release(T &handle) -> void
 {
     if (handle != VK_NULL_HANDLE)
     {
@@ -82,9 +84,8 @@ deferred_release(T& handle)
 }
 
 // Same for a buffer or image and its VMA allocation (vmaDestroyBuffer/vmaDestroyImage).
-template<typename T>
-void
-deferred_release(T& handle, VmaAllocation& allocation)
+template <typename T>
+auto deferred_release(T &handle, VmaAllocation &allocation) -> void
 {
     static_assert(std::is_same_v<T, VkBuffer> || std::is_same_v<T, VkImage>);
     assert((handle == VK_NULL_HANDLE) == (allocation == VK_NULL_HANDLE));
@@ -96,39 +97,39 @@ deferred_release(T& handle, VmaAllocation& allocation)
     }
 }
 
-void set_option(renderer_option::option option, const void* const parameter, u32 parameter_size);
-void get_option(renderer_option::option option, void* const parameter, u32 parameter_size);
+auto set_option(RendererOption::Option option, const void *const parameter, u32 parameter_size) -> void;
+auto get_option(RendererOption::Option option, void *const parameter, u32 parameter_size) -> void;
 
-[[nodiscard]] VkInstance instance();
-[[nodiscard]] VkPhysicalDevice physical_device();
-[[nodiscard]] VkDevice device();
-[[nodiscard]] VkQueue graphics_queue();
+[[nodiscard]] auto instance() -> VkInstance;
+[[nodiscard]] auto physical_device() -> VkPhysicalDevice;
+[[nodiscard]] auto device() -> VkDevice;
+[[nodiscard]] auto graphics_queue() -> VkQueue;
 // Thread-safe vkQueueSubmit2 on the graphics queue (render frames use the same queue and lock).
-void submit_to_graphics_queue(const VkSubmitInfo2& submit);
-[[nodiscard]] u32 graphics_queue_family();
-[[nodiscard]] VmaAllocator allocator();
+auto submit_to_graphics_queue(const VkSubmitInfo2 &submit) -> void;
+[[nodiscard]] auto graphics_queue_family() -> u32;
+[[nodiscard]] auto allocator() -> VmaAllocator;
 // The bindless resource heap (counterpart of d3d12::core::srv_heap()).
-[[nodiscard]] descriptor_heap& srv_heap();
+[[nodiscard]] auto srv_heap() -> DescriptorHeap &;
 // The current frame's constant buffer (cleared at the start of each frame).
-[[nodiscard]] constant_buffer& cbuffer();
+[[nodiscard]] auto cbuffer() -> ConstantBuffer &;
 // Alignment for the offset of a buffer range bound as a root SRV/UAV: max(16, minStorageBufferOffsetAlignment).
 // D3D12 root SRVs only need 4 bytes, so data packed for D3D12 (mesh assets) is repacked with this alignment.
-[[nodiscard]] u32 storage_buffer_offset_alignment();
+[[nodiscard]] auto storage_buffer_offset_alignment() -> u32;
 // A zeroed storage buffer (256 KB) for root SRVs that have no buffer yet (D3D12 binds address 0 there).
-[[nodiscard]] vkx::buffer_range zero_buffer();
+[[nodiscard]] auto zero_buffer() -> vkx::BufferRange;
 // The D3D12 static samplers as immutable samplers (vkx::root_parameter::sampler).
-[[nodiscard]] VkSampler static_sampler(vkx::static_sampler::type type);
-[[nodiscard]] u32 current_frame_index();
-void set_deferred_releases_flag(u32 frame_idx);
+[[nodiscard]] auto static_sampler(vkx::StaticSampler::Type type) -> VkSampler;
+[[nodiscard]] auto current_frame_index() -> u32;
+auto set_deferred_releases_flag(u32 frame_idx) -> void;
 
-[[nodiscard]] bool vsync_enabled();
+[[nodiscard]] auto vsync_enabled() -> bool;
 // Names an object for validation messages and RenderDoc (no-op without VK_EXT_debug_utils).
-void set_object_name(u64 handle, VkObjectType type, const char* name);
+auto set_object_name(u64 handle, VkObjectType type, const char *name) -> void;
 
-[[nodiscard]] surface create_surface(platform::window window);
-void remove_surface(surface_id id);
-void resize_surface(surface_id id, u32, u32);
-[[nodiscard]] u32 surface_width(surface_id id);
-[[nodiscard]] u32 surface_height(surface_id id);
-void render_surface(surface_id id, frame_info info);
-} // namespace primal::graphics::vulkan::core
+[[nodiscard]] auto create_surface(platform::Window window) -> Surface;
+auto remove_surface(SurfaceId id) -> void;
+auto resize_surface(SurfaceId id, u32, u32) -> void;
+[[nodiscard]] auto surface_width(SurfaceId id) -> u32;
+[[nodiscard]] auto surface_height(SurfaceId id) -> u32;
+auto render_surface(SurfaceId id, FrameInfo info) -> void;
+}

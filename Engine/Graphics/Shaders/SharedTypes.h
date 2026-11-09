@@ -6,7 +6,8 @@
 
 // The C++ side of the HLSL types shared with the shaders, used by both graphics backends. The Vulkan backend
 // compiles the shaders with -fvk-use-dx-layout, so these structs have the same layout as in Direct3D 12.
-namespace primal::graphics::hlsl {
+namespace primal::graphics::hlsl
+{
 
 using float4x4 = math::m4x4a;
 using float4 = math::v4;
@@ -19,4 +20,4 @@ using uint = u32;
 
 #include "CommonTypes.hlsli"
 
-} // namespace primal::graphics::hlsl
+}

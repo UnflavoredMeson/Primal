@@ -5,27 +5,28 @@
 #include "D3D12LightCulling.h"
 #include "Platform/PlatformTypes.h"
 
-namespace primal::graphics::d3d12 {
-namespace {
-
-constexpr DXGI_FORMAT
-to_non_srgb(DXGI_FORMAT format)
+namespace primal::graphics::d3d12
 {
-    if (format == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB) return DXGI_FORMAT_R8G8B8A8_UNORM;
+namespace
+{
+
+constexpr auto to_non_srgb(DXGI_FORMAT format) -> DXGI_FORMAT
+{
+    if (format == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB)
+        return DXGI_FORMAT_R8G8B8A8_UNORM;
 
     return format;
 }
 
-u32
-get_flags()
+auto get_flags() -> u32
 {
-    return (core::allow_tearing() ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0) | DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
+    return (core::allow_tearing() ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0) |
+           DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
 }
 
-} // anonymous namespace
+}
 
-void
-d3d12_surface::create_swap_chain(IDXGIFactory7* factory, ID3D12CommandQueue* cmd_queue)
+auto D3D12Surface::create_swap_chain(IDXGIFactory7 *factory, ID3D12CommandQueue *cmd_queue) -> void
 {
     assert(factory && cmd_queue);
     release();
@@ -44,10 +45,10 @@ d3d12_surface::create_swap_chain(IDXGIFactory7* factory, ID3D12CommandQueue* cmd
     desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
     desc.Stereo = false;
 
-    IDXGISwapChain1* swap_chain;
-    const platform::native_window_handle *const native{ _window.handle() };
-    assert(native && native->kind == platform::native_window_handle::win32);
-    HWND hwnd{ (HWND)native->window };
+    IDXGISwapChain1 *swap_chain;
+    const platform::NativeWindowHandle *const native{_window.handle()};
+    assert(native && native->kind == platform::NativeWindowHandle::win32);
+    HWND hwnd{(HWND)native->window};
     DXCall(factory->CreateSwapChainForHwnd(cmd_queue, hwnd, &desc, nullptr, nullptr, &swap_chain));
     DXCall(factory->MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER));
     DXCall(swap_chain->QueryInterface(IID_PPV_ARGS(&_swap_chain)));
@@ -55,7 +56,7 @@ d3d12_surface::create_swap_chain(IDXGIFactory7* factory, ID3D12CommandQueue* cmd
 
     _current_bb_index = _swap_chain->GetCurrentBackBufferIndex();
 
-    for (u32 i{ 0 }; i < buffer_count; ++i)
+    for (u32 i{0}; i < buffer_count; ++i)
     {
         _render_target_data[i].rtv = core::rtv_heap().allocate();
     }
@@ -66,40 +67,37 @@ d3d12_surface::create_swap_chain(IDXGIFactory7* factory, ID3D12CommandQueue* cmd
     _light_culling_id = delight::add_culler();
 }
 
-void
-d3d12_surface::present() const
+auto D3D12Surface::present() const -> void
 {
-    u32 sync_interval{ core::vsync_enabled() ? (u32)1 : (u32)0 };
+    u32 sync_interval{core::vsync_enabled() ? (u32)1 : (u32)0};
     assert(_swap_chain);
     DXCall(_swap_chain->Present(sync_interval, sync_interval ? 0 : DXGI_PRESENT_ALLOW_TEARING));
     _current_bb_index = _swap_chain->GetCurrentBackBufferIndex();
 }
 
-void
-d3d12_surface::resize()
+auto D3D12Surface::resize() -> void
 {
     assert(_swap_chain);
-    for (u32 i{ 0 }; i < buffer_count; ++i)
+    for (u32 i{0}; i < buffer_count; ++i)
     {
         core::release(_render_target_data[i].resource);
     }
 
-    const u32 flags{ get_flags() };
+    const u32 flags{get_flags()};
     DXCall(_swap_chain->ResizeBuffers(buffer_count, 0, 0, DXGI_FORMAT_UNKNOWN, flags));
     _current_bb_index = _swap_chain->GetCurrentBackBufferIndex();
 
     finalize();
 
-    DEBUG_OP(OutputDebugString(L"::D3D12 Surface Resized.\n"));
+    DEBUG_OP(::OutputDebugString(L"::D3D12 Surface Resized.\n"));
 }
 
-void
-d3d12_surface::finalize()
+auto D3D12Surface::finalize() -> void
 {
     // create RTVs for back-buffers
-    for (u32 i{ 0 }; i < buffer_count; ++i)
+    for (u32 i{0}; i < buffer_count; ++i)
     {
-        render_target_data& data{ _render_target_data[i] };
+        RenderTargetData &data{_render_target_data[i]};
         assert(!data.resource);
         DXCall(_swap_chain->GetBuffer(i, IID_PPV_ARGS(&data.resource)));
         D3D12_RENDER_TARGET_VIEW_DESC desc{};
@@ -110,8 +108,8 @@ d3d12_surface::finalize()
 
     DXGI_SWAP_CHAIN_DESC desc{};
     DXCall(_swap_chain->GetDesc(&desc));
-    const u32 width{ desc.BufferDesc.Width };
-    const u32 height{ desc.BufferDesc.Height };
+    const u32 width{desc.BufferDesc.Width};
+    const u32 height{desc.BufferDesc.Height};
     assert(_window.width() == width && _window.height() == height);
 
     // set viewport and scissor rect
@@ -122,22 +120,21 @@ d3d12_surface::finalize()
     _viewport.MinDepth = 0.f;
     _viewport.MaxDepth = 1.f;
 
-    _scissor_rect = { 0, 0, (s32)width, (s32)height };
+    _scissor_rect = {0, 0, (s32)width, (s32)height};
 
     DXCall(_swap_chain->SetMaximumFrameLatency(buffer_count));
 }
 
-void
-d3d12_surface::release()
+auto D3D12Surface::release() -> void
 {
     if (id::is_valid(_light_culling_id))
     {
         delight::remove_culler(_light_culling_id);
     }
 
-    for (u32 i{ 0 }; i < buffer_count; ++i)
+    for (u32 i{0}; i < buffer_count; ++i)
     {
-        render_target_data& data{ _render_target_data[i] };
+        RenderTargetData &data{_render_target_data[i]};
         core::release(data.resource);
         core::rtv_heap().free(data.rtv);
     }

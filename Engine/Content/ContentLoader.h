@@ -3,10 +3,11 @@
 #pragma once
 #include "CommonHeaders.h"
 #if !defined(SHIPPING)
-namespace primal::content {
-bool load_game();
-void unload_game();
+namespace primal::content
+{
+auto load_game() -> bool;
+auto unload_game() -> void;
 
-bool load_engine_shaders(std::unique_ptr<u8[]>& shaders, u64& size);
+auto load_engine_shaders(std::unique_ptr<u8[]> &shaders, u64 &size) -> bool;
 }
 #endif // !defined(SHIPPING)

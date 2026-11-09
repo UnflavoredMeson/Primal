@@ -4,52 +4,57 @@
 #include "CommonHeaders.h"
 #include "Renderer.h"
 
-namespace primal::graphics {
-struct platform_interface
+namespace primal::graphics
 {
-    bool(*initialize)(void);
-    void(*shutdown)(void);
+struct PlatformInterface
+{
+    bool (*initialize)(void);
+    void (*shutdown)(void);
 
-    void (*set_option)(renderer_option::option, const void *const, u32);
-    void (*get_option)(renderer_option::option, void *const, u32);
+    void (*set_option)(RendererOption::Option, const void *const, u32);
+    void (*get_option)(RendererOption::Option, void *const, u32);
 
-    struct {
+    struct
+    {
         // NOTE: the types are qualified because the members are named like them (GCC -Wchanges-meaning).
-        graphics::surface(*create)(platform::window);
-        void(*remove)(surface_id);
-        void(*resize)(surface_id, u32, u32);
-        u32(*width)(surface_id);
-        u32(*height)(surface_id);
-        void(*render)(surface_id, frame_info);
+        graphics::Surface (*create)(platform::Window);
+        void (*remove)(SurfaceId);
+        void (*resize)(SurfaceId, u32, u32);
+        u32 (*width)(SurfaceId);
+        u32 (*height)(SurfaceId);
+        void (*render)(SurfaceId, FrameInfo);
     } surface;
 
-    struct {
-        void(*create_light_set)(u64);
-        void(*remove_light_set)(u64);
-        graphics::light(*create)(light_init_info);
-        void(*remove)(light_id, u64);
-        void(*set_parameter)(light_id, u64, light_parameter::parameter, const void *const, u32);
-        void(*get_parameter)(light_id, u64, light_parameter::parameter, void *const, u32);
+    struct
+    {
+        void (*create_light_set)(u64);
+        void (*remove_light_set)(u64);
+        graphics::Light (*create)(LightInitInfo);
+        void (*remove)(LightId, u64);
+        void (*set_parameter)(LightId, u64, LightParameter::Parameter, const void *const, u32);
+        void (*get_parameter)(LightId, u64, LightParameter::Parameter, void *const, u32);
     } light;
 
-    struct {
-        graphics::camera(*create)(camera_init_info);
-        void(*remove)(camera_id);
-        void(*set_parameter)(camera_id, camera_parameter::parameter, const void *const, u32);
-        void(*get_parameter)(camera_id, camera_parameter::parameter, void *const, u32);
+    struct
+    {
+        graphics::Camera (*create)(CameraInitInfo);
+        void (*remove)(CameraId);
+        void (*set_parameter)(CameraId, CameraParameter::Parameter, const void *const, u32);
+        void (*get_parameter)(CameraId, CameraParameter::Parameter, void *const, u32);
     } camera;
 
-    struct {
-        void(*add_mesh)(const u8 *const, id::id_type *const, u32);
+    struct
+    {
+        void (*add_mesh)(const u8 *const, id::id_type *const, u32);
         void (*remove_mesh)(const id::id_type *const, u32);
-        id::id_type(*add_texture)(const u8 *const);
+        id::id_type (*add_texture)(const u8 *const);
         void (*remove_texture)(id::id_type);
-        id::id_type(*add_material)(material_init_info);
+        id::id_type (*add_material)(MaterialInitInfo);
         void (*remove_material)(id::id_type);
-        id::id_type(*add_render_item)(id::id_type, id::id_type, u32, const id::id_type *const);
+        id::id_type (*add_render_item)(id::id_type, id::id_type, u32, const id::id_type *const);
         void (*remove_render_item)(id::id_type);
     } resources;
 
-    graphics_platform platform = (graphics_platform)-1;
+    GraphicsPlatform platform = (GraphicsPlatform)-1;
 };
 }

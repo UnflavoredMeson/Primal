@@ -3,17 +3,19 @@
 #pragma once
 #include "CommonHeaders.h"
 
-namespace primal::utl {
+namespace primal::utl
+{
 
 #if USE_STL_VECTOR
 #pragma message("WARNING: using utl::free_list with std::vector results in duplicate calls to class destructor!")
 #endif
 
-template<typename T>
+template <typename T>
 class free_list
 {
     static_assert(sizeof(T) >= sizeof(u32));
-public:
+
+  public:
     free_list() = default;
     explicit free_list(u32 count)
     {
@@ -28,10 +30,10 @@ public:
 #endif
     }
 
-    template<class... params>
-    constexpr u32 add(params&&... p)
+    template <class... params>
+    constexpr auto add(params &&...p) -> u32
     {
-        u32 id{ u32_invalid_id };
+        u32 id{u32_invalid_id};
         if (_next_free_index == u32_invalid_id)
         {
             id = (u32)_array.size();
@@ -48,55 +50,56 @@ public:
         return id;
     }
 
-    constexpr void remove(u32 id)
+    constexpr auto remove(u32 id) -> void
     {
         assert(id < _array.size() && !already_removed(id, false));
-        T& item{ _array[id] };
+        T &item{_array[id]};
         item.~T();
         // Fill the destroyed item's storage with a debug pattern (void* cast: T needn't be trivially copyable).
-        DEBUG_OP(memset((void*)std::addressof(_array[id]), 0xcc, sizeof(T)));
+        DEBUG_OP(std::memset((void *)std::addressof(_array[id]), 0xcc, sizeof(T)));
         *(u32 *const)std::addressof(_array[id]) = _next_free_index;
         _next_free_index = id;
         --_size;
     }
 
-    constexpr u32 size() const
+    constexpr auto size() const -> u32
     {
         return _size;
     }
 
-    constexpr u32 capacity() const
+    constexpr auto capacity() const -> u32
     {
         return (u32)_array.size();
     }
 
-    constexpr bool empty() const
+    constexpr auto empty() const -> bool
     {
         return _size == 0;
     }
 
-    [[nodiscard]] constexpr T& operator[](u32 id)
+    [[nodiscard]] constexpr auto operator[](u32 id) -> T &
     {
         assert(id < _array.size() && !already_removed(id, false));
         return _array[id];
     }
 
-    [[nodiscard]] constexpr const T& operator[](u32 id) const
+    [[nodiscard]] constexpr auto operator[](u32 id) const -> const T &
     {
         assert(id < _array.size() && !already_removed(id, false));
         return _array[id];
     }
 
-private:
-    constexpr bool already_removed(u32 id, bool return_value_when_sizeof_t_equals_4) const
+  private:
+    constexpr auto already_removed(u32 id, bool return_value_when_sizeof_t_equals_4) const -> bool
     {
         // NOTE: when sizeof(T) == sizeof(u32) we can't test if the item was already removed!
         if constexpr (sizeof(T) > sizeof(u32))
         {
-            u32 i{ sizeof(u32) }; //skip the first 4 bytes.
-            const u8 *const p{ (const u8 *const)std::addressof(_array[id]) };
+            u32 i{sizeof(u32)}; // skip the first 4 bytes.
+            const u8 *const p{(const u8 *const)std::addressof(_array[id])};
             // NOTE: test the bound first, p[sizeof(T)] is past the item (past the array for the last one).
-            while ((i < sizeof(T)) && (p[i] == 0xcc)) ++i;
+            while ((i < sizeof(T)) && (p[i] == 0xcc))
+                ++i;
             return i == sizeof(T);
         }
         else
@@ -105,11 +108,11 @@ private:
         }
     }
 #if USE_STL_VECTOR
-    utl::vector<T>          _array;
+    utl::vector<T> _array;
 #else
-    utl::vector<T, false>   _array;
+    utl::vector<T, false> _array;
 #endif
-    u32                     _next_free_index{ u32_invalid_id };
-    u32                     _size{ 0 };
+    u32 _next_free_index{u32_invalid_id};
+    u32 _size{0};
 };
 }

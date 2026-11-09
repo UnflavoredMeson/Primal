@@ -4,195 +4,175 @@
 #include "VulkanCamera.h"
 #include "EngineAPI/GameEntity.h"
 
-namespace primal::graphics::vulkan::camera {
-namespace {
-
-utl::free_list<vulkan_camera> cameras;
-
-void
-set_up_vector(vulkan_camera& camera, const void* const data, [[maybe_unused]] u32 size)
+namespace primal::graphics::vulkan::camera
 {
-    math::v3 up_vector{ *(math::v3*)data };
+namespace
+{
+
+utl::free_list<VulkanCamera> cameras;
+
+auto set_up_vector(VulkanCamera &camera, const void *const data, [[maybe_unused]] u32 size) -> void
+{
+    math::v3 up_vector{*(math::v3 *)data};
     assert(sizeof(up_vector) == size);
     camera.up(up_vector);
 }
 
-constexpr void
-set_field_of_view(vulkan_camera& camera, const void* const data, [[maybe_unused]] u32 size)
+constexpr auto set_field_of_view(VulkanCamera &camera, const void *const data, [[maybe_unused]] u32 size) -> void
 {
-    assert(camera.projection_type() == graphics::camera::perspective);
-    f32 fov{ *(f32*)data };
+    assert(camera.projection_type() == graphics::Camera::perspective);
+    f32 fov{*(f32 *)data};
     assert(sizeof(fov) == size);
     camera.field_of_view(fov);
 }
 
-constexpr void
-set_aspect_ratio(vulkan_camera& camera, const void* const data, [[maybe_unused]] u32 size)
+constexpr auto set_aspect_ratio(VulkanCamera &camera, const void *const data, [[maybe_unused]] u32 size) -> void
 {
-    assert(camera.projection_type() == graphics::camera::perspective);
-    f32 aspect_ratio{ *(f32*)data };
+    assert(camera.projection_type() == graphics::Camera::perspective);
+    f32 aspect_ratio{*(f32 *)data};
     assert(sizeof(aspect_ratio) == size);
     camera.aspect_ratio(aspect_ratio);
 }
 
-constexpr  void
-set_view_width(vulkan_camera& camera, const void* const data, [[maybe_unused]] u32 size)
+constexpr auto set_view_width(VulkanCamera &camera, const void *const data, [[maybe_unused]] u32 size) -> void
 {
-    assert(camera.projection_type() == graphics::camera::orthographic);
-    f32 view_width{ *(f32*)data };
+    assert(camera.projection_type() == graphics::Camera::orthographic);
+    f32 view_width{*(f32 *)data};
     assert(sizeof(view_width) == size);
     camera.view_width(view_width);
 }
 
-constexpr  void
-set_view_height(vulkan_camera& camera, const void* const data, [[maybe_unused]] u32 size)
+constexpr auto set_view_height(VulkanCamera &camera, const void *const data, [[maybe_unused]] u32 size) -> void
 {
-    assert(camera.projection_type() == graphics::camera::orthographic);
-    f32 view_height{ *(f32*)data };
+    assert(camera.projection_type() == graphics::Camera::orthographic);
+    f32 view_height{*(f32 *)data};
     assert(sizeof(view_height) == size);
     camera.view_height(view_height);
 }
 
-constexpr void
-set_near_z(vulkan_camera& camera, const void* const data, [[maybe_unused]] u32 size)
+constexpr auto set_near_z(VulkanCamera &camera, const void *const data, [[maybe_unused]] u32 size) -> void
 {
-    f32 near_z{ *(f32*)data };
+    f32 near_z{*(f32 *)data};
     assert(sizeof(near_z) == size);
     camera.near_z(near_z);
 }
 
-constexpr void
-set_far_z(vulkan_camera& camera, const void* const data, [[maybe_unused]] u32 size)
+constexpr auto set_far_z(VulkanCamera &camera, const void *const data, [[maybe_unused]] u32 size) -> void
 {
-    f32 far_z{ *(f32*)data };
+    f32 far_z{*(f32 *)data};
     assert(sizeof(far_z) == size);
     camera.far_z(far_z);
 }
 
-void
-get_view(const vulkan_camera& camera, void* const data, [[maybe_unused]] u32 size)
+auto get_view(const VulkanCamera &camera, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    math::m4x4 *const matrix{ (math::m4x4 *const)data };
+    math::m4x4 *const matrix{(math::m4x4 *const)data};
     assert(sizeof(math::m4x4) == size);
     DirectX::XMStoreFloat4x4(matrix, camera.view());
 }
 
-void
-get_projection(const vulkan_camera& camera, void* const data, [[maybe_unused]] u32 size)
+auto get_projection(const VulkanCamera &camera, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    math::m4x4 *const matrix{ (math::m4x4 *const)data };
+    math::m4x4 *const matrix{(math::m4x4 *const)data};
     assert(sizeof(math::m4x4) == size);
     DirectX::XMStoreFloat4x4(matrix, camera.projection());
 }
 
-void
-get_inverse_projection(const vulkan_camera& camera, void* const data, [[maybe_unused]] u32 size)
+auto get_inverse_projection(const VulkanCamera &camera, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    math::m4x4 *const matrix{ (math::m4x4 *const)data };
+    math::m4x4 *const matrix{(math::m4x4 *const)data};
     assert(sizeof(math::m4x4) == size);
     DirectX::XMStoreFloat4x4(matrix, camera.inverse_projection());
 }
 
-void
-get_view_projection(const vulkan_camera& camera, void* const data, [[maybe_unused]] u32 size)
+auto get_view_projection(const VulkanCamera &camera, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    math::m4x4 *const matrix{ (math::m4x4 *const)data };
+    math::m4x4 *const matrix{(math::m4x4 *const)data};
     assert(sizeof(math::m4x4) == size);
     DirectX::XMStoreFloat4x4(matrix, camera.view_projection());
 }
 
-void
-get_inverse_view_projection(const vulkan_camera& camera, void* const data, [[maybe_unused]] u32 size)
+auto get_inverse_view_projection(const VulkanCamera &camera, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    math::m4x4 *const matrix{ (math::m4x4 *const)data };
+    math::m4x4 *const matrix{(math::m4x4 *const)data};
     assert(sizeof(math::m4x4) == size);
     DirectX::XMStoreFloat4x4(matrix, camera.inverse_view_projection());
 }
 
-void
-get_up_vector(const vulkan_camera& camera, void* const data, [[maybe_unused]] u32 size)
+auto get_up_vector(const VulkanCamera &camera, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    math::v3 *const up_vector{ (math::v3 *const)data };
+    math::v3 *const up_vector{(math::v3 *const)data};
     assert(sizeof(math::v3) == size);
     DirectX::XMStoreFloat3(up_vector, camera.up());
 }
 
-constexpr void
-get_field_of_view(const vulkan_camera& camera, void* const data, [[maybe_unused]] u32 size)
+constexpr auto get_field_of_view(const VulkanCamera &camera, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    assert(camera.projection_type() == graphics::camera::perspective);
-    f32 *const fov{ (f32 *const)data };
+    assert(camera.projection_type() == graphics::Camera::perspective);
+    f32 *const fov{(f32 *const)data};
     assert(sizeof(f32) == size);
     *fov = camera.field_of_view();
 }
 
-constexpr void
-get_aspect_ratio(const vulkan_camera& camera, void* const data, [[maybe_unused]] u32 size)
+constexpr auto get_aspect_ratio(const VulkanCamera &camera, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    assert(camera.projection_type() == graphics::camera::perspective);
-    f32 *const aspect_ratio{ (f32 *const)data };
+    assert(camera.projection_type() == graphics::Camera::perspective);
+    f32 *const aspect_ratio{(f32 *const)data};
     assert(sizeof(f32) == size);
     *aspect_ratio = camera.aspect_ratio();
 }
 
-constexpr void
-get_view_width(const vulkan_camera& camera, void* const data, [[maybe_unused]] u32 size)
+constexpr auto get_view_width(const VulkanCamera &camera, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    assert(camera.projection_type() == graphics::camera::orthographic);
-    f32 *const view_width{ (f32 *const)data };
+    assert(camera.projection_type() == graphics::Camera::orthographic);
+    f32 *const view_width{(f32 *const)data};
     assert(sizeof(f32) == size);
     *view_width = camera.view_width();
 }
 
-constexpr void
-get_view_height(const vulkan_camera& camera, void* const data, [[maybe_unused]] u32 size)
+constexpr auto get_view_height(const VulkanCamera &camera, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    assert(camera.projection_type() == graphics::camera::orthographic);
-    f32 *const view_height{ (f32 *const)data };
+    assert(camera.projection_type() == graphics::Camera::orthographic);
+    f32 *const view_height{(f32 *const)data};
     assert(sizeof(f32) == size);
     *view_height = camera.view_height();
 }
 
-constexpr void
-get_near_z(const vulkan_camera& camera, void* const data, [[maybe_unused]] u32 size)
+constexpr auto get_near_z(const VulkanCamera &camera, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    f32 *const near_z{ (f32 *const)data };
+    f32 *const near_z{(f32 *const)data};
     assert(sizeof(f32) == size);
     *near_z = camera.near_z();
 }
 
-constexpr void
-get_far_z(const vulkan_camera& camera, void* const data, [[maybe_unused]] u32 size)
+constexpr auto get_far_z(const VulkanCamera &camera, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    f32 *const far_z{ (f32 *const)data };
+    f32 *const far_z{(f32 *const)data};
     assert(sizeof(f32) == size);
     *far_z = camera.far_z();
 }
 
-constexpr void
-get_projection_type(const vulkan_camera& camera, void* const data, [[maybe_unused]] u32 size)
+constexpr auto get_projection_type(const VulkanCamera &camera, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    graphics::camera::type *const type{ (graphics::camera::type *const)data };
-    assert(sizeof(graphics::camera::type) == size);
+    graphics::Camera::Type *const type{(graphics::Camera::Type *const)data};
+    assert(sizeof(graphics::Camera::Type) == size);
     *type = camera.projection_type();
 }
 
-constexpr void
-get_entity_id(const vulkan_camera& camera, void* const data, [[maybe_unused]] u32 size)
+constexpr auto get_entity_id(const VulkanCamera &camera, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    id::id_type *const entity_id{ (id::id_type *const)data };
+    id::id_type *const entity_id{(id::id_type *const)data};
     assert(sizeof(id::id_type) == size);
     *entity_id = camera.entity_id();
 }
 
-constexpr void
-dummy_set(vulkan_camera&, const void *const, u32)
-{}
-
-using set_function = void(*)(vulkan_camera&, const void *const, u32);
-using get_function = void(*)(const vulkan_camera&, void *const, u32);
-constexpr set_function set_functions[]
+constexpr auto dummy_set(VulkanCamera &, const void *const, u32) -> void
 {
+}
+
+using set_function = void (*)(VulkanCamera &, const void *const, u32);
+using get_function = void (*)(const VulkanCamera &, void *const, u32);
+constexpr set_function set_functions[]{
     set_up_vector,
     set_field_of_view,
     set_aspect_ratio,
@@ -209,10 +189,9 @@ constexpr set_function set_functions[]
     dummy_set,
 };
 
-static_assert(std::size(set_functions) == camera_parameter::count);
+static_assert(std::size(set_functions) == CameraParameter::count);
 
-constexpr get_function get_functions[]
-{
+constexpr get_function get_functions[]{
     get_up_vector,
     get_field_of_view,
     get_aspect_ratio,
@@ -229,28 +208,31 @@ constexpr get_function get_functions[]
     get_entity_id,
 };
 
-static_assert(std::size(get_functions) == camera_parameter::count);
+static_assert(std::size(get_functions) == CameraParameter::count);
 
-} // anonymous namespace
+}
 
-vulkan_camera::vulkan_camera(camera_init_info info)
-    : _up{ DirectX::XMLoadFloat3(&info.up) },
-    _near_z{ info.near_z }, _far_z{ info.far_z },
-    _field_of_view{ info.field_of_view }, _aspect_ratio{ info.aspect_ratio },
-    _projection_type{ info.type }, _entity_id{ info.entity_id }, _is_dirty{ true }
+VulkanCamera::VulkanCamera(CameraInitInfo info)
+    : _up{DirectX::XMLoadFloat3(&info.up)}
+    , _near_z{info.near_z}
+    , _far_z{info.far_z}
+    , _field_of_view{info.field_of_view}
+    , _aspect_ratio{info.aspect_ratio}
+    , _projection_type{info.type}
+    , _entity_id{info.entity_id}
+    , _is_dirty{true}
 {
     assert(id::is_valid(_entity_id));
     update();
 }
 
-void
-vulkan_camera::update()
+auto VulkanCamera::update() -> void
 {
-    game_entity::entity entity{ game_entity::entity_id{_entity_id} };
+    game_entity::Entity entity{game_entity::EntityId{_entity_id}};
     using namespace DirectX;
-    math::v3 pos{ entity.position() };
-    math::v3 dir{ entity.front() };
-    math::v3 up{ entity.up() };
+    math::v3 pos{entity.position()};
+    math::v3 dir{entity.front()};
+    math::v3 up{entity.up()};
     _position = XMLoadFloat3(&pos);
     _direction = XMLoadFloat3(&dir);
     _up = XMLoadFloat3(&up);
@@ -259,9 +241,9 @@ vulkan_camera::update()
     if (_is_dirty)
     {
         // NOTE: _near_z and _far_z are swapped because we use inverse depth (reversed Z, as in the d3d12 renderer).
-        _projection = (_projection_type == graphics::camera::perspective)
-            ? XMMatrixPerspectiveFovRH(_field_of_view * XM_PI, _aspect_ratio, _far_z, _near_z)
-            : XMMatrixOrthographicRH(_view_width, _view_height, _far_z, _near_z);
+        _projection = (_projection_type == graphics::Camera::perspective)
+                          ? XMMatrixPerspectiveFovRH(_field_of_view * XM_PI, _aspect_ratio, _far_z, _near_z)
+                          : XMMatrixOrthographicRH(_view_width, _view_height, _far_z, _near_z);
         _inverse_projection = XMMatrixInverse(nullptr, _projection);
         _is_dirty = false;
     }
@@ -270,93 +252,81 @@ vulkan_camera::update()
     _inverse_view_projection = XMMatrixInverse(nullptr, _view_projection);
 }
 
-void
-vulkan_camera::up(math::v3 up)
+auto VulkanCamera::up(math::v3 up) -> void
 {
     _up = DirectX::XMLoadFloat3(&up);
 }
 
-constexpr void
-vulkan_camera::field_of_view(f32 fov)
+constexpr auto VulkanCamera::field_of_view(f32 fov) -> void
 {
-    assert(_projection_type == graphics::camera::perspective);
+    assert(_projection_type == graphics::Camera::perspective);
     _field_of_view = fov;
     _is_dirty = true;
 }
 
-constexpr void
-vulkan_camera::aspect_ratio(f32 aspect_ratio)
+constexpr auto VulkanCamera::aspect_ratio(f32 aspect_ratio) -> void
 {
-    assert(_projection_type == graphics::camera::perspective);
+    assert(_projection_type == graphics::Camera::perspective);
     _aspect_ratio = aspect_ratio;
     _is_dirty = true;
 }
 
-constexpr void
-vulkan_camera::view_width(f32 width)
+constexpr auto VulkanCamera::view_width(f32 width) -> void
 {
     assert(width);
-    assert(_projection_type == graphics::camera::orthographic);
+    assert(_projection_type == graphics::Camera::orthographic);
     _view_width = width;
     _is_dirty = true;
 }
 
-constexpr void
-vulkan_camera::view_height(f32 height)
+constexpr auto VulkanCamera::view_height(f32 height) -> void
 {
     assert(height);
-    assert(_projection_type == graphics::camera::orthographic);
+    assert(_projection_type == graphics::Camera::orthographic);
     _view_height = height;
     _is_dirty = true;
 }
 
-constexpr void
-vulkan_camera::near_z(f32 near_z)
+constexpr auto VulkanCamera::near_z(f32 near_z) -> void
 {
     _near_z = near_z;
     _is_dirty = true;
 }
 
-constexpr void
-vulkan_camera::far_z(f32 far_z)
+constexpr auto VulkanCamera::far_z(f32 far_z) -> void
 {
     _far_z = far_z;
     _is_dirty = true;
 }
 
-graphics::camera
-create(camera_init_info info)
+auto create(CameraInitInfo info) -> graphics::Camera
 {
-    return graphics::camera{ camera_id{ cameras.add(info) } };
+    return graphics::Camera{CameraId{cameras.add(info)}};
 }
 
-void
-remove(camera_id id)
+auto remove(CameraId id) -> void
 {
     assert(id::is_valid(id));
     cameras.remove(id);
 }
 
-void
-set_parameter(camera_id id, camera_parameter::parameter parameter, const void *const data, u32 data_size)
+auto set_parameter(CameraId id, CameraParameter::Parameter parameter, const void *const data, u32 data_size) -> void
 {
     assert(data && data_size);
-    assert(parameter < camera_parameter::count && set_functions[parameter] != dummy_set);
-    vulkan_camera& camera{ get(id) };
+    assert(parameter < CameraParameter::count && set_functions[parameter] != dummy_set);
+    VulkanCamera &camera{get(id)};
     set_functions[parameter](camera, data, data_size);
 }
 
-void
-get_parameter(camera_id id, camera_parameter::parameter parameter, void *const data, u32 data_size)
+auto get_parameter(CameraId id, CameraParameter::Parameter parameter, void *const data, u32 data_size) -> void
 {
     assert(data && data_size);
-    assert(parameter < camera_parameter::count);
-    vulkan_camera& camera{ get(id) };
+    assert(parameter < CameraParameter::count);
+    VulkanCamera &camera{get(id)};
     get_functions[parameter](camera, data, data_size);
 }
 
-vulkan_camera&
-get(camera_id id)
+auto get(CameraId id) -> VulkanCamera &
 {
     assert(id::is_valid(id));
     return cameras[id];

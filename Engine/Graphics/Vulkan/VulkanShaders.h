@@ -6,12 +6,13 @@
 
 // Engine shaders (counterpart of D3D12Shaders.h). Loaded from ./shaders/vulkan/shaders.bin, which
 // EngineDLL/ShaderCompilation.cpp writes with compile_shaders(graphics_platform::vulkan).
-namespace primal::graphics::vulkan::shaders {
+namespace primal::graphics::vulkan::shaders
+{
 
 // Same order as engine_shader in ShaderCompilation.cpp and D3D12Shaders.h (the blob is in this order).
-struct engine_shader
+struct EngineShader
 {
-    enum id : u32
+    enum Id : u32
     {
         fullscreen_triangle_vs = 0,
         post_process_ps,
@@ -22,10 +23,10 @@ struct engine_shader
     };
 };
 
-bool initialize();
-void shutdown();
+auto initialize() -> bool;
+auto shutdown() -> void;
 
 // SPIR-V code + entry point ("main" for every shader, see vkx::spirv_entry_point).
-[[nodiscard]] vkx::shader_bytecode get_engine_shader(engine_shader::id id);
+[[nodiscard]] auto get_engine_shader(EngineShader::Id id) -> vkx::ShaderBytecode;
 
-} // namespace primal::graphics::vulkan::shaders
+}

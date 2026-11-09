@@ -8,22 +8,19 @@
 #include <crtdbg.h>
 
 #if _DEBUG
-BOOL APIENTRY DllMain( HMODULE,
-                       DWORD  ul_reason_for_call,
-                       LPVOID)
+// NOLINTNEXTLINE(modernize-use-trailing-return-type): calling convention (keeps the classic return type, T02)
+BOOL APIENTRY DllMain(HMODULE, DWORD ul_reason_for_call, LPVOID)
 {
     switch (ul_reason_for_call)
     {
-    case DLL_PROCESS_ATTACH:
-        _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
-        // When a leak is detected, call _CrtSetBreakAlloc(N) with leak number N to
-        // break at leak site.
-    case DLL_THREAD_ATTACH:
-    case DLL_THREAD_DETACH:
-    case DLL_PROCESS_DETACH:
-        break;
+        case DLL_PROCESS_ATTACH:
+            _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+            // When a leak is detected, call _CrtSetBreakAlloc(N) with leak number N to
+            // break at leak site.
+        case DLL_THREAD_ATTACH:
+        case DLL_THREAD_DETACH:
+        case DLL_PROCESS_DETACH: break;
     }
     return TRUE;
 }
 #endif
-

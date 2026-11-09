@@ -3,21 +3,22 @@
 #include "PrimitiveMesh.h"
 #include "Geometry.h"
 
-namespace primal::tools {
-namespace {
+namespace primal::tools
+{
+namespace
+{
 
 using namespace DirectX;
-using primitive_mesh_creator = void(*)(scene&, const primitive_init_info& info);
+using primitive_mesh_creator = void (*)(Scene &, const PrimitiveInitInfo &info);
 
-void create_plane(scene& scene, const primitive_init_info& info);
-void create_cube(scene& scene, const primitive_init_info& info);
-void create_uv_sphere(scene& scene, const primitive_init_info& info);
-void create_ico_sphere(scene& scene, const primitive_init_info& info);
-void create_cylinder(scene& scene, const primitive_init_info& info);
-void create_capsule(scene& scene, const primitive_init_info& info);
+auto create_plane(Scene &scene, const PrimitiveInitInfo &info) -> void;
+auto create_cube(Scene &scene, const PrimitiveInitInfo &info) -> void;
+auto create_uv_sphere(Scene &scene, const PrimitiveInitInfo &info) -> void;
+auto create_ico_sphere(Scene &scene, const PrimitiveInitInfo &info) -> void;
+auto create_cylinder(Scene &scene, const PrimitiveInitInfo &info) -> void;
+auto create_capsule(Scene &scene, const PrimitiveInitInfo &info) -> void;
 
-primitive_mesh_creator creators[]
-{
+primitive_mesh_creator creators[]{
     create_plane,
     create_cube,
     create_uv_sphere,
@@ -26,44 +27,50 @@ primitive_mesh_creator creators[]
     create_capsule,
 };
 
-static_assert(_countof(creators) == primitive_mesh_type::count);
+static_assert(_countof(creators) == PrimitiveMeshType::count);
 
-struct axis {
-    enum : u32 {
+struct Axis
+{
+    enum : u32
+    {
         x = 0,
         y = 1,
         z = 2
     };
 };
 
-mesh
-create_plane(const primitive_init_info& info,
-             u32 horizontal_index = axis::x, u32 vertical_index = axis::z, bool flip_winding = false,
-             math::v3 offset = { -0.5f, 0.f, -0.5f }, math::v2 u_range = { 0.f, 1.f }, math::v2 v_range = { 0.f, 1.f })
+auto create_plane(
+    const PrimitiveInitInfo &info,
+    u32 horizontal_index = Axis::x,
+    u32 vertical_index = Axis::z,
+    bool flip_winding = false,
+    math::v3 offset = {-0.5f, 0.f, -0.5f},
+    math::v2 u_range = {0.f, 1.f},
+    math::v2 v_range = {0.f, 1.f}) -> Mesh
 {
     assert(horizontal_index < 3 && vertical_index < 3);
     assert(horizontal_index != vertical_index);
 
-    const u32 horizontal_count{ math::clamp(info.segments[horizontal_index], 1u, 10u) };
-    const u32 vertical_count{ math::clamp(info.segments[vertical_index], 1u, 10u) };
-    const f32 horizontal_step{ 1.f / horizontal_count };
-    const f32 vertical_step{ 1.f / vertical_count };
-    const f32 u_step{ (u_range.y - u_range.x) / horizontal_count };
-    const f32 v_step{ (v_range.y - v_range.x) / vertical_count };
+    const u32 horizontal_count{math::clamp(info.segments[horizontal_index], 1u, 10u)};
+    const u32 vertical_count{math::clamp(info.segments[vertical_index], 1u, 10u)};
+    const f32 horizontal_step{1.f / horizontal_count};
+    const f32 vertical_step{1.f / vertical_count};
+    const f32 u_step{(u_range.y - u_range.x) / horizontal_count};
+    const f32 v_step{(v_range.y - v_range.x) / vertical_count};
 
-    mesh m{};
+    Mesh m{};
     utl::vector<math::v2> uvs;
 
-    for (u32 j{ 0 }; j <= vertical_count; ++j)
-        for (u32 i{ 0 }; i <= horizontal_count; ++i)
+    for (u32 j{0}; j <= vertical_count; ++j)
+        for (u32 i{0}; i <= horizontal_count; ++i)
         {
-            math::v3 position{ offset };
-            f32* const as_array{ &position.x };
+            math::v3 position{offset};
+            f32 *const as_array{&position.x};
             as_array[horizontal_index] += i * horizontal_step;
             as_array[vertical_index] += j * vertical_step;
             m.positions.emplace_back(position.x * info.size.x, position.y * info.size.y, position.z * info.size.z);
 
-            math::v2 uv{ u_range.x, 1.f - v_range.x };
+            math::v2 uv{u_range.x, 1.f - v_range.x};
             uv.x += i * u_step;
             uv.y -= j * v_step;
             uvs.emplace_back(uv);
@@ -71,18 +78,13 @@ create_plane(const primitive_init_info& info,
 
     assert(m.positions.size() == (((u64)horizontal_count + 1) * ((u64)vertical_count + 1)));
 
-    const u32 row_length{ horizontal_count + 1 }; // number of vertices in a row
-    for (u32 j{ 0 }; j < vertical_count; ++j)
+    const u32 row_length{horizontal_count + 1}; // number of vertices in a row
+    for (u32 j{0}; j < vertical_count; ++j)
     {
-        for (u32 i{ 0 }; i < horizontal_count; ++i)
+        for (u32 i{0}; i < horizontal_count; ++i)
         {
-            const u32 index[4]
-            {
-                i + j * row_length,
-                i + (j + 1) * row_length,
-                (i + 1) + j * row_length,
-                (i + 1) + (j + 1) * row_length
-            };
+            const u32 index[4]{
+                i + j * row_length, i + (j + 1) * row_length, (i + 1) + j * row_length, (i + 1) + (j + 1) * row_length};
 
             m.raw_indices.emplace_back(index[0]);
             m.raw_indices.emplace_back(index[flip_winding ? 2 : 1]);
@@ -94,12 +96,12 @@ create_plane(const primitive_init_info& info,
         }
     }
 
-    const u32 num_indices{ 3 * 2 * horizontal_count * vertical_count };
+    const u32 num_indices{3 * 2 * horizontal_count * vertical_count};
     assert(m.raw_indices.size() == num_indices);
 
     m.uv_sets.resize(1);
 
-    for (u32 i{ 0 }; i < num_indices; ++i)
+    for (u32 i{0}; i < num_indices; ++i)
     {
         m.uv_sets[0].emplace_back(uvs[m.raw_indices[i]]);
     }
@@ -107,57 +109,55 @@ create_plane(const primitive_init_info& info,
     return m;
 }
 
-constexpr math::v3
-get_face_vertex(u32 face, f32 x, f32 y)
+constexpr auto get_face_vertex(u32 face, f32 x, f32 y) -> math::v3
 {
     math::v3 face_vertex[6] = {
-        {-1.f, -y,    x},   // X- Right
-        { 1.f, -y,   -x},   // X+ Left
-        { x,    1.f,  y},   // Y+ Bottom
-        { x,   -1.f, -y},   // Y- Top
-        { x,   -y,    1.f}, // Z+ Front
-        {-x,   -y,   -1.f}, // Z- Back
+        {-1.f, -y, x},  // X- Right
+        {1.f, -y, -x},  // X+ Left
+        {x, 1.f, y},    // Y+ Bottom
+        {x, -1.f, -y},  // Y- Top
+        {x, -y, 1.f},   // Z+ Front
+        {-x, -y, -1.f}, // Z- Back
     };
 
     return face_vertex[face];
 }
 
-mesh
-create_cube(const primitive_init_info& info)
+auto create_cube(const PrimitiveInitInfo &info) -> Mesh
 {
-    const u32 *const segments{ &info.segments[0] };
-    constexpr math::u32v2 axes[3]{ {axis::z, axis::y}, {axis::x, axis::z}, {axis::x, axis::y} };
-    constexpr f32 u_range[6]{ 0.f, 0.5f, 0.25f, 0.25f, 0.25f, 0.75f };
-    constexpr f32 v_range[6]{ 0.375f, 0.375f, 0.125f, 0.625f, 0.375f, 0.375f };
-    mesh m{};
+    const u32 *const segments{&info.segments[0]};
+    constexpr math::u32v2 axes[3]{{Axis::z, Axis::y}, {Axis::x, Axis::z}, {Axis::x, Axis::y}};
+    constexpr f32 u_range[6]{0.f, 0.5f, 0.25f, 0.25f, 0.25f, 0.75f};
+    constexpr f32 v_range[6]{0.375f, 0.375f, 0.125f, 0.625f, 0.375f, 0.375f};
+    Mesh m{};
     utl::vector<math::v2> uvs{};
 
-    for (u32 face{ 0 }; face < 6; ++face)
+    for (u32 face{0}; face < 6; ++face)
     {
-        const u32 axes_index{ face >> 1 };
-        const math::u32v2& axis{ axes[axes_index] };
-        const u32 x_count{ math::clamp(segments[axis.x], (u32)1, (u32)10) };
-        const u32 y_count{ math::clamp(segments[axis.y], (u32)1, (u32)10) };
-        const f32 x_step{ 1.f / x_count };
-        const f32 y_step{ 1.f / y_count };
-        const f32 u_step{ 0.25f / x_count };
-        const f32 v_step{ 0.25f / y_count };
+        const u32 axes_index{face >> 1};
+        const math::u32v2 &axis{axes[axes_index]};
+        const u32 x_count{math::clamp(segments[axis.x], (u32)1, (u32)10)};
+        const u32 y_count{math::clamp(segments[axis.y], (u32)1, (u32)10)};
+        const f32 x_step{1.f / x_count};
+        const f32 y_step{1.f / y_count};
+        const f32 u_step{0.25f / x_count};
+        const f32 v_step{0.25f / y_count};
 
-        const u32 raw_index_offset{ (u32)m.positions.size() };
+        const u32 raw_index_offset{(u32)m.positions.size()};
 
-        for (u32 y{ 0 }; y <= y_count; ++y)
+        for (u32 y{0}; y <= y_count; ++y)
         {
-            for (u32 x{ 0 }; x <= x_count; ++x)
+            for (u32 x{0}; x <= x_count; ++x)
             {
-                math::v2 pos{ 2.f * x * x_step - 1.f, 2.f * y * y_step - 1.f };
-                math::v3 position{ get_face_vertex(face, pos.x, pos.y) };
+                math::v2 pos{2.f * x * x_step - 1.f, 2.f * y * y_step - 1.f};
+                math::v3 position{get_face_vertex(face, pos.x, pos.y)};
                 m.positions.emplace_back(position.x * info.size.x, position.y * info.size.y, position.z * info.size.z);
 #if 1
-                math::v2 uv{ u_range[face], 1.f - v_range[face] };
+                math::v2 uv{u_range[face], 1.f - v_range[face]};
                 uv.x += x * u_step;
                 uv.y -= y * v_step;
 #else
-                math::v2 uv{ 0.f, 1.f };
+                math::v2 uv{0.f, 1.f};
                 uv.x += (f32)(x % 2);
                 uv.y -= (f32)(y % 2);
 #endif
@@ -165,17 +165,16 @@ create_cube(const primitive_init_info& info)
             }
         }
 
-        const u32 row_length{ x_count + 1 }; // number of vertices in a row
-        for (u32 y{ 0 }; y < y_count; ++y)
+        const u32 row_length{x_count + 1}; // number of vertices in a row
+        for (u32 y{0}; y < y_count; ++y)
         {
-            for (u32 x{ 0 }; x < x_count; ++x)
+            for (u32 x{0}; x < x_count; ++x)
             {
                 const u32 index[4]{
                     raw_index_offset + x + y * row_length,
                     raw_index_offset + x + (y + 1) * row_length,
                     raw_index_offset + (x + 1) + y * row_length,
-                    raw_index_offset + (x + 1) + (y + 1) * row_length
-                };
+                    raw_index_offset + (x + 1) + (y + 1) * row_length};
 
                 m.raw_indices.emplace_back(index[0]);
                 m.raw_indices.emplace_back(index[1]);
@@ -189,7 +188,7 @@ create_cube(const primitive_init_info& info)
     }
 
     m.uv_sets.resize(1);
-    for (u32 i{ 0 }; i < m.raw_indices.size(); ++i)
+    for (u32 i{0}; i < m.raw_indices.size(); ++i)
     {
         m.uv_sets[0].emplace_back(uvs[m.raw_indices[i]]);
     }
@@ -197,131 +196,125 @@ create_cube(const primitive_init_info& info)
     return m;
 }
 
-mesh
-create_uv_sphere(const primitive_init_info& info)
+auto create_uv_sphere(const PrimitiveInitInfo &info) -> Mesh
 {
-    const u32 phi_count{ math::clamp(info.segments[axis::x], 3u, 64u) };
-    const u32 theta_count{ math::clamp(info.segments[axis::y], 2u, 64u) };
-    const f32 theta_step{ math::pi / theta_count };
-    const f32 phi_step{ math::two_pi / phi_count };
-    const u32 num_indices{ 2 * 3 * phi_count + 2 * 3 * phi_count * (theta_count - 2) };
-    const u32 num_vertices{ 2 + phi_count * (theta_count - 1) };
+    const u32 phi_count{math::clamp(info.segments[Axis::x], 3u, 64u)};
+    const u32 theta_count{math::clamp(info.segments[Axis::y], 2u, 64u)};
+    const f32 theta_step{math::pi / theta_count};
+    const f32 phi_step{math::two_pi / phi_count};
+    const u32 num_indices{2 * 3 * phi_count + 2 * 3 * phi_count * (theta_count - 2)};
+    const u32 num_vertices{2 + phi_count * (theta_count - 1)};
 
-    mesh m{};
+    Mesh m{};
     m.name = "uv_sphere";
     m.positions.resize(num_vertices);
 
     // Add the top vertex
-    u32 c{ 0 };
-    m.positions[c++] = { 0.f, info.size.y, 0.f };
+    u32 c{0};
+    m.positions[c++] = {0.f, info.size.y, 0.f};
 
-    for (u32 j{ 1 }; j <= (theta_count - 1); ++j)
+    for (u32 j{1}; j <= (theta_count - 1); ++j)
     {
-        const f32 theta{ j * theta_step };
-        for (u32 i{ 0 }; i < phi_count; ++i)
+        const f32 theta{j * theta_step};
+        for (u32 i{0}; i < phi_count; ++i)
         {
-            const f32 phi{ i * phi_step };
+            const f32 phi{i * phi_step};
             m.positions[c++] = {
                 info.size.x * XMScalarSin(theta) * XMScalarCos(phi),
                 info.size.y * XMScalarCos(theta),
-                -info.size.z * XMScalarSin(theta) * XMScalarSin(phi) };
+                -info.size.z * XMScalarSin(theta) * XMScalarSin(phi)};
         }
     }
 
     // Add the bottom vertex
-    m.positions[c++] = { 0.f, -info.size.y, 0.f };
+    m.positions[c++] = {0.f, -info.size.y, 0.f};
     assert(c == num_vertices);
 
     c = 0;
     m.raw_indices.resize(num_indices);
     utl::vector<math::v2> uvs(num_indices);
-    const f32 inv_theta_count{ 1.f / theta_count };
-    const f32 inv_phi_count{ 1.f / phi_count };
+    const f32 inv_theta_count{1.f / theta_count};
+    const f32 inv_phi_count{1.f / phi_count};
 
     // Indices for the top cap, connecting the north pole to the first ring
-    for (u32 i{ 0 }; i < phi_count - 1; ++i)
+    for (u32 i{0}; i < phi_count - 1; ++i)
     {
-        uvs[c] = { (2 * i + 1) * 0.5f * inv_phi_count, 1.f };
+        uvs[c] = {(2 * i + 1) * 0.5f * inv_phi_count, 1.f};
         m.raw_indices[c++] = 0;
-        uvs[c] = { i * inv_phi_count, 1.f - inv_theta_count };
+        uvs[c] = {i * inv_phi_count, 1.f - inv_theta_count};
         m.raw_indices[c++] = i + 1;
-        uvs[c] = { (i + 1) * inv_phi_count, 1.f - inv_theta_count };
+        uvs[c] = {(i + 1) * inv_phi_count, 1.f - inv_theta_count};
         m.raw_indices[c++] = i + 2;
     }
 
-    uvs[c] = { 1.f - 0.5f * inv_phi_count, 1.f };
+    uvs[c] = {1.f - 0.5f * inv_phi_count, 1.f};
     m.raw_indices[c++] = 0;
-    uvs[c] = { 1.f - inv_phi_count, 1.f - inv_theta_count };
+    uvs[c] = {1.f - inv_phi_count, 1.f - inv_theta_count};
     m.raw_indices[c++] = phi_count;
-    uvs[c] = { 1.f , 1.f - inv_theta_count };
+    uvs[c] = {1.f, 1.f - inv_theta_count};
     m.raw_indices[c++] = 1;
 
     // Indices for the section between the top and bottom rings
-    for (u32 j{ 0 }; j < (theta_count - 2); ++j)
+    for (u32 j{0}; j < (theta_count - 2); ++j)
     {
-        for (u32 i{ 0 }; i < (phi_count - 1); ++i)
+        for (u32 i{0}; i < (phi_count - 1); ++i)
         {
             const u32 index[4]{
                 1 + i + j * phi_count,
                 1 + i + (j + 1) * phi_count,
                 1 + (i + 1) + (j + 1) * phi_count,
-                1 + (i + 1) + j * phi_count
-            };
+                1 + (i + 1) + j * phi_count};
 
-            uvs[c] = { i * inv_phi_count, 1.f - (j + 1) * inv_theta_count };
+            uvs[c] = {i * inv_phi_count, 1.f - (j + 1) * inv_theta_count};
             m.raw_indices[c++] = index[0];
-            uvs[c] = { i * inv_phi_count, 1.f - (j + 2) * inv_theta_count };
+            uvs[c] = {i * inv_phi_count, 1.f - (j + 2) * inv_theta_count};
             m.raw_indices[c++] = index[1];
-            uvs[c] = { (i + 1) * inv_phi_count, 1.f - (j + 2) * inv_theta_count };
+            uvs[c] = {(i + 1) * inv_phi_count, 1.f - (j + 2) * inv_theta_count};
             m.raw_indices[c++] = index[2];
 
-            uvs[c] = { i * inv_phi_count, 1.f - (j + 1) * inv_theta_count };
+            uvs[c] = {i * inv_phi_count, 1.f - (j + 1) * inv_theta_count};
             m.raw_indices[c++] = index[0];
-            uvs[c] = { (i + 1) * inv_phi_count, 1.f - (j + 2) * inv_theta_count };
+            uvs[c] = {(i + 1) * inv_phi_count, 1.f - (j + 2) * inv_theta_count};
             m.raw_indices[c++] = index[2];
-            uvs[c] = { (i + 1) * inv_phi_count, 1.f - (j + 1) * inv_theta_count };
+            uvs[c] = {(i + 1) * inv_phi_count, 1.f - (j + 1) * inv_theta_count};
             m.raw_indices[c++] = index[3];
         }
 
         const u32 index[4]{
-            phi_count + j * phi_count,
-            phi_count + (j + 1) * phi_count,
-            1 + (j + 1) * phi_count,
-            1 + j * phi_count
-        };
+            phi_count + j * phi_count, phi_count + (j + 1) * phi_count, 1 + (j + 1) * phi_count, 1 + j * phi_count};
 
-        uvs[c] = { 1.f - inv_phi_count, 1.f - (j + 1) * inv_theta_count };
+        uvs[c] = {1.f - inv_phi_count, 1.f - (j + 1) * inv_theta_count};
         m.raw_indices[c++] = index[0];
-        uvs[c] = { 1.f - inv_phi_count, 1.f - (j + 2) * inv_theta_count };
+        uvs[c] = {1.f - inv_phi_count, 1.f - (j + 2) * inv_theta_count};
         m.raw_indices[c++] = index[1];
-        uvs[c] = { 1.f, 1.f - (j + 2) * inv_theta_count };
+        uvs[c] = {1.f, 1.f - (j + 2) * inv_theta_count};
         m.raw_indices[c++] = index[2];
 
-        uvs[c] = { 1.f - inv_phi_count, 1.f - (j + 1) * inv_theta_count };
+        uvs[c] = {1.f - inv_phi_count, 1.f - (j + 1) * inv_theta_count};
         m.raw_indices[c++] = index[0];
-        uvs[c] = { 1.f, 1.f - (j + 2) * inv_theta_count };
+        uvs[c] = {1.f, 1.f - (j + 2) * inv_theta_count};
         m.raw_indices[c++] = index[2];
-        uvs[c] = { 1.f, 1.f - (j + 1) * inv_theta_count };
+        uvs[c] = {1.f, 1.f - (j + 1) * inv_theta_count};
         m.raw_indices[c++] = index[3];
     }
 
     // Indices for the bottom cap, connecting the south posle to the last ring
-    const u32 south_pole_index{ (u32)m.positions.size() - 1 };
-    for (u32 i{ 0 }; i < (phi_count - 1); ++i)
+    const u32 south_pole_index{(u32)m.positions.size() - 1};
+    for (u32 i{0}; i < (phi_count - 1); ++i)
     {
-        uvs[c] = { (2 * i + 1) * 0.5f * inv_phi_count, 0.f };
+        uvs[c] = {(2 * i + 1) * 0.5f * inv_phi_count, 0.f};
         m.raw_indices[c++] = south_pole_index;
-        uvs[c] = { (i + 1) * inv_phi_count, inv_theta_count };
+        uvs[c] = {(i + 1) * inv_phi_count, inv_theta_count};
         m.raw_indices[c++] = south_pole_index - phi_count + i + 1;
-        uvs[c] = { i * inv_phi_count, inv_theta_count };
+        uvs[c] = {i * inv_phi_count, inv_theta_count};
         m.raw_indices[c++] = south_pole_index - phi_count + i;
     }
 
-    uvs[c] = { 1.f - 0.5f * inv_phi_count, 0.f };
+    uvs[c] = {1.f - 0.5f * inv_phi_count, 0.f};
     m.raw_indices[c++] = south_pole_index;
-    uvs[c] = { 1.f, inv_theta_count };
+    uvs[c] = {1.f, inv_theta_count};
     m.raw_indices[c++] = south_pole_index - phi_count;
-    uvs[c] = { 1.f - inv_phi_count, inv_theta_count };
+    uvs[c] = {1.f - inv_phi_count, inv_theta_count};
     m.raw_indices[c++] = south_pole_index - 1;
 
     assert(c == num_indices);
@@ -331,60 +324,56 @@ create_uv_sphere(const primitive_init_info& info)
     return m;
 }
 
-void
-create_plane(scene& scene, const primitive_init_info& info)
+auto create_plane(Scene &scene, const PrimitiveInitInfo &info) -> void
 {
-    lod_group lod{};
+    LodGroup lod{};
     lod.name = "plane";
     lod.meshes.emplace_back(create_plane(info));
     scene.lod_groups.emplace_back(lod);
 }
 
-void
-create_cube(scene& scene, const primitive_init_info& info)
+auto create_cube(Scene &scene, const PrimitiveInitInfo &info) -> void
 {
-    mesh cube{};
+    Mesh cube{};
     cube.name = "cube";
     cube.uv_sets.resize(1);
 
-    lod_group lod{};
+    LodGroup lod{};
     lod.name = "cube";
     lod.meshes.emplace_back(create_cube(info));
     scene.lod_groups.emplace_back(lod);
 }
 
-void
-create_uv_sphere(scene& scene, const primitive_init_info& info)
+auto create_uv_sphere(Scene &scene, const PrimitiveInitInfo &info) -> void
 {
-    lod_group lod{};
+    LodGroup lod{};
     lod.name = "uv_sphere";
     lod.meshes.emplace_back(create_uv_sphere(info));
     scene.lod_groups.emplace_back(lod);
 }
 
-void
-create_ico_sphere(scene&, const primitive_init_info&)
-{}
+auto create_ico_sphere(Scene &, const PrimitiveInitInfo &) -> void
+{
+}
 
-void
-create_cylinder(scene&, const primitive_init_info&)
-{}
+auto create_cylinder(Scene &, const PrimitiveInitInfo &) -> void
+{
+}
 
-void
-create_capsule(scene&, const primitive_init_info&)
-{}
+auto create_capsule(Scene &, const PrimitiveInitInfo &) -> void
+{
+}
 
-} // anonymous namespace
+}
 
-EDITOR_INTERFACE void
-CreatePrimitiveMesh(scene_data* data, primitive_init_info* info)
+EDITOR_INTERFACE auto CreatePrimitiveMesh(SceneData *data, PrimitiveInitInfo *info) -> void
 {
     assert(data && info);
-    assert(info->type < primitive_mesh_type::count);
-    scene scene{};
+    assert(info->type < PrimitiveMeshType::count);
+    Scene scene{};
     creators[info->type](scene, *info);
 
-    progression progression{};
+    Progression progression{};
     process_scene(scene, data->settings, &progression);
     pack_data(scene, *data);
 }

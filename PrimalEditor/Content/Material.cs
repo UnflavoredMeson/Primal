@@ -436,9 +436,9 @@ class AppliedMaterial : Asset
     //  u32                 texture_count,
     //  id::id_type         texture_ids[texture_count];
     //  material_surface    surface;
-    //  material_type::type type,
+    //  MaterialType::Type type,
     //  u32                 texture_count,
-    //  id::id_type         shader_ids[shader_type::count],
+    //  id::id_type         shader_ids[ShaderType::count],
     // } material_init_info
     public override byte[] PackForEngine()
     {

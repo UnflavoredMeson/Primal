@@ -1,38 +1,49 @@
 // Copyright (c) 2026 Charles Smith
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
-// Port of Direct3D12/D3D12Light.h (Copyright (c) Arash Khatami). Only the light buffers differ (see vulkan_light_buffer).
+// Port of Direct3D12/D3D12Light.h (Copyright (c) Arash Khatami). Only the light buffers differ (see
+// vulkan_light_buffer).
 #pragma once
 #include "VulkanCommonHeaders.h"
 #include "VulkanHelpers.h"
 
-namespace primal::graphics {
-namespace hlsl {
+namespace primal::graphics
+{
+namespace hlsl
+{
 struct AmbientLightParameters;
 }
 
-namespace vulkan {
-struct vulkan_frame_info;
+namespace vulkan
+{
+struct VulkanFrameInfo;
 }
 }
 
-namespace primal::graphics::vulkan::light {
+namespace primal::graphics::vulkan::light
+{
 
-bool initialize();
-void shutdown();
+auto initialize() -> bool;
+auto shutdown() -> void;
 
-void create_light_set(u64 light_set_key);
-void remove_light_set(u64 light_set_key);
-graphics::light create(light_init_info info);
-void remove(light_id id, u64 light_set_key);
-void set_parameter(light_id id, u64 light_set_key, light_parameter::parameter parameter, const void *const data, u32 data_size);
-void get_parameter(light_id id, u64 light_set_key, light_parameter::parameter parameter, void *const data, u32 data_size);
+auto create_light_set(u64 light_set_key) -> void;
+auto remove_light_set(u64 light_set_key) -> void;
+auto create(LightInitInfo info) -> graphics::Light;
+auto remove(LightId id, u64 light_set_key) -> void;
+auto set_parameter(
+    LightId id,
+    u64 light_set_key,
+    LightParameter::Parameter parameter,
+    const void *const data,
+    u32 data_size) -> void;
+auto get_parameter(LightId id, u64 light_set_key, LightParameter::Parameter parameter, void *const data, u32 data_size)
+    -> void;
 
-void update_light_buffers(const vulkan_frame_info& vulkan_info);
-[[nodiscard]] vkx::buffer_range non_cullable_light_buffer(u32 frame_index);
-[[nodiscard]] vkx::buffer_range cullable_light_buffer(u32 frame_index);
-[[nodiscard]] vkx::buffer_range culling_info_buffer(u32 frame_index);
-[[nodiscard]] vkx::buffer_range bounding_spheres_buffer(u32 frame_index);
-hlsl::AmbientLightParameters ambient_light(u64 light_set_key);
-u32 non_cullable_light_count(u64 light_set_key);
-u32 cullable_light_count(u64 light_set_key);
+auto update_light_buffers(const VulkanFrameInfo &vulkan_info) -> void;
+[[nodiscard]] auto non_cullable_light_buffer(u32 frame_index) -> vkx::BufferRange;
+[[nodiscard]] auto cullable_light_buffer(u32 frame_index) -> vkx::BufferRange;
+[[nodiscard]] auto culling_info_buffer(u32 frame_index) -> vkx::BufferRange;
+[[nodiscard]] auto bounding_spheres_buffer(u32 frame_index) -> vkx::BufferRange;
+auto ambient_light(u64 light_set_key) -> hlsl::AmbientLightParameters;
+auto non_cullable_light_count(u64 light_set_key) -> u32;
+auto cullable_light_count(u64 light_set_key) -> u32;
 }

@@ -8,10 +8,10 @@
 #include "VulkanLight.h"
 #include "Graphics/GraphicsPlatformInterface.h"
 
-namespace primal::graphics::vulkan {
+namespace primal::graphics::vulkan
+{
 
-void
-get_platform_interface(platform_interface& pi)
+auto get_platform_interface(PlatformInterface &pi) -> void
 {
     pi.initialize = core::initialize;
     pi.shutdown = core::shutdown;
@@ -46,7 +46,7 @@ get_platform_interface(platform_interface& pi)
     pi.light.set_parameter = light::set_parameter;
     pi.light.get_parameter = light::get_parameter;
 
-    pi.platform = graphics_platform::vulkan;
+    pi.platform = GraphicsPlatform::vulkan;
 }
 
-} // namespace primal::graphics::vulkan
+}

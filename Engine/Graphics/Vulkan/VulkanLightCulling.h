@@ -4,29 +4,31 @@
 #include "VulkanCommonHeaders.h"
 #include "VulkanHelpers.h"
 
-namespace primal::graphics::vulkan {
-struct vulkan_frame_info;
+namespace primal::graphics::vulkan
+{
+struct VulkanFrameInfo;
 }
 
 // Tiled light culling (counterpart of D3D12LightCulling.h): a compute pass computes the frustum of each screen
 // tile (when the view size or field of view changes), another one culls the cullable lights against those
 // frustums and the depth buffer, writing a light grid + light index list that the gpass pixel shaders read.
-namespace primal::graphics::vulkan::delight {
+namespace primal::graphics::vulkan::delight
+{
 
-constexpr u32 light_culling_tile_size{ 32 };
+constexpr u32 light_culling_tile_size{32};
 
-bool initialize();
-void shutdown();
+auto initialize() -> bool;
+auto shutdown() -> void;
 
-[[nodiscard]] id::id_type add_culler();
-void remove_culler(id::id_type id);
+[[nodiscard]] auto add_culler() -> id::id_type;
+auto remove_culler(id::id_type id) -> void;
 
 // Records the culling dispatches. Applies the barriers collected so far (the gpass transitions included, like
 // D3D12) and adds the transitions of the light grid / index list for the gpass, which the caller applies.
-void cull_lights(VkCommandBuffer cmd, const vulkan_frame_info& vulkan_info, vkx::vulkan_barrier& barriers);
+auto cull_lights(VkCommandBuffer cmd, const VulkanFrameInfo &vulkan_info, vkx::VulkanBarrier &barriers) -> void;
 
 // TODO: temporary for visualizing light culling. Remove later.
-[[nodiscard]] vkx::buffer_range frustums(id::id_type light_culling_id, u32 frame_index);
-[[nodiscard]] vkx::buffer_range light_grid_opaque(id::id_type light_culling_id, u32 frame_index);
-[[nodiscard]] vkx::buffer_range light_index_list_opaque(id::id_type light_culling_id, u32 frame_index);
-} // namespace primal::graphics::vulkan::delight
+[[nodiscard]] auto frustums(id::id_type light_culling_id, u32 frame_index) -> vkx::BufferRange;
+[[nodiscard]] auto light_grid_opaque(id::id_type light_culling_id, u32 frame_index) -> vkx::BufferRange;
+[[nodiscard]] auto light_index_list_opaque(id::id_type light_culling_id, u32 frame_index) -> vkx::BufferRange;
+}

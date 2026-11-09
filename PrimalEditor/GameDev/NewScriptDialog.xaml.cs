@@ -24,12 +24,12 @@ partial class NewScriptDialog : Window
 namespace {1} {{
 
 REGISTER_SCRIPT({0});
-void {0}::begin_play()
+auto {0}::begin_play() -> void
 {{
 
 }}
 
-void {0}::update(float dt)
+auto {0}::update(float dt) -> void
 {{
 
 }}
@@ -39,14 +39,14 @@ void {0}::update(float dt)
     private static readonly string _hCode = @"#pragma once
 namespace {1} {{
 
-class {0} : public primal::script::entity_script
+class {0} : public primal::script::EntityScript
 {{
 public:
-    constexpr explicit {0}(primal::game_entity::entity entity)
-        : primal::script::entity_script{{entity}} {{}}
+    constexpr explicit {0}(primal::game_entity::Entity entity)
+        : primal::script::EntityScript{{entity}} {{}}
 
-    void begin_play() override;
-    void update(float dt) override;
+    auto begin_play() -> void override;
+    auto update(float dt) -> void override;
 private:
 }};
 

@@ -14,26 +14,33 @@
 
 using namespace primal;
 
-game_entity::entity create_one_game_entity(math::v3 position, math::v3 rotation, geometry::init_info* geometry_info, const char* script_name);
-void remove_game_entity(game_entity::entity_id id);
-bool read_file(std::filesystem::path, std::unique_ptr<u8[]>&, u64&);
+auto create_one_game_entity(
+    math::v3 position,
+    math::v3 rotation,
+    geometry::InitInfo *geometry_info,
+    const char *script_name) -> game_entity::Entity;
+auto remove_game_entity(game_entity::EntityId id) -> void;
+auto read_file(std::filesystem::path, std::unique_ptr<u8[]> &, u64 &) -> bool;
 
-namespace {
+namespace
+{
 
-id::id_type fan_model_id{ id::invalid_id };
-id::id_type int_model_id{ id::invalid_id };
-id::id_type lab_model_id{ id::invalid_id };
-id::id_type fembot_model_id{ id::invalid_id };
-id::id_type sphere_model_id{ id::invalid_id };
+id::id_type fan_model_id{id::invalid_id};
+id::id_type int_model_id{id::invalid_id};
+id::id_type lab_model_id{id::invalid_id};
+id::id_type fembot_model_id{id::invalid_id};
+id::id_type sphere_model_id{id::invalid_id};
 
-game_entity::entity_id fan_entity_id{ id::invalid_id };
-game_entity::entity_id int_entity_id{ id::invalid_id };
-game_entity::entity_id lab_entity_id{ id::invalid_id };
-game_entity::entity_id fembot_entity_id{ id::invalid_id };
-game_entity::entity_id sphere_entity_ids[12];
+game_entity::EntityId fan_entity_id{id::invalid_id};
+game_entity::EntityId int_entity_id{id::invalid_id};
+game_entity::EntityId lab_entity_id{id::invalid_id};
+game_entity::EntityId fembot_entity_id{id::invalid_id};
+game_entity::EntityId sphere_entity_ids[12];
 
-struct texture_usage {
-    enum usage : u32 {
+struct TextureUsage
+{
+    enum Usage : u32
+    {
         ambient_occlusion = 0,
         base_color,
         emissive,
@@ -44,63 +51,58 @@ struct texture_usage {
     };
 };
 
-id::id_type texture_ids[texture_usage::count];
+id::id_type texture_ids[TextureUsage::count];
 
-id::id_type ibl_brdf_lut_id{ id::invalid_id };
-id::id_type ibl_diffuse_id{ id::invalid_id };
-id::id_type ibl_specular_id{ id::invalid_id };
+id::id_type ibl_brdf_lut_id{id::invalid_id};
+id::id_type ibl_diffuse_id{id::invalid_id};
+id::id_type ibl_specular_id{id::invalid_id};
 
-id::id_type vs_id{ id::invalid_id };
-id::id_type ps_id{ id::invalid_id };
-id::id_type textured_ps_id{ id::invalid_id };
-id::id_type default_mtl_id{ id::invalid_id };
-id::id_type fembot_mtl_id{ id::invalid_id };
+id::id_type vs_id{id::invalid_id};
+id::id_type ps_id{id::invalid_id};
+id::id_type textured_ps_id{id::invalid_id};
+id::id_type default_mtl_id{id::invalid_id};
+id::id_type fembot_mtl_id{id::invalid_id};
 
 id::id_type pbr_mtl_ids[12];
 
-graphics::light ibl_light{};
+graphics::Light ibl_light{};
 
-[[nodiscard]] id::id_type
-load_asset(const char* path, content::asset_type::type type)
+[[nodiscard]] auto load_asset(const char *path, content::AssetType::Type type) -> id::id_type
 {
     std::unique_ptr<u8[]> buffer;
-    u64 size{ 0 };
-    read_file(path, buffer, size);
+    u64 size{0};
+    ::read_file(path, buffer, size);
 
-    const id::id_type asset_id{ content::create_resource(buffer.get(), type) };
+    const id::id_type asset_id{content::create_resource(buffer.get(), type)};
     assert(id::is_valid(asset_id));
     return asset_id;
 }
 
-
-[[nodiscard]] id::id_type
-load_model(const char* path)
+[[nodiscard]] auto load_model(const char *path) -> id::id_type
 {
     // load test model
-    return load_asset(path, content::asset_type::mesh);
+    return load_asset(path, content::AssetType::mesh);
 }
 
-[[nodiscard]] id::id_type
-load_texture(const char* path)
+[[nodiscard]] auto load_texture(const char *path) -> id::id_type
 {
     // load test texture
-    return load_asset(path, content::asset_type::texture);
+    return load_asset(path, content::AssetType::texture);
 }
 
-void
-load_shaders()
+auto load_shaders() -> void
 {
     // Let's say our material uses a vertex shader and a pixel shader.
-    shader_file_info info{};
+    ShaderFileInfo info{};
     info.file_name = "TestShader.hlsl";
     info.function = "TestShaderVS";
-    info.type = graphics::shader_type::vertex;
+    info.type = graphics::ShaderType::vertex;
 
-    const char* shader_path{ "../../EngineTest/" };
+    const char *shader_path{"../../EngineTest/"};
     // Same backend as graphics::initialize() (DXIL for Direct3D 12, SPIR-V for Vulkan).
-    const graphics::graphics_platform platform{ selected_graphics_platform() };
+    const graphics::GraphicsPlatform platform{::selected_graphics_platform()};
 
-    std::wstring defines[]{ L"ELEMENTS_TYPE=0", L"ELEMENTS_TYPE=1", L"ELEMENTS_TYPE=3" };
+    std::wstring defines[]{L"ELEMENTS_TYPE=0", L"ELEMENTS_TYPE=1", L"ELEMENTS_TYPE=3"};
     utl::vector<u32> keys;
     // Values of tools::elements::elements_type (ContentTools/Geometry.h, which includes Windows-only headers):
     // position_only = 0, static_normal = 1, static_normal_texture = 3. Must match the ELEMENTS_TYPE defines above.
@@ -110,80 +112,91 @@ load_shaders()
 
     utl::vector<std::wstring> extra_args{};
     utl::vector<std::unique_ptr<u8[]>> vertex_shaders;
-    utl::vector<const u8*> vertex_shader_pointers;
-    for (u32 i{ 0 }; i < std::size(defines); ++i)
+    utl::vector<const u8 *> vertex_shader_pointers;
+    for (u32 i{0}; i < std::size(defines); ++i)
     {
         extra_args.clear();
         extra_args.emplace_back(L"-D");
         extra_args.emplace_back(defines[i]);
-        vertex_shaders.emplace_back(compile_shader(info, shader_path, extra_args, false, platform));
+        vertex_shaders.emplace_back(::compile_shader(info, shader_path, extra_args, false, platform));
         assert(vertex_shaders.back().get());
         vertex_shader_pointers.emplace_back(vertex_shaders.back().get());
     }
 
     extra_args.clear();
     info.function = "TestShaderPS";
-    info.type = graphics::shader_type::pixel;
+    info.type = graphics::ShaderType::pixel;
     utl::vector<std::unique_ptr<u8[]>> pixel_shaders;
 
-    pixel_shaders.emplace_back(compile_shader(info, shader_path, extra_args, false, platform));
+    pixel_shaders.emplace_back(::compile_shader(info, shader_path, extra_args, false, platform));
     assert(pixel_shaders.back().get());
 
     defines[0] = L"TEXTURED_MTL=1";
     extra_args.emplace_back(L"-D");
     extra_args.emplace_back(defines[0]);
 
-    pixel_shaders.emplace_back(compile_shader(info, shader_path, extra_args, false, platform));
+    pixel_shaders.emplace_back(::compile_shader(info, shader_path, extra_args, false, platform));
     assert(pixel_shaders.back().get());
 
     vs_id = content::add_shader_group(vertex_shader_pointers.data(), (u32)vertex_shader_pointers.size(), keys.data());
 
-    const u8* pixel_shader_pointers[]{ pixel_shaders[0].get() };
+    const u8 *pixel_shader_pointers[]{pixel_shaders[0].get()};
     ps_id = content::add_shader_group(pixel_shader_pointers, 1, &u32_invalid_id);
 
     pixel_shader_pointers[0] = pixel_shaders[1].get();
     textured_ps_id = content::add_shader_group(pixel_shader_pointers, 1, &u32_invalid_id);
 }
 
-void
-create_material()
+auto create_material() -> void
 {
     assert(id::is_valid(vs_id) && id::is_valid(ps_id) && id::is_valid(textured_ps_id));
-    graphics::material_init_info info{};
-    info.shader_ids[graphics::shader_type::vertex] = vs_id;
-    info.shader_ids[graphics::shader_type::pixel] = ps_id;
-    info.type = graphics::material_type::opaque;
-    default_mtl_id = content::create_resource(&info, content::asset_type::material);
+    graphics::MaterialInitInfo info{};
+    info.shader_ids[graphics::ShaderType::vertex] = vs_id;
+    info.shader_ids[graphics::ShaderType::pixel] = ps_id;
+    info.type = graphics::MaterialType::opaque;
+    default_mtl_id = content::create_resource(&info, content::AssetType::material);
 
-    memset(pbr_mtl_ids, 0xff, sizeof(pbr_mtl_ids));
+    std::memset(pbr_mtl_ids, 0xff, sizeof(pbr_mtl_ids));
     math::v2 metal_rough[std::size(pbr_mtl_ids)]{
-        {0.f, 0.0f}, {0.f, 0.2f}, {0.f, 0.4f}, {0.f, 0.6f}, {0.f, 0.8f}, {0.f, 1.f},
-        {1.f, 0.0f}, {1.f, 0.2f}, {1.f, 0.4f}, {1.f, 0.6f}, {1.f, 0.8f}, {1.f, 1.f},
+        {0.f, 0.0f},
+        {0.f, 0.2f},
+        {0.f, 0.4f},
+        {0.f, 0.6f},
+        {0.f, 0.8f},
+        {0.f, 1.f},
+        {1.f, 0.0f},
+        {1.f, 0.2f},
+        {1.f, 0.4f},
+        {1.f, 0.6f},
+        {1.f, 0.8f},
+        {1.f, 1.f},
     };
-    graphics::material_surface& s{ info.surface };
-    s.base_color[0] = s.base_color[1] = s.base_color[2] = 172; s.base_color[3] = 255;
-    s.emissive[0] = 255;  s.emissive[1] = 172; s.emissive[2] = 0;
+    graphics::MaterialSurface &s{info.surface};
+    s.base_color[0] = s.base_color[1] = s.base_color[2] = 172;
+    s.base_color[3] = 255;
+    s.emissive[0] = 255;
+    s.emissive[1] = 172;
+    s.emissive[2] = 0;
     s.emissive_intensity = (u16)(0.f * (65535.f / 10000.f));
 
-    for (u32 i{ 0 }; i < std::size(pbr_mtl_ids); ++i)
+    for (u32 i{0}; i < std::size(pbr_mtl_ids); ++i)
     {
         s.metallic = (u8)(255 * metal_rough[i].x);
         s.roughness = (u8)(255 * metal_rough[i].y);
-        pbr_mtl_ids[i] = content::create_resource(&info, content::asset_type::material);
+        pbr_mtl_ids[i] = content::create_resource(&info, content::AssetType::material);
     }
 
-    info.shader_ids[graphics::shader_type::pixel] = textured_ps_id;
-    info.texture_count = texture_usage::count;
+    info.shader_ids[graphics::ShaderType::pixel] = textured_ps_id;
+    info.texture_count = TextureUsage::count;
     info.texture_ids = &texture_ids[0];
-    fembot_mtl_id = content::create_resource(&info, content::asset_type::material);
+    fembot_mtl_id = content::create_resource(&info, content::AssetType::material);
 }
 
-void
-create_ibl_light()
+auto create_ibl_light() -> void
 {
-    graphics::light_init_info info{};
+    graphics::LightInitInfo info{};
     info.entity_id = 0;
-    info.type = graphics::light::ambient;
+    info.type = graphics::Light::ambient;
     info.ambient_params.brdf_lut_texture_id = ibl_brdf_lut_id;
     info.ambient_params.diffuse_texture_id = ibl_diffuse_id;
     info.ambient_params.specular_texture_id = ibl_specular_id;
@@ -191,18 +204,16 @@ create_ibl_light()
     ibl_light = graphics::create_light(info);
 }
 
-void
-remove_model(id::id_type model_id)
+auto remove_model(id::id_type model_id) -> void
 {
     if (id::is_valid(model_id))
     {
-        content::destroy_resource(model_id, content::asset_type::mesh);
+        content::destroy_resource(model_id, content::AssetType::mesh);
     }
 }
-} // anonymous namespace
+}
 
-void
-create_render_items()
+auto create_render_items() -> void
 {
     // NOTE: you can get these models if you're a patreon or ko-fi supporter of Primal Engine.
     //       https://www.patreon.com/collection/270663
@@ -214,29 +225,30 @@ create_render_items()
     assert(std::filesystem::exists("../../x64/int_model.model"));
     assert(std::filesystem::exists("../../x64/fembot_model.model"));
 
-    memset(&texture_ids[0], 0xff, sizeof(id::id_type) * std::size(texture_ids));
+    std::memset(&texture_ids[0], 0xff, sizeof(id::id_type) * std::size(texture_ids));
 
     std::thread threads[]{
-        std::thread{ [] { texture_ids[texture_usage::ambient_occlusion] = load_texture("../../x64/ambient_occlusion.texture"); }},
-        std::thread{ [] { texture_ids[texture_usage::base_color] = load_texture("../../x64/base_color.texture"); }},
-        std::thread{ [] { texture_ids[texture_usage::emissive] = load_texture("../../x64/emissive.texture"); }},
-        std::thread{ [] { texture_ids[texture_usage::metal_rough] = load_texture("../../x64/metal_rough.texture"); }},
-        std::thread{ [] { texture_ids[texture_usage::normal] = load_texture("../../x64/normal.texture"); }},
+        std::thread{
+            [] { texture_ids[TextureUsage::ambient_occlusion] = load_texture("../../x64/ambient_occlusion.texture"); }},
+        std::thread{[] { texture_ids[TextureUsage::base_color] = load_texture("../../x64/base_color.texture"); }},
+        std::thread{[] { texture_ids[TextureUsage::emissive] = load_texture("../../x64/emissive.texture"); }},
+        std::thread{[] { texture_ids[TextureUsage::metal_rough] = load_texture("../../x64/metal_rough.texture"); }},
+        std::thread{[] { texture_ids[TextureUsage::normal] = load_texture("../../x64/normal.texture"); }},
 
-        std::thread{ [] { ibl_brdf_lut_id = load_texture("../../x64/IBL/brdf_lut.texture"); } },
+        std::thread{[] { ibl_brdf_lut_id = load_texture("../../x64/IBL/brdf_lut.texture"); }},
 
-        std::thread{ [] { ibl_diffuse_id = load_texture("../../x64/IBL/Set4/diffuse.texture"); } },
-        std::thread{ [] { ibl_specular_id = load_texture("../../x64/IBL/Set4/specular.texture"); } },
+        std::thread{[] { ibl_diffuse_id = load_texture("../../x64/IBL/Set4/diffuse.texture"); }},
+        std::thread{[] { ibl_specular_id = load_texture("../../x64/IBL/Set4/specular.texture"); }},
 
-        std::thread{ [] { lab_model_id = load_model("../../x64/lab_model.model"); } },
-        std::thread{ [] { fan_model_id = load_model("../../x64/fan_model.model"); } },
-        std::thread{ [] { int_model_id = load_model("../../x64/int_model.model"); } },
-        std::thread{ [] { fembot_model_id = load_model("../../x64/fembot_model.model"); } },
-        std::thread{ [] { sphere_model_id = load_model("../../x64/sphere_model.model"); } },
-        std::thread{ [] { load_shaders(); } },
+        std::thread{[] { lab_model_id = load_model("../../x64/lab_model.model"); }},
+        std::thread{[] { fan_model_id = load_model("../../x64/fan_model.model"); }},
+        std::thread{[] { int_model_id = load_model("../../x64/int_model.model"); }},
+        std::thread{[] { fembot_model_id = load_model("../../x64/fembot_model.model"); }},
+        std::thread{[] { sphere_model_id = load_model("../../x64/sphere_model.model"); }},
+        std::thread{[] { load_shaders(); }},
     };
 
-    for (auto& t : threads)
+    for (auto &t : threads)
     {
         t.join();
     }
@@ -245,52 +257,52 @@ create_render_items()
 
     // NOTE: we need shaders to be ready before creating materials
     create_material();
-    id::id_type materials[]{ default_mtl_id };
-    id::id_type fembot_materials[]{ fembot_mtl_id, fembot_mtl_id };
+    id::id_type materials[]{default_mtl_id};
+    id::id_type fembot_materials[]{fembot_mtl_id, fembot_mtl_id};
 
-    geometry::init_info geometry_info{};
+    geometry::InitInfo geometry_info{};
     geometry_info.material_count = std::size(materials);
     geometry_info.material_ids = &materials[0];
 
     geometry_info.geometry_content_id = lab_model_id;
-    lab_entity_id = create_one_game_entity({}, {}, &geometry_info, nullptr).get_id();
+    lab_entity_id = ::create_one_game_entity({}, {}, &geometry_info, nullptr).get_id();
 
     geometry_info.geometry_content_id = fan_model_id;
-    fan_entity_id = create_one_game_entity({ -10.47f, 5.93f, -6.7f }, {}, &geometry_info, "fan_script").get_id();
-    
+    fan_entity_id = ::create_one_game_entity({-10.47f, 5.93f, -6.7f}, {}, &geometry_info, "FanScript").get_id();
+
     geometry_info.geometry_content_id = int_model_id;
-    int_entity_id = create_one_game_entity({ 0.f, 1.3f, -6.6f }, {}, &geometry_info, "wibbly_wobbly_script").get_id();
-    
+    int_entity_id = ::create_one_game_entity({0.f, 1.3f, -6.6f}, {}, &geometry_info, "WibblyWobblyScript").get_id();
+
     geometry_info.geometry_content_id = fembot_model_id;
     geometry_info.material_count = std::size(fembot_materials);
     geometry_info.material_ids = &fembot_materials[0];
-    fembot_entity_id = create_one_game_entity({ -6.f, 0.f, 10.f }, { 0.f, math::pi, 0.f }, &geometry_info, "rotator_script").get_id();
+    fembot_entity_id =
+        ::create_one_game_entity({-6.f, 0.f, 10.f}, {0.f, math::pi, 0.f}, &geometry_info, "RotatorScript").get_id();
 
     geometry_info.geometry_content_id = sphere_model_id;
     geometry_info.material_count = 1;
-    for (u32 i{ 0 }; i < std::size(sphere_entity_ids); ++i)
+    for (u32 i{0}; i < std::size(sphere_entity_ids); ++i)
     {
-        id::id_type id{ pbr_mtl_ids[i] };
-        id::id_type sphere_mtls[]{ id };
+        id::id_type id{pbr_mtl_ids[i]};
+        id::id_type sphere_mtls[]{id};
         geometry_info.material_ids = &sphere_mtls[0];
-        const f32 x{ -6.f + i % 6 };
-        const f32 y{ (i < 6) ? 7.f : 5.5f };
+        const f32 x{-6.f + i % 6};
+        const f32 y{(i < 6) ? 7.f : 5.5f};
         const f32 z = x;
-        sphere_entity_ids[i] = create_one_game_entity({ x, y, z }, {}, &geometry_info, nullptr).get_id();
+        sphere_entity_ids[i] = ::create_one_game_entity({x, y, z}, {}, &geometry_info, nullptr).get_id();
     }
 }
 
-void
-destroy_render_items()
+auto destroy_render_items() -> void
 {
-    remove_game_entity(lab_entity_id);
-    remove_game_entity(fan_entity_id);
-    remove_game_entity(int_entity_id);
-    remove_game_entity(fembot_entity_id);
+    ::remove_game_entity(lab_entity_id);
+    ::remove_game_entity(fan_entity_id);
+    ::remove_game_entity(int_entity_id);
+    ::remove_game_entity(fembot_entity_id);
 
-    for (u32 i{ 0 }; i < std::size(sphere_entity_ids); ++i)
+    for (u32 i{0}; i < std::size(sphere_entity_ids); ++i)
     {
-        remove_game_entity(sphere_entity_ids[i]);
+        ::remove_game_entity(sphere_entity_ids[i]);
     }
 
     remove_model(lab_model_id);
@@ -307,19 +319,19 @@ destroy_render_items()
     // remove material
     if (id::is_valid(default_mtl_id))
     {
-        content::destroy_resource(default_mtl_id, content::asset_type::material);
+        content::destroy_resource(default_mtl_id, content::AssetType::material);
     }
 
     if (id::is_valid(fembot_mtl_id))
     {
-        content::destroy_resource(fembot_mtl_id, content::asset_type::material);
+        content::destroy_resource(fembot_mtl_id, content::AssetType::material);
     }
 
     for (id::id_type id : pbr_mtl_ids)
     {
         if (id::is_valid(id))
         {
-            content::destroy_resource(id, content::asset_type::material);
+            content::destroy_resource(id, content::AssetType::material);
         }
     }
 
@@ -328,23 +340,23 @@ destroy_render_items()
     {
         if (id::is_valid(id))
         {
-            content::destroy_resource(id, content::asset_type::texture);
+            content::destroy_resource(id, content::AssetType::texture);
         }
     }
 
     if (id::is_valid(ibl_brdf_lut_id))
     {
-        content::destroy_resource(ibl_brdf_lut_id, content::asset_type::texture);
+        content::destroy_resource(ibl_brdf_lut_id, content::AssetType::texture);
     }
 
     if (id::is_valid(ibl_diffuse_id))
     {
-        content::destroy_resource(ibl_diffuse_id, content::asset_type::texture);
+        content::destroy_resource(ibl_diffuse_id, content::AssetType::texture);
     }
 
     if (id::is_valid(ibl_specular_id))
     {
-        content::destroy_resource(ibl_specular_id, content::asset_type::texture);
+        content::destroy_resource(ibl_specular_id, content::AssetType::texture);
     }
 
     // remove shaders and textures

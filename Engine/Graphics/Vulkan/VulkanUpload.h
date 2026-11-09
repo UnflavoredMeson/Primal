@@ -11,29 +11,42 @@
 // D3D12 uploads on a copy queue; here they go to the graphics queue (no queue family ownership
 // transfers needed). end_upload() records a barrier that makes the copies visible to everything
 // submitted later, so callers only transition images (to their final layout) themselves.
-namespace primal::graphics::vulkan::upload {
-
-class vulkan_upload_context
+namespace primal::graphics::vulkan::upload
 {
-public:
-    explicit vulkan_upload_context(u32 aligned_size);
-    DISABLE_COPY_AND_MOVE(vulkan_upload_context);
-    ~vulkan_upload_context() { assert(_frame_index == u32_invalid_id); }
 
-    void end_upload();
+class VulkanUploadContext
+{
+  public:
+    explicit VulkanUploadContext(u32 aligned_size);
+    DISABLE_COPY_AND_MOVE(VulkanUploadContext);
+    ~VulkanUploadContext()
+    {
+        assert(_frame_index == u32_invalid_id);
+    }
 
-    [[nodiscard]] constexpr VkCommandBuffer command_buffer() const { return _cmd_buffer; }
-    [[nodiscard]] constexpr VkBuffer upload_buffer() const { return _upload_buffer; }
-    [[nodiscard]] constexpr void* cpu_address() const { return _cpu_address; }
+    auto end_upload() -> void;
 
-private:
-    VkCommandBuffer _cmd_buffer{ VK_NULL_HANDLE };
-    VkBuffer _upload_buffer{ VK_NULL_HANDLE };
-    void* _cpu_address{ nullptr };
-    u32 _frame_index{ u32_invalid_id };
+    [[nodiscard]] constexpr auto command_buffer() const -> VkCommandBuffer
+    {
+        return _cmd_buffer;
+    }
+    [[nodiscard]] constexpr auto upload_buffer() const -> VkBuffer
+    {
+        return _upload_buffer;
+    }
+    [[nodiscard]] constexpr auto cpu_address() const -> void *
+    {
+        return _cpu_address;
+    }
+
+  private:
+    VkCommandBuffer _cmd_buffer{VK_NULL_HANDLE};
+    VkBuffer _upload_buffer{VK_NULL_HANDLE};
+    void *_cpu_address{nullptr};
+    u32 _frame_index{u32_invalid_id};
 };
 
-bool initialize();
-void shutdown();
+auto initialize() -> bool;
+auto shutdown() -> void;
 
-} // namespace primal::graphics::vulkan::upload
+}

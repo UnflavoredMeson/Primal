@@ -10,114 +10,105 @@
 
 #include "../Utilities/MathTypes.h"
 
-namespace primal::math {
-
-[[nodiscard]] constexpr bool
-is_equal(f32 a, f32 b, f32 eps = epsilon)
+namespace primal::math
 {
-    f32 diff{ a - b };
-    if (diff < 0.f) diff = -diff;
+
+[[nodiscard]] constexpr auto is_equal(f32 a, f32 b, f32 eps = epsilon) -> bool
+{
+    f32 diff{a - b};
+    if (diff < 0.f)
+        diff = -diff;
     return diff < eps;
 }
 
-template<typename T>
-[[nodiscard]] constexpr T
-clamp(T value, T min, T max)
+template <typename T>
+[[nodiscard]] constexpr auto clamp(T value, T min, T max) -> T
 {
     assert(min <= max);
     return (value < min) ? min : (value > max) ? max : value;
 }
 
-template<u32 bits>
-[[nodiscard]] constexpr u32
-pack_unit_float(f32 f)
+template <u32 bits>
+[[nodiscard]] constexpr auto pack_unit_float(f32 f) -> u32
 {
     static_assert(bits && bits <= sizeof(u32) * 8);
     assert(f >= 0.f && f <= 1.f);
-    constexpr f32 intervals{ (f32)(((u32)1 << bits) - 1) };
+    constexpr f32 intervals{(f32)(((u32)1 << bits) - 1)};
     return (u32)(intervals * f + 0.5f);
 }
 
-template<u32 bits>
-[[nodiscard]] constexpr f32
-unpack_to_unit_float(u32 i)
+template <u32 bits>
+[[nodiscard]] constexpr auto unpack_to_unit_float(u32 i) -> f32
 {
     static_assert(bits && bits <= sizeof(u32) * 8);
     assert(i < ((u32)1 << bits));
-    constexpr f32 intervals{ (f32)(((u32)1 << bits) - 1) };
+    constexpr f32 intervals{(f32)(((u32)1 << bits) - 1)};
     return (f32)i / intervals;
 }
 
-template<u32 bits>
-[[nodiscard]] constexpr u32
-pack_float(f32 f, f32 min, f32 max)
+template <u32 bits>
+[[nodiscard]] constexpr auto pack_float(f32 f, f32 min, f32 max) -> u32
 {
     assert(min < max);
     assert(f <= max && f >= min);
-    const f32 distance{ (f - min) / (max - min) };
+    const f32 distance{(f - min) / (max - min)};
     return pack_unit_float<bits>(distance);
 }
 
-template<u32 bits>
-[[nodiscard]] constexpr f32
-unpack_to_float(u32 i, f32 min, f32 max)
+template <u32 bits>
+[[nodiscard]] constexpr auto unpack_to_float(u32 i, f32 min, f32 max) -> f32
 {
     assert(min < max);
     return unpack_to_unit_float<bits>(i) * (max - min) + min;
 }
 
 // Align by rounding up. Will result in a multiple of 'alignment' that is greater than or equal to 'size'.
-template<u64 alignment>
-[[nodiscard]] constexpr u64
-align_size_up(u64 size)
+template <u64 alignment>
+[[nodiscard]] constexpr auto align_size_up(u64 size) -> u64
 {
     static_assert(alignment, "Alignment must be non-zero.");
-    constexpr u64 mask{ alignment - 1 };
+    constexpr u64 mask{alignment - 1};
     static_assert(!(alignment & mask), "Alignment should be a power of 2.");
     return ((size + mask) & ~mask);
 }
 
 // Align by rounding down. Will result in a multiple of 'alignment' that is less than or equal to 'size'.
-template<u64 alignment>
-[[nodiscard]] constexpr u64
-align_size_down(u64 size)
+template <u64 alignment>
+[[nodiscard]] constexpr auto align_size_down(u64 size) -> u64
 {
     static_assert(alignment, "Alignment must be non-zero.");
-    constexpr u64 mask{ alignment - 1 };
+    constexpr u64 mask{alignment - 1};
     static_assert(!(alignment & mask), "Alignment should be a power of 2.");
     return (size & ~mask);
 }
 
 // Align by rounding up. Will result in a multiple of 'alignment' that is greater than or equal to 'size'.
-[[nodiscard]] constexpr u64
-align_size_up(u64 size, u64 alignment)
+[[nodiscard]] constexpr auto align_size_up(u64 size, u64 alignment) -> u64
 {
     assert(alignment && "Alignment must be non-zero.");
-    const u64 mask{ alignment - 1 };
+    const u64 mask{alignment - 1};
     assert(!(alignment & mask) && "Alignment should be a power of 2.");
     return ((size + mask) & ~mask);
 }
 
 // Align by rounding down. Will result in a multiple of 'alignment' that is less than or equal to 'size'.
-[[nodiscard]] constexpr u64
-align_size_down(u64 size, u64 alignment)
+[[nodiscard]] constexpr auto align_size_down(u64 size, u64 alignment) -> u64
 {
     assert(alignment && "Alignment must be non-zero.");
-    const u64 mask{ alignment - 1 };
+    const u64 mask{alignment - 1};
     assert(!(alignment & mask) && "Alignment should be a power of 2.");
     return (size & ~mask);
 }
 
-[[nodiscard]] constexpr u64
-calc_crc32_u64(const u8 *const data, u64 size)
+[[nodiscard]] constexpr auto calc_crc32_u64(const u8 *const data, u64 size) -> u64
 {
     assert(size >= sizeof(u64));
-    u64 crc{ 0 };
-    const u8* at{ data };
-    const u8 *const end{ data + align_size_down<sizeof(u64)>(size) };
+    u64 crc{0};
+    const u8 *at{data};
+    const u8 *const end{data + align_size_down<sizeof(u64)>(size)};
     while (at < end)
     {
-        crc = _mm_crc32_u64(crc, *((const u64*)at));
+        crc = _mm_crc32_u64(crc, *((const u64 *)at));
         at += sizeof(u64);
     }
 
@@ -126,20 +117,19 @@ calc_crc32_u64(const u8 *const data, u64 size)
 
 // Returns ceil(log2(value)): the exact log for powers of two, otherwise rounded up.
 // Returns 0 for value 0 and 1.
-[[nodiscard]] constexpr u8
-log2(u64 value)
+[[nodiscard]] constexpr auto log2(u64 value) -> u8
 {
     return value ? static_cast<u8>(std::bit_width(value - 1)) : static_cast<u8>(0);
 }
 
-constexpr math::v3 to_radians(math::v3 degrees)
+constexpr auto to_radians(math::v3 degrees) -> math::v3
 {
-    return { degrees.x * to_rad, degrees.y * to_rad, degrees.z * to_rad };
+    return {degrees.x * to_rad, degrees.y * to_rad, degrees.z * to_rad};
 }
 
-constexpr math::v3 to_degrees(math::v3 radians)
+constexpr auto to_degrees(math::v3 radians) -> math::v3
 {
-    return { radians.x * to_deg, radians.y * to_deg, radians.z * to_deg };
+    return {radians.x * to_deg, radians.y * to_deg, radians.z * to_deg};
 }
 
 }

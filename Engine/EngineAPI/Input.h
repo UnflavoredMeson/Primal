@@ -3,18 +3,23 @@
 #pragma once
 #include "CommonHeaders.h"
 
-namespace primal::input {
+namespace primal::input
+{
 
-struct axis {
-    enum type : u32 {
+struct Axis
+{
+    enum Type : u32
+    {
         x = 0,
         y = 1,
         z = 2,
     };
 };
 
-struct modifier_key {
-    enum key : u32 {
+struct ModifierKey
+{
+    enum Key : u32
+    {
         none = 0x00,
         left_shift = 0x01,
         right_shift = 0x02,
@@ -28,14 +33,16 @@ struct modifier_key {
     };
 };
 
-struct input_value
+struct InputValue
 {
     math::v3 previous;
     math::v3 current;
 };
 
-struct input_code {
-    enum code : u32 {
+struct InputCode
+{
+    enum Code : u32
+    {
         mouse_position,
         mouse_position_x,
         mouse_position_y,
@@ -156,8 +163,10 @@ struct input_code {
     };
 };
 
-struct input_source {
-    enum type : u32 {
+struct InputSource
+{
+    enum Type : u32
+    {
         keyboard,
         mouse,
         controller,
@@ -166,76 +175,80 @@ struct input_source {
         count
     };
 
-    u64                 binding{ 0 };
-    type                source_type{};
-    u32                 code{ 0 };
-    f32                 multiplier{ 0 };
-    bool                is_discrete{ true };
-    input::axis::type   source_axis{}; // qualified: the next member is named like its type (GCC -Wchanges-meaning)
-    input::axis::type   axis{};
-    modifier_key::key   modifier{};
+    u64 binding{0};
+    Type source_type{};
+    u32 code{0};
+    f32 multiplier{0};
+    bool is_discrete{true};
+    input::Axis::Type source_axis{}; // qualified: the next member is named like its type (GCC -Wchanges-meaning)
+    input::Axis::Type axis{};
+    ModifierKey::Key modifier{};
 };
 
-void get(input_source::type type, input_code::code code, input_value& value);
-void get(u64 binding, input_value& value);
+auto get(InputSource::Type type, InputCode::Code code, InputValue &value) -> void;
+auto get(u64 binding, InputValue &value) -> void;
 
-namespace detail {
-
-class input_system_base
+namespace detail
 {
-public:
-    virtual void on_event(input_source::type, input_code::code, const input_value&) = 0;
-    virtual void on_event(u64, const input_value&) = 0;
-protected:
-    input_system_base();
-    ~input_system_base();
+
+class InputSystemBase
+{
+  public:
+    virtual auto on_event(InputSource::Type, InputCode::Code, const InputValue &) -> void = 0;
+    virtual auto on_event(u64, const InputValue &) -> void = 0;
+
+  protected:
+    InputSystemBase();
+    ~InputSystemBase();
 };
-} // namespace detail
+}
 
-template<typename T>
-class input_system final : public detail::input_system_base
+template <typename T>
+class InputSystem final : public detail::InputSystemBase
 {
-public:
-    using input_callback_t = void(T::*)(input_source::type, input_code::code, const input_value&);
-    using binding_callback_t = void(T::*)(u64, const input_value&);
+  public:
+    using input_callback_t = void (T::*)(InputSource::Type, InputCode::Code, const InputValue &);
+    using binding_callback_t = void (T::*)(u64, const InputValue &);
 
-    void add_handler(input_source::type type, T* instance, input_callback_t callback)
+    auto add_handler(InputSource::Type type, T *instance, input_callback_t callback) -> void
     {
-        assert(instance && callback && type < input_source::count);
-        auto& collection = _input_callbacks[type];
-        for (const auto& func : collection)
+        assert(instance && callback && type < InputSource::count);
+        auto &collection = _input_callbacks[type];
+        for (const auto &func : collection)
         {
             // If handler was already added then don't add it again.
-            if (func.instance == instance && func.callback == callback) return;
+            if (func.instance == instance && func.callback == callback)
+                return;
         }
 
-        collection.emplace_back(input_callback{ instance, callback });
+        collection.emplace_back(InputCallback{instance, callback});
     }
 
-    void add_handler(u64 binding, T* instance, binding_callback_t callback)
+    auto add_handler(u64 binding, T *instance, binding_callback_t callback) -> void
     {
         assert(instance && callback);
-        for (const auto& func : _binding_callbacks)
+        for (const auto &func : _binding_callbacks)
         {
             // If handler was already added then don't add it again.
-            if (func.binding == binding && func.instance == instance && func.callback == callback) return;
+            if (func.binding == binding && func.instance == instance && func.callback == callback)
+                return;
         }
 
-        _binding_callbacks.emplace_back(binding_callback{ binding, instance, callback });
+        _binding_callbacks.emplace_back(BindingCallback{binding, instance, callback});
     }
 
-    void on_event(input_source::type type, input_code::code code, const input_value& value) override
+    auto on_event(InputSource::Type type, InputCode::Code code, const InputValue &value) -> void override
     {
-        assert(type < input_source::count);
-        for (const auto& item : _input_callbacks[type])
+        assert(type < InputSource::count);
+        for (const auto &item : _input_callbacks[type])
         {
             (item.instance->*item.callback)(type, code, value);
         }
     }
 
-    void on_event(u64 binding, const input_value& value) override
+    auto on_event(u64 binding, const InputValue &value) -> void override
     {
-        for (const auto& item : _binding_callbacks)
+        for (const auto &item : _binding_callbacks)
         {
             if (item.binding == binding)
             {
@@ -244,21 +257,21 @@ public:
         }
     }
 
-private:
-    struct input_callback
+  private:
+    struct InputCallback
     {
-        T*                  instance;
-        input_callback_t    callback;
+        T *instance;
+        input_callback_t callback;
     };
 
-    struct binding_callback
+    struct BindingCallback
     {
-        u64                 binding;
-        T*                  instance;
-        binding_callback_t  callback;
+        u64 binding;
+        T *instance;
+        binding_callback_t callback;
     };
 
-    utl::vector<input_callback>     _input_callbacks[input_source::count];
-    utl::vector<binding_callback>   _binding_callbacks;
+    utl::vector<InputCallback> _input_callbacks[InputSource::count];
+    utl::vector<BindingCallback> _binding_callbacks;
 };
 }

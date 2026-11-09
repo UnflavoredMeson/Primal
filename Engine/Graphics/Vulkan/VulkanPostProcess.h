@@ -3,20 +3,25 @@
 #pragma once
 #include "VulkanCommonHeaders.h"
 
-namespace primal::graphics::vulkan {
-struct vulkan_frame_info;
+namespace primal::graphics::vulkan
+{
+struct VulkanFrameInfo;
 }
 
 // Post-processing (counterpart of D3D12PostProcess.h): a fullscreen triangle that reads the gpass
 // buffers and writes the surface's back buffer.
-namespace primal::graphics::vulkan::fx {
+namespace primal::graphics::vulkan::fx
+{
 
-bool initialize();
-void shutdown();
+auto initialize() -> bool;
+auto shutdown() -> void;
 
 // The target (a swapchain image view) must be in vkx::resource_states.render_target. Every pixel is
 // written, so its previous contents don't matter. target_format selects the pipeline.
-void post_process(VkCommandBuffer cmd, const vulkan_frame_info& vulkan_info, VkImageView target_rtv,
-                  VkFormat target_format);
+auto post_process(
+    VkCommandBuffer cmd,
+    const VulkanFrameInfo &vulkan_info,
+    VkImageView target_rtv,
+    VkFormat target_format) -> void;
 
-} // namespace primal::graphics::vulkan::fx
+}

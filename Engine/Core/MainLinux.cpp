@@ -11,22 +11,25 @@
 
 #ifndef USE_WITH_EDITOR
 
-extern bool engine_initialize();
+extern auto engine_initialize() -> bool;
 
-extern void engine_update();
+extern auto engine_update() -> void;
 
-extern void engine_shutdown();
+extern auto engine_shutdown() -> void;
 
-int main() {
+auto main() -> int
+{
     // NOTE: for leak checking, configure with -DPRIMAL_ENABLE_SANITIZERS=ON.
     primal::platform::set_current_directory_to_executable_path();
 
-    if (engine_initialize()) {
-        while (primal::platform::pump_events()) {
-            engine_update();
+    if (::engine_initialize())
+    {
+        while (primal::platform::pump_events())
+        {
+            ::engine_update();
         }
     }
-    engine_shutdown();
+    ::engine_shutdown();
     return 0;
 }
 

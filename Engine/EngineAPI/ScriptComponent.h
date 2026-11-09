@@ -3,20 +3,33 @@
 #pragma once
 #include "../Components/ComponentsCommon.h"
 
-namespace primal::script {
-
-DEFINE_TYPED_ID(script_id);
-
-class component final
+namespace primal::script
 {
-public:
-    constexpr explicit component(script_id id) : _id{ id } {}
-    constexpr component() : _id{ id::invalid_id } {}
-    constexpr script_id get_id() const { return _id; }
-    constexpr bool is_valid() const { return id::is_valid(_id); }
-    
-private:
-    script_id _id;
+
+DEFINE_TYPED_ID(ScriptId);
+
+class Component final
+{
+  public:
+    constexpr explicit Component(ScriptId id)
+        : _id{id}
+    {
+    }
+    constexpr Component()
+        : _id{id::invalid_id}
+    {
+    }
+    constexpr auto get_id() const -> ScriptId
+    {
+        return _id;
+    }
+    constexpr auto is_valid() const -> bool
+    {
+        return id::is_valid(_id);
+    }
+
+  private:
+    ScriptId _id;
 };
 
 }
