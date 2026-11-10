@@ -392,7 +392,7 @@ EDITOR_INTERFACE auto ImportFbx(const char *file, SceneData *data, Progression::
     // NOTE: anything that involves using the FBX SDK should be single-threaded
     {
         std::lock_guard lock{fbx_mutex};
-        const FbxContext fbx_context{file, &scene, data, &progression};
+        FbxContext fbx_context{file, &scene, data, &progression};
         if (fbx_context.is_valid())
         {
             fbx_context.get_scene();

@@ -29,7 +29,7 @@ auto {0}::begin_play() -> void
 
 }}
 
-auto {0}::update(float dt) -> void
+auto {0}::update([[maybe_unused]] float dt) -> void
 {{
 
 }}

@@ -25,6 +25,9 @@
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories);$(VULKAN_SDK)\Lib</AdditionalLibraryDirectories>
       <AdditionalDependencies>vulkan-1.lib;delayimp.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <DelayLoadDLLs>vulkan-1.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
+      <!-- LNK4199 "/DELAYLOAD:vulkan-1.dll ignored; no imports found": expected when the target never uses graphics
+           (e.g. EngineTest with PrimalEngineTest=WINDOW). -->
+      <AdditionalOptions>/IGNORE:4199 %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
 </Project>
