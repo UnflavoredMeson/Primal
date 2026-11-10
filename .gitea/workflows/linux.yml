@@ -1,0 +1,57 @@
+# Copyright (c) 2026 Charles Smith
+# Distributed under the MIT license. See the LICENSE file in the project root for more information.
+#
+# Linux CI. Every job runs Tools/CI/ci.sh in the build image from Tools/CI/Dockerfile, so a job can be
+# reproduced by hand: see Tools/CI/README.md. That README also covers the image (how to rebuild and publish it; the
+# tag is repeated in each job below) and the runner.
+name: Linux
+
+on:
+  push:
+  workflow_dispatch:
+
+# A newer push to the same branch cancels the run of the older one.
+concurrency:
+  group: linux-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Format and include cycles
+    runs-on: ubuntu-latest
+    container:
+      image: gitea.unflavoredmeson.com/unflavoredmeson/primal-ci:2026-11-09
+    steps:
+      - uses: actions/checkout@v4
+      - run: Tools/CI/ci.sh checks
+
+  build:
+    name: Build (${{ matrix.preset }})
+    runs-on: ubuntu-latest
+    container:
+      image: gitea.unflavoredmeson.com/unflavoredmeson/primal-ci:2026-11-09
+    strategy:
+      fail-fast: false
+      matrix:
+        preset: [linux-debug, linux-release, linux-gcc-debug, linux-gcc-release]
+    steps:
+      - uses: actions/checkout@v4
+      - run: Tools/CI/ci.sh build ${{ matrix.preset }}
+
+  sanitizers:
+    name: ASan and UBSan
+    runs-on: ubuntu-latest
+    container:
+      image: gitea.unflavoredmeson.com/unflavoredmeson/primal-ci:2026-11-09
+    steps:
+      - uses: actions/checkout@v4
+      - run: Tools/CI/ci.sh sanitizers
+
+  tidy:
+    name: clang-tidy
+    runs-on: ubuntu-latest
+    container:
+      image: gitea.unflavoredmeson.com/unflavoredmeson/primal-ci:2026-11-09
+    steps:
+      - uses: actions/checkout@v4
+      - run: Tools/CI/ci.sh tidy
