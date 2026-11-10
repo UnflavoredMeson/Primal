@@ -2,11 +2,11 @@
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "Common.h"
 #include "CommonHeaders.h"
-#include "Id.h"
 #include "Components/Entity.h"
-#include "Components/Transform.h"
-#include "Components/Script.h"
 #include "Components/Geometry.h"
+#include "Components/Script.h"
+#include "Components/Transform.h"
+#include "Id.h"
 #include "Utilities/Threading.h"
 
 using namespace primal;

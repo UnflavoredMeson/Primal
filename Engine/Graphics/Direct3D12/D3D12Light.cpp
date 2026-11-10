@@ -2,12 +2,13 @@
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "D3D12Light.h"
 
-#include <algorithm>
-#include "D3D12Core.h"
-#include "Graphics/Shaders/SharedTypes.h"
-#include "EngineAPI/GameEntity.h"
 #include "Components/Transform.h"
 #include "D3D12Content.h"
+#include "D3D12Core.h"
+#include "EngineAPI/GameEntity.h"
+#include "Graphics/Shaders/SharedTypes.h"
+
+#include <algorithm>
 
 namespace primal::graphics::d3d12::light
 {

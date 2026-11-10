@@ -1,11 +1,12 @@
 // Copyright (c) 2026 Charles Smith
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #pragma once
-#include "Test.h"
-#include "../Engine/Platform/PlatformTypes.h"
-#include "../Engine/Platform/Platform.h"
 #include "../Engine/Graphics/Renderer.h"
+#include "../Engine/Platform/Platform.h"
+#include "../Engine/Platform/PlatformTypes.h"
 #include "../EngineDLL/ShaderCompilation.h"
+#include "Test.h"
+
 #include <cstdio>
 #include <iterator>
 

@@ -18,8 +18,8 @@
 #error One of the tests need to be enabled
 #endif
 
-#include "../Engine/Platform/PlatformTypes.h"
 #include "../Engine/Platform/Platform.h"
+#include "../Engine/Platform/PlatformTypes.h"
 
 auto run_test() -> int
 {

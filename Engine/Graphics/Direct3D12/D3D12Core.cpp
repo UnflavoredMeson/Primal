@@ -3,15 +3,16 @@
 #define INITGUID
 
 #include "D3D12Core.h"
-#include "D3D12Surface.h"
-#include "D3D12Shaders.h"
-#include "D3D12GPass.h"
-#include "D3D12PostProcess.h"
-#include "D3D12Upload.h"
+
+#include "D3D12Camera.h"
 #include "D3D12Content.h"
+#include "D3D12GPass.h"
 #include "D3D12Light.h"
 #include "D3D12LightCulling.h"
-#include "D3D12Camera.h"
+#include "D3D12PostProcess.h"
+#include "D3D12Shaders.h"
+#include "D3D12Surface.h"
+#include "D3D12Upload.h"
 #include "Graphics/Shaders/SharedTypes.h"
 
 using namespace Microsoft::WRL;

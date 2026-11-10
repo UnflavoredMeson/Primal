@@ -1,9 +1,10 @@
 // Copyright (c) Arash Khatami
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "Entity.h"
-#include "Transform.h"
-#include "Script.h"
+
 #include "Geometry.h"
+#include "Script.h"
+#include "Transform.h"
 
 namespace primal::game_entity
 {

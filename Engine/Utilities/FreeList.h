@@ -1,7 +1,14 @@
 // Copyright (c) Arash Khatami
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #pragma once
-#include "CommonHeaders.h"
+#include "../Common/CommonDefinitions.h"
+#include "../Common/PrimitiveTypes.h"
+#include "Utilities.h"
+
+#include <cassert>
+#include <cstring>
+#include <memory>
+#include <utility>
 
 namespace primal::utl
 {

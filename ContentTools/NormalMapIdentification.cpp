@@ -1,6 +1,7 @@
 // Copyright (c) Arash Khatami
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "ToolsCommon.h"
+
 #include <DirectXTex.h>
 
 using namespace DirectX;

@@ -2,13 +2,14 @@
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #pragma once
 
-#include "CommonHeaders.h"
+#include "../Common/PrimitiveTypes.h"
+#include "MathTypes.h"
+
+#include <DirectXMath.h>
+#include <immintrin.h> // _mm_crc32_u64 (SSE4.2)
 
 #include <bit>
-#include <immintrin.h> // _mm_crc32_u64 (SSE4.2)
-#include <DirectXMath.h>
-
-#include "../Utilities/MathTypes.h"
+#include <cassert>
 
 namespace primal::math
 {

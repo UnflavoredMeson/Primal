@@ -3,8 +3,8 @@
 #include "CommonHeaders.h"
 #if PRIMAL_PLATFORM_WINDOWS
 
-#include "InputWin32.h"
 #include "Input.h"
+#include "InputWin32.h"
 
 namespace primal::input
 {

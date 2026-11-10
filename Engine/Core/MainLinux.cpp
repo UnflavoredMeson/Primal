@@ -2,8 +2,8 @@
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "CommonHeaders.h"
 #if PRIMAL_PLATFORM_LINUX
-#include "Platform/PlatformTypes.h"
 #include "Platform/Platform.h"
+#include "Platform/PlatformTypes.h"
 
 // Linux counterpart of MainWin32.cpp: entry point of a game executable linked with the engine.
 // NOTE: an executable that defines its own main() (e.g. EngineTest) doesn't pull this in,

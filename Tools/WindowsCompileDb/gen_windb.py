@@ -68,6 +68,26 @@ for t in tests:
     defines = ["_DEBUG", "_CONSOLE"] + [f"TEST_{x}={int(x == t)}" for x in tests]
     dbs[f"enginetest-{t.lower()}"] = [command(f, defines, test_inc, f"{repo}/EngineTest") for f in files]
 
+# "headers": every header in a translation unit of its own. The Linux build checks the
+# portable ones with the CMake target header_check; this database adds the Windows-only ones.
+# FbxImporter.h needs the FBX SDK; IncludeWindowCpp.h includes a .cpp into the platform TU.
+header_inc = test_inc + [f"{repo}/ContentTools", f"{xwin}/directxtex", f"{xwin}/contenttools-inc"]
+header_defines = ["_DEBUG", "_LIB", "USE_WITH_EDITOR"] + [f"TEST_{x}=0" for x in tests]
+os.makedirs(f"{out}/headers/tu", exist_ok=True)
+dbs["headers"] = []
+for top in ["Engine", "EngineDLL", "EngineTest", "ContentTools"]:
+    for folder, _, names in sorted(os.walk(f"{repo}/{top}")):
+        for h in sorted(n for n in names if n.endswith(".h")):
+            rel = os.path.relpath(f"{folder}/{h}", repo)
+            if re.search(r"ThirdParty/|MikkTSpace/|FbxImporter\.h$|IncludeWindowCpp\.h$", rel):
+                continue
+            tu = f"{out}/headers/tu/{re.sub('[/.]', '_', rel)}.cpp"
+            with open(tu, "w") as fp:
+                fp.write(f'#include "{repo}/{rel}"\n')
+            entry = command(rel, header_defines, header_inc, f"{repo}/{top}")
+            entry["file"] = entry["arguments"][-1] = tu
+            dbs["headers"].append(entry)
+
 for name, entries in dbs.items():
     os.makedirs(f"{out}/{name}", exist_ok=True)
     with open(f"{out}/{name}/compile_commands.json", "w") as fp:

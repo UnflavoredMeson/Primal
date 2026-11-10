@@ -1,14 +1,15 @@
 // Copyright (c) Arash Khatami
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
-#include <filesystem>
-#include <iterator>
-#include "CommonHeaders.h"
-#include "Content/ContentToEngine.h"
-#include "Graphics/Renderer.h"
 #include "../EngineDLL/ShaderCompilation.h"
+#include "CommonHeaders.h"
 #include "Components/Entity.h"
 #include "Components/Geometry.h"
+#include "Content/ContentToEngine.h"
+#include "Graphics/Renderer.h"
 #include "Test.h"
+
+#include <filesystem>
+#include <iterator>
 
 #if TEST_RENDERER
 

@@ -2,8 +2,10 @@
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #pragma once
 #include "CommonHeaders.h"
-#include <atomic>
+
 #include <immintrin.h> // _mm_pause
+
+#include <atomic>
 
 namespace primal::utl
 {

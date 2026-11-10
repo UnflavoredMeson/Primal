@@ -1,11 +1,12 @@
 // Copyright (c) Arash Khatami
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
-#include "CommonHeaders.h"
 #include "D3D12Interface.h"
-#include "D3D12Core.h"
-#include "D3D12Content.h"
-#include "D3D12Light.h"
+
+#include "CommonHeaders.h"
 #include "D3D12Camera.h"
+#include "D3D12Content.h"
+#include "D3D12Core.h"
+#include "D3D12Light.h"
 #include "Graphics/GraphicsPlatformInterface.h"
 
 namespace primal::graphics::d3d12

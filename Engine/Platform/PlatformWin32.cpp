@@ -2,9 +2,10 @@
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "CommonHeaders.h"
 #if PRIMAL_PLATFORM_WINDOWS
+#include "Input/InputWin32.h"
 #include "Platform.h"
 #include "PlatformTypes.h"
-#include "Input/InputWin32.h"
+
 #include <string>
 
 namespace primal::platform

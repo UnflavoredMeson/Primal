@@ -3,6 +3,7 @@
 #include "InputSDL.h"
 #if PRIMAL_PLATFORM_LINUX
 #include "Input.h"
+
 #include <SDL3/SDL.h>
 
 namespace primal::input

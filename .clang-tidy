@@ -10,8 +10,6 @@
 # - misc-const-correctness (const wherever a local isn't modified),
 #   modernize-use-structured-binding, readability-braces-around-statements (clang-format's InsertBraces adds the
 #   braces; the check reports what it can't see, e.g. in macros).
-# - readability-duplicate-include is off until self-contained headers: with the include cycles it flags
-#   includes that aren't duplicates, and its fixes break the build.
 Checks: >
   -*,
   bugprone-*,
@@ -60,6 +58,7 @@ Checks: >
   misc-const-correctness,
   modernize-use-structured-binding,
   readability-braces-around-statements,
+  readability-duplicate-include,
   -bugprone-invalid-enum-default-initialization
 
 WarningsAsErrors: ''

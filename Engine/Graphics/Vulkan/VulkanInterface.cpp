@@ -1,12 +1,13 @@
 // Copyright (c) 2026 Charles Smith
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
-#include "CommonHeaders.h"
 #include "VulkanInterface.h"
-#include "VulkanCore.h"
+
+#include "CommonHeaders.h"
+#include "Graphics/GraphicsPlatformInterface.h"
 #include "VulkanCamera.h"
 #include "VulkanContent.h"
+#include "VulkanCore.h"
 #include "VulkanLight.h"
-#include "Graphics/GraphicsPlatformInterface.h"
 
 namespace primal::graphics::vulkan
 {

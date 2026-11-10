@@ -1,18 +1,20 @@
 // Copyright (c) 2026 Charles Smith
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "VulkanCore.h"
+
+#include "Graphics/Shaders/SharedTypes.h"
 #include "VulkanCamera.h"
 #include "VulkanContent.h"
 #include "VulkanGPass.h"
+#include "VulkanHelpers.h"
 #include "VulkanLight.h"
 #include "VulkanLightCulling.h"
-#include "VulkanHelpers.h"
 #include "VulkanPostProcess.h"
 #include "VulkanResources.h"
 #include "VulkanShaders.h"
-#include "Graphics/Shaders/SharedTypes.h"
 #include "VulkanSurface.h"
 #include "VulkanUpload.h"
+
 #include <algorithm>
 #include <cstdarg>
 #include <cstdlib>

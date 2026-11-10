@@ -1,7 +1,13 @@
 // Copyright (c) Arash Khatami
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #pragma once
-#include "CommonHeaders.h"
+#include "../Common/CommonDefinitions.h"
+#include "../Common/PrimitiveTypes.h"
+
+#include <cassert>
+#include <cstdlib>
+#include <cstring>
+#include <memory>
 #include <type_traits>
 #include <utility>
 

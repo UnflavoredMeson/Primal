@@ -2,6 +2,8 @@
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #pragma once
 
+#include <cstddef>
+
 #define USE_STL_VECTOR 0
 #define USE_STL_DEQUE 1
 
@@ -55,5 +57,3 @@ namespace primal::utl
 // TODO: implement our own containers
 
 }
-
-#include "FreeList.h"

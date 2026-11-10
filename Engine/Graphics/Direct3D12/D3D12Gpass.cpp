@@ -1,14 +1,15 @@
 // Copyright (c) Arash Khatami
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "D3D12GPass.h"
-#include "D3D12Core.h"
-#include "D3D12Content.h"
-#include "D3D12Light.h"
-#include "D3D12Camera.h"
-#include "D3D12LightCulling.h"
-#include "Graphics/Shaders/SharedTypes.h"
+
 #include "Components/Entity.h"
 #include "Components/Transform.h"
+#include "D3D12Camera.h"
+#include "D3D12Content.h"
+#include "D3D12Core.h"
+#include "D3D12Light.h"
+#include "D3D12LightCulling.h"
+#include "Graphics/Shaders/SharedTypes.h"
 
 namespace primal::graphics::d3d12::gpass
 {

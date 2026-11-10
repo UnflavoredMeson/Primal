@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Charles Smith
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "VulkanResources.h"
+
 #include "VulkanCore.h"
 #include "VulkanUpload.h"
 

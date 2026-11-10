@@ -24,9 +24,18 @@ AllowShortCaseLabelsOnASingleLine: true
 IndentExternBlock: NoIndent
 InsertNewlineAtEOF: true
 
-# The engine's headers depend on include order (e.g. CommonHeaders.h includes PrimitiveTypes.h before Id.h, which uses
-# u32 without including it). Sort once the headers are self-contained.
-SortIncludes: Never
+# Includes are sorted and grouped: the file's own header, project headers ("..."), system and third-party headers
+# (<x.h>, <dir/x.h>), then the C++ standard library (<x>). The headers are self-contained, so the order doesn't
+# matter to the compiler (checked by the header_check target and Tools/check_include_cycles.py).
+SortIncludes: CaseSensitive
+IncludeBlocks: Regroup
+IncludeCategories:
+  - Regex: '^"'
+    Priority: 1
+  - Regex: '^<[a-z_]+>$'
+    Priority: 3
+  - Regex: '^<'
+    Priority: 2
 # Braces on every if/else/for/while/do body, even single statements.
 # One-line `if (x) { return; }` is not available: AllowShortBlocksOnASingleLine: Always would collapse every short
 # block (and an inline member's body onto its own line as `{ return _x; }`), and clang-format has no "leave as is".

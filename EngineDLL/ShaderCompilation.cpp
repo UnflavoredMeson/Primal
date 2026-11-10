@@ -3,23 +3,23 @@
 #include "ShaderCompilation.h"
 
 #if PRIMAL_PLATFORM_WINDOWS
-#include <wrl.h>
-#include <dxcapi.h>
 #include <d3d12shader.h>
+#include <dxcapi.h>
+#include <wrl.h>
 #else
 // DXC's Linux build: libdxcompiler.so plus a small COM emulation layer (WinAdapter.h).
 #include <dxc/dxcapi.h>
 #endif
 
-#include "Graphics/Renderer.h"
 #include "Content/ContentToEngine.h"
+#include "Graphics/Renderer.h"
 #include "Utilities/IOStream.h"
 
 #include <csignal>
 #include <cstdio>
 #include <cstdlib>
-#include <fstream>
 #include <filesystem>
+#include <fstream>
 #include <iterator>
 #include <string>
 

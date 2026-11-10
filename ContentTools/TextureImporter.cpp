@@ -1,8 +1,9 @@
 // Copyright (c) Arash Khatami
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
-#include "ToolsCommon.h"
 #include "Content/ContentToEngine.h"
+#include "ToolsCommon.h"
 #include "Utilities/IOStream.h"
+
 #include <DirectXTex.h>
 #include <dxgi1_6.h>
 

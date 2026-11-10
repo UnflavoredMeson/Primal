@@ -1,10 +1,10 @@
 // Copyright (c) Arash Khatami
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #pragma once
-#include "../Components/ComponentsCommon.h"
-#include "TransformComponent.h"
-#include "ScriptComponent.h"
+#include "../Common/CommonHeaders.h"
 #include "GeometryComponent.h"
+#include "ScriptComponent.h"
+#include "TransformComponent.h"
 
 namespace primal::game_entity
 {

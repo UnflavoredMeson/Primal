@@ -1,12 +1,14 @@
 // Copyright (c) 2026 Charles Smith
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "VulkanContent.h"
+
 #include "Content/ContentToEngine.h"
 #include "Utilities/IOStream.h"
 #include "VulkanCore.h"
 #include "VulkanGPass.h"
 #include "VulkanResources.h"
 #include "VulkanUpload.h"
+
 #include <bit>
 #include <numeric>
 

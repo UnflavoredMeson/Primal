@@ -2,6 +2,7 @@
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #pragma once
 #include "D3D12CommonHeaders.h"
+#include "D3D12Helpers.h"
 
 namespace primal::graphics::d3d12
 {

@@ -1,6 +1,7 @@
 // Copyright (c) Arash Khatami
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "D3D12Camera.h"
+
 #include "EngineAPI/GameEntity.h"
 
 namespace primal::graphics::d3d12::camera
