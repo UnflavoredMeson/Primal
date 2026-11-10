@@ -1,11 +1,13 @@
 # Copyright (c) 2026 Charles Smith
 # Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #
-# Windows CI. DISABLED: there is no Windows runner yet, so the whole workflow is commented out.
+# Windows CI. DISABLED: there is no Windows runner yet. The file is named `.yml.disabled` so Gitea doesn't load it
+# (a `.yml` with everything commented out shows up as a failed run), and the whole workflow is commented out.
 #
 # To enable it, once a Windows machine or VM exists:
 #   1. Install on it: VS 2026 Build Tools (v145 toolset, C++ desktop workload, .NET SDK for the editor), Git, the
 #      Vulkan SDK (sets VULKAN_SDK) and the FBX SDK (ContentTools, editor configurations only).
+#   2. Rename this file to `windows.yml` and remove the leading `# ` from every line below this block.
 #
 # name: Windows
 #
