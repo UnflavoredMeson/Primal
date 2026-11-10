@@ -31,5 +31,9 @@ add_subdirectory(Engine)
 add_subdirectory(ShaderCompilerTool)
 add_subdirectory(EngineTest)
 
+# The automated tests (doctest), also registered with CTest.
+enable_testing()
+add_subdirectory(UnitTests)
+
 # Self-contained header check (target header_check, not built by default).
 include(PrimalHeaderCheck)

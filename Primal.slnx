@@ -35,6 +35,13 @@
     <Build Solution="DebugEditor|*" Project="false" />
     <Build Solution="ReleaseEditor|*" Project="false" />
   </Project>
+  <Project Path="UnitTests/UnitTests.vcxproj" Id="d7dc3c8c-90e9-41bb-8e38-256d8f1d60f5">
+    <BuildDependency Project="Engine/Engine.vcxproj" />
+    <BuildType Solution="DebugEditor|*" Project="Debug" />
+    <BuildType Solution="ReleaseEditor|*" Project="Release" />
+    <Build Solution="DebugEditor|*" Project="false" />
+    <Build Solution="ReleaseEditor|*" Project="false" />
+  </Project>
   <Project Path="PrimalEditor/PrimalEditor.csproj">
     <BuildType Solution="Debug|*" Project="DebugEditor" />
     <BuildType Solution="Release|*" Project="ReleaseEditor" />

@@ -42,6 +42,7 @@ through June 15, 2026.
 - [FBX SDK 2020](https://www.autodesk.com/developer-network/platform-technologies/fbx-sdk-2020-0) (manual installation required). A typical install path looks like:
  `C:\Program Files\Autodesk\FBX\FBX SDK\2020.3.7`
 - MikkTSpace (already included with ContentTools)
+- doctest (downloaded automatically when UnitTests is built)
 - DirectXTex (automatically restored via vcpkg for ContentTools)
 - DXC and the D3D12 Agility SDK (automatically restored via NuGet packages for EngineDLL, Engine, and EngineTest)
 - EnvDTE and EnvDTE80 for Visual Studio automation (automatically restored via NuGet for PrimalEditor)

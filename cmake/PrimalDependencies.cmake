@@ -24,6 +24,19 @@ if(TARGET DirectXMath)
     set_target_properties(DirectXMath PROPERTIES INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${_dxmath_includes}")
 endif()
 
+# doctest (one header) for UnitTests. Downloaded, not vendored. UnitTests/UnitTests.vcxproj downloads the same file
+# with the same hash: change the version in both.
+FetchContent_Declare(doctest
+    URL      https://raw.githubusercontent.com/doctest/doctest/v2.5.3/doctest/doctest.h
+    URL_HASH SHA256=cfd518a3ef90f67e1f3ba514df23fb3627437de1a2feeba78cf5062a40021421
+    DOWNLOAD_NO_EXTRACT TRUE
+)
+FetchContent_MakeAvailable(doctest)
+add_library(primal_doctest INTERFACE)
+add_library(primal::doctest ALIAS primal_doctest)
+# SYSTEM: no warnings from it.
+target_include_directories(primal_doctest SYSTEM INTERFACE "${doctest_SOURCE_DIR}")
+
 # SDL3 (system package) for standalone windows, input and the event loop.
 find_package(SDL3 3.2 REQUIRED CONFIG COMPONENTS SDL3-shared)
 

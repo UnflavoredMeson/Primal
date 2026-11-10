@@ -248,7 +248,11 @@ class vector
             }
             else
             {
-                std::memmove(item, item + 1, (std::addressof(_data[_size]) - item) * sizeof(T));
+                // void* casts: deliberate bitwise relocation (see relocate_with_move; clang -Wnontrivial-memcall).
+                std::memmove(
+                    static_cast<void *>(item),
+                    static_cast<const void *>(item + 1),
+                    (std::addressof(_data[_size]) - item) * sizeof(T));
             }
         }
 
@@ -280,7 +284,9 @@ class vector
             }
             else
             {
-                std::memcpy(item, std::addressof(_data[_size]), sizeof(T));
+                // void* casts: deliberate bitwise relocation (see relocate_with_move; clang -Wnontrivial-memcall).
+                std::memcpy(
+                    static_cast<void *>(item), static_cast<const void *>(std::addressof(_data[_size])), sizeof(T));
             }
         }
 

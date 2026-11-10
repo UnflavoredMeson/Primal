@@ -6,8 +6,8 @@
 # by hand, on the host or in the CI image (README.md, next to this file):
 #
 #   Tools/CI/ci.sh checks              formatting (clang-format) and include cycles
-#   Tools/CI/ci.sh build <preset>      all four EngineTest variants + header_check, then the entity-components test
-#   Tools/CI/ci.sh sanitizers          ASan + UBSan build, then the entity-components test
+#   Tools/CI/ci.sh build <preset>      all four EngineTest variants + header_check, then the tests
+#   Tools/CI/ci.sh sanitizers          ASan + UBSan build, then the tests
 #   Tools/CI/ci.sh tidy                clang-tidy over every Linux configuration, warnings are errors
 #
 # NOTE: the jobs configure with a different PRIMAL_ENGINE_TEST several times and write to build/ and x64/, like a
@@ -24,9 +24,13 @@ section() {
     printf '\n=== %s ===\n' "$*"
 }
 
-# The entity-components test repeats until it reads 'q' from stdin. With stdin closed it would never stop.
-run_entity_test() {
+# The automated tests (UnitTests/, doctest), then EngineTest's entity-components test. That one repeats until it
+# reads 'q' from stdin: with stdin closed it would never stop.
+run_tests() {
     local config=$1
+    section "Run the unit tests (${config})"
+    "x64/${config}/UnitTests"
+
     section "Run the entity-components test (${config})"
     echo q | "x64/${config}/EngineTest"
 }
@@ -59,7 +63,7 @@ job_build() {
     section "Build ${preset}, header_check"
     cmake --build --preset "${preset}" --target header_check
 
-    run_entity_test "${config}"
+    run_tests "${config}"
 }
 
 job_sanitizers() {
@@ -70,7 +74,7 @@ job_sanitizers() {
     cmake --build "${dir}"
 
     # UBSan only prints by default; make it fail the job.
-    UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 run_entity_test Debug
+    UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 run_tests Debug
 }
 
 # clang-tidy needs the compile database only (configure, no build).

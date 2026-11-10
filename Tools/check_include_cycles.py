@@ -6,7 +6,7 @@
 import os, re, sys
 
 repo = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else ".")
-tops = ["Engine", "EngineDLL", "EngineTest", "ContentTools", "ShaderCompilerTool"]
+tops = ["Engine", "EngineDLL", "EngineTest", "UnitTests", "ContentTools", "ShaderCompilerTool"]
 skip = re.compile(r"ThirdParty/|MikkTSpace/")
 # The include directories of the builds (Engine/CMakeLists.txt, the .vcxproj files), after the including file's own.
 search = ["Engine", "Engine/Common", "EngineDLL", "ContentTools"]

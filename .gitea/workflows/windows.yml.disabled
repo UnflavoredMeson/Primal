@@ -95,6 +95,12 @@
 #             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 #           }
 #
+#       # The automated tests (UnitTests/, doctest): a console program, built with the solution.
+#       - name: Run the unit tests
+#         run: |
+#           & "x64\${{ matrix.configuration }}\UnitTests.exe"
+#           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+#
 #       # The test repeats until it reads 'q' from stdin. It is a GUI-subsystem program, hence Start-Process.
 #       - name: Run the entity-components test
 #         run: |
