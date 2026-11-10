@@ -59,7 +59,7 @@ using id3d12_graphics_command_list = ID3D12GraphicsCommandList6;
 #define NAME_D3D12_OBJECT_INDEXED(obj, n, name)                                                                        \
     {                                                                                                                  \
         wchar_t full_name[128];                                                                                        \
-        if (swprintf_s(full_name, L"%s[%llu]", name, (u64)n) > 0)                                                      \
+        if (swprintf_s(full_name, L"%s[%llu]", name, static_cast<u64>(n)) > 0)                                         \
         {                                                                                                              \
             obj->SetName(full_name);                                                                                   \
             OutputDebugString(L"::D3D12 Object Created: ");                                                            \

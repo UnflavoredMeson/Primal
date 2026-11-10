@@ -35,17 +35,17 @@ template <u32 bits>
 {
     static_assert(bits && bits <= sizeof(u32) * 8);
     assert(f >= 0.f && f <= 1.f);
-    constexpr f32 intervals{(f32)(((u32)1 << bits) - 1)};
-    return (u32)(intervals * f + 0.5f); // NOLINT(bugprone-incorrect-roundings): f is in [0, 1] (asserted)
+    constexpr f32 intervals{static_cast<f32>((static_cast<u32>(1) << bits) - 1)};
+    return static_cast<u32>(intervals * f + 0.5f); // NOLINT(bugprone-incorrect-roundings): f is in [0, 1] (asserted)
 }
 
 template <u32 bits>
 [[nodiscard]] constexpr auto unpack_to_unit_float(u32 i) -> f32
 {
     static_assert(bits && bits <= sizeof(u32) * 8);
-    assert(i < ((u32)1 << bits));
-    constexpr f32 intervals{(f32)(((u32)1 << bits) - 1)};
-    return (f32)i / intervals;
+    assert(i < (static_cast<u32>(1) << bits));
+    constexpr f32 intervals{static_cast<f32>((static_cast<u32>(1) << bits) - 1)};
+    return static_cast<f32>(i) / intervals;
 }
 
 template <u32 bits>
@@ -110,7 +110,7 @@ template <u64 alignment>
     const u8 *const end{data + align_size_down<sizeof(u64)>(size)};
     while (at < end)
     {
-        crc = _mm_crc32_u64(crc, *((const u64 *)at));
+        crc = _mm_crc32_u64(crc, *(reinterpret_cast<const u64 *>(at)));
         at += sizeof(u64);
     }
 

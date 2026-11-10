@@ -52,8 +52,8 @@ class TimeIt
     auto end() -> void
     {
         const auto dt = clock::now() - _start;
-        _us_avg +=
-            ((float)std::chrono::duration_cast<std::chrono::microseconds>(dt).count() - _us_avg) / (float)_counter;
+        _us_avg += (static_cast<float>(std::chrono::duration_cast<std::chrono::microseconds>(dt).count()) - _us_avg) /
+                   static_cast<float>(_counter);
         ++_counter;
         _dt_avg = _us_avg;
 

@@ -107,16 +107,16 @@ auto create_platform_surface(const platform::NativeWindowHandle &native) -> VkSu
         case platform::NativeWindowHandle::x11:
         {
             VkXlibSurfaceCreateInfoKHR info{VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR};
-            info.dpy = (Display *)native.display;
-            info.window = (Window)native.window;
+            info.dpy = static_cast<Display *>(native.display);
+            info.window = static_cast<Window>(native.window);
             VkCall(::vkCreateXlibSurfaceKHR(core::instance(), &info, nullptr, &surface));
         }
         break;
         case platform::NativeWindowHandle::wayland:
         {
             VkWaylandSurfaceCreateInfoKHR info{VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR};
-            info.display = (wl_display *)native.display;
-            info.surface = (wl_surface *)native.window;
+            info.display = static_cast<wl_display *>(native.display);
+            info.surface = reinterpret_cast<wl_surface *>(native.window);
             VkCall(::vkCreateWaylandSurfaceKHR(core::instance(), &info, nullptr, &surface));
         }
         break;
@@ -124,13 +124,13 @@ auto create_platform_surface(const platform::NativeWindowHandle &native) -> VkSu
         case platform::NativeWindowHandle::win32:
         {
             VkWin32SurfaceCreateInfoKHR info{VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR};
-            info.hinstance = (HINSTANCE)native.display;
-            info.hwnd = (HWND)native.window;
+            info.hinstance = static_cast<HINSTANCE>(native.display);
+            info.hwnd = reinterpret_cast<HWND>(native.window);
             VkCall(::vkCreateWin32SurfaceKHR(core::instance(), &info, nullptr, &surface));
         }
         break;
 #endif
-        default: log_message("Vulkan: unsupported native window kind %u\n", (u32)native.kind); break;
+        default: log_message("Vulkan: unsupported native window kind %u\n", static_cast<u32>(native.kind)); break;
     }
 
     return surface;
@@ -229,8 +229,8 @@ auto VulkanSurface::create_swapchain() -> bool
     VkCompositeAlphaFlagBitsKHR composite_alpha{VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR};
     if (!(caps.supportedCompositeAlpha & composite_alpha))
     {
-        composite_alpha = (VkCompositeAlphaFlagBitsKHR)(caps.supportedCompositeAlpha &
-                                                        ~(caps.supportedCompositeAlpha - 1)); // lowest set bit
+        composite_alpha = static_cast<VkCompositeAlphaFlagBitsKHR>(
+            caps.supportedCompositeAlpha & ~(caps.supportedCompositeAlpha - 1)); // lowest set bit
     }
 
     VkSwapchainCreateInfoKHR info{VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR};
@@ -295,9 +295,9 @@ auto VulkanSurface::create_swapchain() -> bool
         _extent.width,
         _extent.height,
         _image_count,
-        (s32)_format,
-        (s32)_color_space,
-        (s32)_present_mode));
+        static_cast<s32>(_format),
+        static_cast<s32>(_color_space),
+        static_cast<s32>(_present_mode)));
     return true;
 }
 

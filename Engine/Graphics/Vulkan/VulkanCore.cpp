@@ -32,11 +32,11 @@ auto log_message(const char *format, ...) -> void // NOLINT(modernize-avoid-vari
 
     const char *message{buffer};
     std::unique_ptr<char[]> long_message;
-    if (length >= (int)sizeof(buffer))
+    if (length >= static_cast<int>(sizeof(buffer)))
     {
         // Validation messages can be longer than the stack buffer.
-        long_message = std::make_unique<char[]>((size_t)length + 1);
-        std::vsnprintf(long_message.get(), (size_t)length + 1, format, args_copy);
+        long_message = std::make_unique<char[]>(static_cast<size_t>(length) + 1);
+        std::vsnprintf(long_message.get(), static_cast<size_t>(length) + 1, format, args_copy);
         message = long_message.get();
     }
     va_end(args_copy);
@@ -166,7 +166,7 @@ class VulkanCommand
         submit.pWaitSemaphoreInfos = &wait_info;
         submit.commandBufferInfoCount = 1;
         submit.pCommandBufferInfos = &cmd_info;
-        submit.signalSemaphoreInfoCount = (u32)std::size(signal_infos);
+        submit.signalSemaphoreInfoCount = static_cast<u32>(std::size(signal_infos));
         submit.pSignalSemaphoreInfos = &signal_infos[0];
         {
             const std::scoped_lock lock{_queue_mutex};
@@ -531,9 +531,9 @@ auto create_instance() -> bool
 
     VkInstanceCreateInfo info{VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
     info.pApplicationInfo = &app_info;
-    info.enabledLayerCount = (u32)enabled_layers.size();
+    info.enabledLayerCount = static_cast<u32>(enabled_layers.size());
     info.ppEnabledLayerNames = enabled_layers.data();
-    info.enabledExtensionCount = (u32)enabled_extensions.size();
+    info.enabledExtensionCount = static_cast<u32>(enabled_extensions.size());
     info.ppEnabledExtensionNames = enabled_extensions.data();
 
     // Synchronization validation (hazards between commands/submits), the counterpart of the
@@ -543,7 +543,7 @@ auto create_instance() -> bool
         {validation_layer_name, "validate_sync", VK_LAYER_SETTING_TYPE_BOOL32_EXT, 1, &enable},
     };
     VkLayerSettingsCreateInfoEXT settings_info{VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT};
-    settings_info.settingCount = (u32)std::size(settings);
+    settings_info.settingCount = static_cast<u32>(std::size(settings));
     settings_info.pSettings = &settings[0];
 
     // Messages from vkCreateInstance/vkDestroyInstance go to this messenger.
@@ -578,12 +578,12 @@ auto create_instance() -> bool
 #ifdef _DEBUG
     if (debug_utils)
     {
-        set_debug_utils_object_name =
-            (PFN_vkSetDebugUtilsObjectNameEXT)::vkGetInstanceProcAddr(vk_instance, "vkSetDebugUtilsObjectNameEXT");
+        set_debug_utils_object_name = reinterpret_cast<PFN_vkSetDebugUtilsObjectNameEXT>(
+            ::vkGetInstanceProcAddr(vk_instance, "vkSetDebugUtilsObjectNameEXT"));
         if (validation)
         {
-            const auto create_messenger{(PFN_vkCreateDebugUtilsMessengerEXT)::vkGetInstanceProcAddr(
-                vk_instance, "vkCreateDebugUtilsMessengerEXT")};
+            const auto create_messenger{reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(
+                ::vkGetInstanceProcAddr(vk_instance, "vkCreateDebugUtilsMessengerEXT"))};
             // messenger_info was part of the vkCreateInstance pNext chain (pNext may point at settings_info);
             // vkCreateDebugUtilsMessengerEXT requires pNext == nullptr.
             messenger_info.pNext = nullptr;
@@ -809,7 +809,7 @@ auto create_device() -> bool
 
     // Offsets of storage buffer ranges (root SRVs/UAVs) must be multiples of minStorageBufferOffsetAlignment (4 on
     // AMD/Mesa, 16 on NVIDIA, at most 256). D3D12 only needs 4.
-    storage_buffer_alignment = std::max((u32)properties.limits.minStorageBufferOffsetAlignment, 16u);
+    storage_buffer_alignment = std::max(static_cast<u32>(properties.limits.minStorageBufferOffsetAlignment), 16u);
 
     const u32 queue_family{find_graphics_queue_family(main_physical_device)};
     const f32 priority{1.f};
@@ -827,7 +827,7 @@ auto create_device() -> bool
     info.pNext = &enabled.features;
     info.queueCreateInfoCount = 1;
     info.pQueueCreateInfos = &queue_info;
-    info.enabledExtensionCount = (u32)std::size(required_device_extensions);
+    info.enabledExtensionCount = static_cast<u32>(std::size(required_device_extensions));
     info.ppEnabledExtensionNames = &required_device_extensions[0];
 
     if (!VkCall(::vkCreateDevice(main_physical_device, &info, nullptr, &main_device)))
@@ -876,7 +876,7 @@ auto create_static_samplers() -> bool
 
     for (u32 i{0}; i < vkx::StaticSampler::count; ++i)
     {
-        VkSamplerCreateInfo info{vkx::sampler_info((vkx::StaticSampler::Type)i)};
+        VkSamplerCreateInfo info{vkx::sampler_info(static_cast<vkx::StaticSampler::Type>(i))};
         info.maxAnisotropy = std::min(info.maxAnisotropy, properties.limits.maxSamplerAnisotropy);
         if (!VkCall(::vkCreateSampler(main_device, &info, nullptr, &static_samplers[i])))
         {
@@ -893,44 +893,52 @@ auto destroy_object(const DeferredObject &object) -> void
     switch (object.type)
     {
         case VK_OBJECT_TYPE_SWAPCHAIN_KHR:
-            ::vkDestroySwapchainKHR(device, (VkSwapchainKHR)object.handle, nullptr);
+            ::vkDestroySwapchainKHR(device, handle_from_u64<VkSwapchainKHR>(object.handle), nullptr);
             break;
         case VK_OBJECT_TYPE_SURFACE_KHR:
-            ::vkDestroySurfaceKHR(vk_instance, (VkSurfaceKHR)object.handle, nullptr);
+            ::vkDestroySurfaceKHR(vk_instance, handle_from_u64<VkSurfaceKHR>(object.handle), nullptr);
             break;
-        case VK_OBJECT_TYPE_IMAGE_VIEW: ::vkDestroyImageView(device, (VkImageView)object.handle, nullptr); break;
+        case VK_OBJECT_TYPE_IMAGE_VIEW:
+            ::vkDestroyImageView(device, handle_from_u64<VkImageView>(object.handle), nullptr);
+            break;
         case VK_OBJECT_TYPE_IMAGE:
             if (object.allocation)
             {
-                ::vmaDestroyImage(vma_allocator, (VkImage)object.handle, object.allocation);
+                ::vmaDestroyImage(vma_allocator, handle_from_u64<VkImage>(object.handle), object.allocation);
             }
             else
             {
-                ::vkDestroyImage(device, (VkImage)object.handle, nullptr);
+                ::vkDestroyImage(device, handle_from_u64<VkImage>(object.handle), nullptr);
             }
             break;
         case VK_OBJECT_TYPE_BUFFER:
             if (object.allocation)
             {
-                ::vmaDestroyBuffer(vma_allocator, (VkBuffer)object.handle, object.allocation);
+                ::vmaDestroyBuffer(vma_allocator, handle_from_u64<VkBuffer>(object.handle), object.allocation);
             }
             else
             {
-                ::vkDestroyBuffer(device, (VkBuffer)object.handle, nullptr);
+                ::vkDestroyBuffer(device, handle_from_u64<VkBuffer>(object.handle), nullptr);
             }
             break;
         case VK_OBJECT_TYPE_DESCRIPTOR_POOL:
-            ::vkDestroyDescriptorPool(device, (VkDescriptorPool)object.handle, nullptr);
+            ::vkDestroyDescriptorPool(device, handle_from_u64<VkDescriptorPool>(object.handle), nullptr);
             break;
         case VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT:
-            ::vkDestroyDescriptorSetLayout(device, (VkDescriptorSetLayout)object.handle, nullptr);
+            ::vkDestroyDescriptorSetLayout(device, handle_from_u64<VkDescriptorSetLayout>(object.handle), nullptr);
             break;
-        case VK_OBJECT_TYPE_SAMPLER: ::vkDestroySampler(device, (VkSampler)object.handle, nullptr); break;
-        case VK_OBJECT_TYPE_PIPELINE: ::vkDestroyPipeline(device, (VkPipeline)object.handle, nullptr); break;
+        case VK_OBJECT_TYPE_SAMPLER:
+            ::vkDestroySampler(device, handle_from_u64<VkSampler>(object.handle), nullptr);
+            break;
+        case VK_OBJECT_TYPE_PIPELINE:
+            ::vkDestroyPipeline(device, handle_from_u64<VkPipeline>(object.handle), nullptr);
+            break;
         case VK_OBJECT_TYPE_PIPELINE_LAYOUT:
-            ::vkDestroyPipelineLayout(device, (VkPipelineLayout)object.handle, nullptr);
+            ::vkDestroyPipelineLayout(device, handle_from_u64<VkPipelineLayout>(object.handle), nullptr);
             break;
-        case VK_OBJECT_TYPE_SEMAPHORE: ::vkDestroySemaphore(device, (VkSemaphore)object.handle, nullptr); break;
+        case VK_OBJECT_TYPE_SEMAPHORE:
+            ::vkDestroySemaphore(device, handle_from_u64<VkSemaphore>(object.handle), nullptr);
+            break;
         default: assert(false && "Vulkan: deferred release of an unsupported object type."); break;
     }
 }
@@ -1000,8 +1008,8 @@ auto get_vulkan_frame_info(
         // No lights (NumDirectionalLights 0) and no ambient light (what light::ambient_light() returns without one).
         data.AmbientLight = {-1.f, u32_invalid_id, u32_invalid_id, u32_invalid_id};
     }
-    data.ViewWidth = (f32)surface.width();
-    data.ViewHeight = (f32)surface.height();
+    data.ViewWidth = static_cast<f32>(surface.width());
+    data.ViewHeight = static_cast<f32>(surface.height());
     data.DeltaTime = info.average_frame_time;
 
     // NOTE: be careful not to read from this buffer. Reads are really really slow (write-combined memory).
@@ -1016,7 +1024,7 @@ auto get_vulkan_frame_info(
     vulkan_info.global_shader_data = cbuffer.range(shader_data);
     vulkan_info.surface_width = surface.width();
     vulkan_info.surface_height = surface.height();
-    vulkan_info.surface_id = (id::id_type)id;
+    vulkan_info.surface_id = static_cast<id::id_type>(id);
     vulkan_info.light_culling_id = surface.light_culling_id();
     vulkan_info.frame_index = frame_idx;
     return vulkan_info;
@@ -1138,8 +1146,8 @@ auto shutdown() -> void
 
     if (debug_messenger)
     {
-        const auto destroy_messenger{(PFN_vkDestroyDebugUtilsMessengerEXT)::vkGetInstanceProcAddr(
-            vk_instance, "vkDestroyDebugUtilsMessengerEXT")};
+        const auto destroy_messenger{reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(
+            ::vkGetInstanceProcAddr(vk_instance, "vkDestroyDebugUtilsMessengerEXT"))};
         if (destroy_messenger)
         {
             destroy_messenger(vk_instance, debug_messenger, nullptr);
@@ -1173,19 +1181,19 @@ auto set_option(RendererOption::Option option, const void *const parameter, [[ma
             assert(parameter_size == sizeof(bool));
             // NOTE: surfaces fall back to FIFO (vsync) if the window system has no mailbox/immediate
             //       mode. They pick up the change on their next frame (vulkan_surface::needs_resize()).
-            options.enable_vsync = *(const bool *)parameter;
+            options.enable_vsync = *static_cast<const bool *>(parameter);
         }
         break;
         case RendererOption::raytracing:
         {
             assert(parameter_size == sizeof(bool));
-            options.enable_dxr = *(const bool *)parameter;
+            options.enable_dxr = *static_cast<const bool *>(parameter);
         }
         break;
         case RendererOption::msaa:
         {
             assert(parameter_size == sizeof(u32));
-            const u32 msaa_samples{*(const u32 *)parameter};
+            const u32 msaa_samples{*static_cast<const u32 *>(parameter)};
             if (msaa_samples == 1 || msaa_samples == 2 || msaa_samples == 4 || msaa_samples == 8)
             {
                 options.msaa_samples = msaa_samples;
@@ -1204,15 +1212,15 @@ auto get_option(RendererOption::Option option, void *const parameter, [[maybe_un
     {
         case RendererOption::vsync:
             assert(parameter_size == sizeof(bool));
-            *(bool *)parameter = options.enable_vsync;
+            *static_cast<bool *>(parameter) = options.enable_vsync;
             break;
         case RendererOption::raytracing:
             assert(parameter_size == sizeof(bool));
-            *(bool *)parameter = options.enable_dxr;
+            *static_cast<bool *>(parameter) = options.enable_dxr;
             break;
         case RendererOption::msaa:
             assert(parameter_size == sizeof(u32));
-            *(u32 *)parameter = options.msaa_samples;
+            *static_cast<u32 *>(parameter) = options.msaa_samples;
             break;
         default: break;
     }

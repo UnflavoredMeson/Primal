@@ -214,7 +214,7 @@ class ConstantBuffer
     template <typename T>
     [[nodiscard]] auto allocate() -> T *
     {
-        return (T *)allocate(sizeof(T));
+        return reinterpret_cast<T *>(allocate(sizeof(T)));
     }
 
     [[nodiscard]] constexpr auto buffer() const -> VkBuffer
@@ -242,9 +242,9 @@ class ConstantBuffer
         {
             return {};
         }
-        const u8 *const address{(const u8 *)allocation};
+        const u8 *const address{reinterpret_cast<const u8 *>(allocation)};
         assert(address >= base && address + size <= base + _cpu_offset);
-        return {buffer(), (u64)(address - base), size};
+        return {buffer(), static_cast<u64>(address - base), size};
     }
 
     [[nodiscard]] constexpr static auto get_default_init_info(u32 size) -> VulkanBufferInitInfo

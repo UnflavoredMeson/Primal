@@ -50,7 +50,7 @@ auto D3D12Surface::create_swap_chain(IDXGIFactory7 *factory, ID3D12CommandQueue 
     IDXGISwapChain1 *swap_chain;
     const platform::NativeWindowHandle *const native{_window.handle()};
     assert(native && native->kind == platform::NativeWindowHandle::win32);
-    HWND hwnd{(HWND)native->window};
+    HWND hwnd{reinterpret_cast<HWND>(native->window)};
     DXCall(factory->CreateSwapChainForHwnd(cmd_queue, hwnd, &desc, nullptr, nullptr, &swap_chain));
     DXCall(factory->MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER));
     DXCall(swap_chain->QueryInterface(IID_PPV_ARGS(&_swap_chain)));
@@ -71,7 +71,7 @@ auto D3D12Surface::create_swap_chain(IDXGIFactory7 *factory, ID3D12CommandQueue 
 
 auto D3D12Surface::present() const -> void
 {
-    const u32 sync_interval{core::vsync_enabled() ? (u32)1 : (u32)0};
+    const u32 sync_interval{core::vsync_enabled() ? static_cast<u32>(1) : static_cast<u32>(0)};
     assert(_swap_chain);
     DXCall(_swap_chain->Present(sync_interval, sync_interval ? 0 : DXGI_PRESENT_ALLOW_TEARING));
     _current_bb_index = _swap_chain->GetCurrentBackBufferIndex();
@@ -117,12 +117,12 @@ auto D3D12Surface::finalize() -> void
     // set viewport and scissor rect
     _viewport.TopLeftX = 0.f;
     _viewport.TopLeftY = 0.f;
-    _viewport.Width = (f32)width;
-    _viewport.Height = (f32)height;
+    _viewport.Width = static_cast<f32>(width);
+    _viewport.Height = static_cast<f32>(height);
     _viewport.MinDepth = 0.f;
     _viewport.MaxDepth = 1.f;
 
-    _scissor_rect = {0, 0, (s32)width, (s32)height};
+    _scissor_rect = {0, 0, static_cast<s32>(width), static_cast<s32>(height)};
 
     DXCall(_swap_chain->SetMaximumFrameLatency(buffer_count));
 }

@@ -138,7 +138,8 @@ auto load_shaders() -> void
     pixel_shaders.emplace_back(::compile_shader(info, shader_path, extra_args, false, platform));
     assert(pixel_shaders.back().get());
 
-    vs_id = content::add_shader_group(vertex_shader_pointers.data(), (u32)vertex_shader_pointers.size(), keys.data());
+    vs_id = content::add_shader_group(
+        vertex_shader_pointers.data(), static_cast<u32>(vertex_shader_pointers.size()), keys.data());
 
     const u8 *pixel_shader_pointers[]{pixel_shaders[0].get()};
     ps_id = content::add_shader_group(pixel_shader_pointers, 1, &u32_invalid_id);
@@ -177,12 +178,12 @@ auto create_material() -> void
     s.emissive[0] = 255;
     s.emissive[1] = 172;
     s.emissive[2] = 0;
-    s.emissive_intensity = (u16)(0.f * (65535.f / 10000.f));
+    s.emissive_intensity = static_cast<u16>(0.f * (65535.f / 10000.f));
 
     for (u32 i{0}; i < std::size(pbr_mtl_ids); ++i)
     {
-        s.metallic = (u8)(255 * metal_rough[i].x);
-        s.roughness = (u8)(255 * metal_rough[i].y);
+        s.metallic = static_cast<u8>(255 * metal_rough[i].x);
+        s.roughness = static_cast<u8>(255 * metal_rough[i].y);
         pbr_mtl_ids[i] = content::create_resource(&info, content::AssetType::material);
     }
 

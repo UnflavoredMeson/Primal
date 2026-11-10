@@ -17,7 +17,7 @@ constexpr id_type index_mask{(id_type{1} << index_bits) - 1};
 constexpr id_type generation_mask{(id_type{1} << generation_bits) - 1};
 }
 
-constexpr id_type invalid_id{id_type(-1)};
+constexpr id_type invalid_id{static_cast<id_type>(-1)};
 constexpr u32 min_deleted_elements{1024};
 
 using generation_type =
@@ -26,7 +26,7 @@ static_assert(sizeof(generation_type) * 8 >= detail::generation_bits);
 static_assert((sizeof(id_type) - sizeof(generation_type)) > 0);
 
 constexpr generation_type max_generation{
-    (generation_type)(detail::generation_mask - 1)}; // e.g. 254 for 8-bit generations.
+    static_cast<generation_type>(detail::generation_mask - 1)}; // e.g. 254 for 8-bit generations.
 
 constexpr auto is_valid(id_type id) -> bool
 {
@@ -48,7 +48,7 @@ constexpr auto generation(id_type id) -> id_type
 constexpr auto new_generation(id_type id) -> id_type
 {
     const id_type generation{id::generation(id) + 1};
-    assert(generation < (((u64)1 << detail::generation_bits) - 1));
+    assert(generation < ((static_cast<u64>(1) << detail::generation_bits) - 1));
     return index(id) | (generation << detail::index_bits);
 }
 

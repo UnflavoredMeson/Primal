@@ -32,7 +32,7 @@ def resolve(rel):
     return os.path.relpath(cur, repo)
 
 def command(file, defines, includes, directory):
-    args = ["clang-cl", "--target=x86_64-pc-windows-msvc", "/winsysroot", f"{xwin}/sysroot", "/std:c++latest",
+    args = ["clang-cl", "--target=x86_64-pc-windows-msvc", "/winsysroot", f"{xwin}/sysroot", "/std:c++23preview",
             "/EHsc", "/arch:AVX2", "/fp:fast", "/DUNICODE", "/D_UNICODE", "/DPRIMAL_GRAPHICS_VULKAN=1",
             "-Wno-unknown-pragmas", "-Wno-microsoft-include",
             "-Wno-c++11-narrowing"]  # MSVC accepts narrowing in braced initializers; clang-cl errors

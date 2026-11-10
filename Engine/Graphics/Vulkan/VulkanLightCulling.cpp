@@ -90,8 +90,8 @@ auto create_root_signatures() -> bool
         param::uav(reg::light_index_list_opaque, compute),
     };
 
-    light_culling_root_signature =
-        vkx::create_root_signature(&parameters[0], (u32)std::size(parameters), "Light Culling Root Signature");
+    light_culling_root_signature = vkx::create_root_signature(
+        &parameters[0], static_cast<u32>(std::size(parameters)), "Light Culling Root Signature");
     return light_culling_root_signature.is_valid();
 }
 
@@ -116,10 +116,11 @@ auto resize_buffers(CullingParameters &culler) -> void
     // The light index list follows the light grid in the same buffer. D3D12 puts it at a 16-byte offset; here the
     // offset must also be a multiple of the storage buffer offset alignment (it's bound as a root UAV/SRV).
     const u32 alignment{core::storage_buffer_offset_alignment()};
-    const u32 frustums_buffer_size{(u32)sizeof(hlsl::Frustum) * frustum_count};
-    const u32 light_grid_buffer_size{(u32)math::align_size_up(sizeof(math::u32v2) * frustum_count, alignment)};
+    const u32 frustums_buffer_size{static_cast<u32>(sizeof(hlsl::Frustum)) * frustum_count};
+    const u32 light_grid_buffer_size{
+        static_cast<u32>(math::align_size_up(sizeof(math::u32v2) * frustum_count, alignment))};
     const u32 light_index_list_buffer_size{
-        (u32)math::align_size_up<sizeof(math::v4)>(sizeof(u32) * max_lights_per_tile * frustum_count)};
+        static_cast<u32>(math::align_size_up<sizeof(math::v4)>(sizeof(u32) * max_lights_per_tile * frustum_count))};
     const u32 light_grid_and_index_list_buffer_size{light_grid_buffer_size + light_index_list_buffer_size};
 
     VulkanBufferInitInfo info{};
@@ -168,8 +169,8 @@ auto resize(CullingParameters &culler) -> void
     constexpr u32 tile_size{light_culling_tile_size};
     assert(culler.view_width >= tile_size && culler.view_height >= tile_size);
     const math::u32v2 tile_count{
-        (u32)math::align_size_up<tile_size>(culler.view_width) / tile_size,
-        (u32)math::align_size_up<tile_size>(culler.view_height) / tile_size};
+        static_cast<u32>(math::align_size_up<tile_size>(culler.view_width)) / tile_size,
+        static_cast<u32>(math::align_size_up<tile_size>(culler.view_height)) / tile_size};
 
     culler.frustum_count = tile_count.x * tile_count.y;
 
@@ -177,8 +178,8 @@ auto resize(CullingParameters &culler) -> void
     {
         hlsl::LightCullingDispatchParameters &params{culler.grid_frustums_dispatch_params};
         params.NumThreads = tile_count;
-        params.NumThreadGroups.x = (u32)math::align_size_up<tile_size>(tile_count.x) / tile_size;
-        params.NumThreadGroups.y = (u32)math::align_size_up<tile_size>(tile_count.y) / tile_size;
+        params.NumThreadGroups.x = static_cast<u32>(math::align_size_up<tile_size>(tile_count.x)) / tile_size;
+        params.NumThreadGroups.y = static_cast<u32>(math::align_size_up<tile_size>(tile_count.y)) / tile_size;
     }
 
     // Dispatch parameters for light culling

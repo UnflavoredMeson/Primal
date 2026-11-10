@@ -103,7 +103,7 @@ struct GpassCache
 
     [[nodiscard]] auto size() const -> u32
     {
-        return (u32)vulkan_render_item_ids.size();
+        return static_cast<u32>(vulkan_render_item_ids.size());
     }
 
     auto clear() -> void
@@ -233,8 +233,8 @@ auto prepare_render_frame(const VulkanFrameInfo &vulkan_info) -> void
     u32 size{0};
     for (u32 i{0}; i < items_count; ++i)
     {
-        size += (u32)math::align_size_up(
-            sizeof(MaterialSurface) + cache.texture_counts[i] * sizeof(u32), material_data_alignment);
+        size += static_cast<u32>(math::align_size_up(
+            sizeof(MaterialSurface) + cache.texture_counts[i] * sizeof(u32), material_data_alignment));
     }
 
     ConstantBuffer &cbuffer{core::cbuffer()};
@@ -245,7 +245,7 @@ auto prepare_render_frame(const VulkanFrameInfo &vulkan_info) -> void
     for (u32 i{0}; i < items_count; ++i)
     {
         const u32 texture_count{cache.texture_counts[i]};
-        const u32 item_size{(u32)(sizeof(MaterialSurface) + texture_count * sizeof(u32))};
+        const u32 item_size{static_cast<u32>(sizeof(MaterialSurface) + texture_count * sizeof(u32))};
         u8 *const item_data{material_data + mtl_data_offset};
         cache.material_data[i] = cbuffer.range(item_data, item_size);
 
@@ -254,7 +254,7 @@ auto prepare_render_frame(const VulkanFrameInfo &vulkan_info) -> void
         {
             std::memcpy(item_data + sizeof(MaterialSurface), cache.descriptor_indices[i], texture_count * sizeof(u32));
         }
-        mtl_data_offset += (u32)math::align_size_up(item_size, material_data_alignment);
+        mtl_data_offset += static_cast<u32>(math::align_size_up(item_size, material_data_alignment));
     }
 
     assert(mtl_data_offset == size);

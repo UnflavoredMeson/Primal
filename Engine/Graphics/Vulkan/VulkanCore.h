@@ -102,7 +102,7 @@ auto deferred_release(T &handle) -> void
 {
     if (handle != VK_NULL_HANDLE)
     {
-        detail::deferred_release(detail::object_type<T>(), (u64)handle);
+        detail::deferred_release(detail::object_type<T>(), handle_to_u64(handle));
         handle = VK_NULL_HANDLE;
     }
 }
@@ -115,7 +115,7 @@ auto deferred_release(T &handle, VmaAllocation &allocation) -> void
     assert((handle == VK_NULL_HANDLE) == (allocation == VK_NULL_HANDLE));
     if (handle != VK_NULL_HANDLE)
     {
-        detail::deferred_release(detail::object_type<T>(), (u64)handle, allocation);
+        detail::deferred_release(detail::object_type<T>(), handle_to_u64(handle), allocation);
         handle = VK_NULL_HANDLE;
         allocation = VK_NULL_HANDLE;
     }

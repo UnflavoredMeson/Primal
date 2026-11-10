@@ -99,25 +99,27 @@ class VulkanMaterialStream
         assert(shader_count && flags);
 
         const u32 buffer_size{
-            (u32)(sizeof(MaterialType::Type) +         // material type
-                  sizeof(ShaderFlags::Flags) +         // shader flags
-                  sizeof(id::id_type) +                // root signature id
-                  sizeof(u32) +                        // texture count
-                  sizeof(MaterialSurface) +            // PBR material properties
-                  sizeof(id::id_type) * shader_count + // shader ids
-                  (sizeof(id::id_type) + sizeof(u32)) *
-                      info.texture_count) // texture ids and descriptor indices (maybe 0 if no textures used).
+            static_cast<u32>(
+                sizeof(MaterialType::Type) +         // material type
+                sizeof(ShaderFlags::Flags) +         // shader flags
+                sizeof(id::id_type) +                // root signature id
+                sizeof(u32) +                        // texture count
+                sizeof(MaterialSurface) +            // PBR material properties
+                sizeof(id::id_type) * shader_count + // shader ids
+                (sizeof(id::id_type) + sizeof(u32)) *
+                    info.texture_count) // texture ids and descriptor indices (maybe 0 if no textures used).
         };
 
         material_buffer = std::make_unique<u8[]>(buffer_size);
         _buffer = material_buffer.get();
         u8 *const buffer{_buffer};
 
-        *(MaterialType::Type *)buffer = info.type;
-        *(ShaderFlags::Flags *)&buffer[shader_flags_index] = (ShaderFlags::Flags)flags;
-        *(id::id_type *)&buffer[root_signature_index] = create_root_signature(info.type, (ShaderFlags::Flags)flags);
-        *(u32 *)&buffer[texture_count_index] = info.texture_count;
-        *(MaterialSurface *)&buffer[material_surface_index] = info.surface;
+        *reinterpret_cast<MaterialType::Type *>(buffer) = info.type;
+        *reinterpret_cast<ShaderFlags::Flags *>(&buffer[shader_flags_index]) = static_cast<ShaderFlags::Flags>(flags);
+        *reinterpret_cast<id::id_type *>(&buffer[root_signature_index]) =
+            create_root_signature(info.type, static_cast<ShaderFlags::Flags>(flags));
+        *reinterpret_cast<u32 *>(&buffer[texture_count_index]) = info.texture_count;
+        *reinterpret_cast<MaterialSurface *>(&buffer[material_surface_index]) = info.surface;
 
         initialize();
 
@@ -137,7 +139,7 @@ class VulkanMaterialStream
             }
         }
 
-        assert(shader_index == (u32)std::popcount((u32)_shader_flags));
+        assert(shader_index == static_cast<u32>(std::popcount(static_cast<u32>(_shader_flags))));
     }
 
     [[nodiscard]] constexpr auto texture_count() const -> u32
@@ -179,15 +181,15 @@ class VulkanMaterialStream
         assert(_buffer);
         u8 *const buffer{_buffer};
 
-        _type = *(MaterialType::Type *)buffer;
-        _shader_flags = *(ShaderFlags::Flags *)&buffer[shader_flags_index];
-        _root_signature_id = *(id::id_type *)&buffer[root_signature_index];
-        _texture_count = *(u32 *)&buffer[texture_count_index];
-        _material_surface = (MaterialSurface *)&buffer[material_surface_index];
+        _type = *reinterpret_cast<MaterialType::Type *>(buffer);
+        _shader_flags = *reinterpret_cast<ShaderFlags::Flags *>(&buffer[shader_flags_index]);
+        _root_signature_id = *reinterpret_cast<id::id_type *>(&buffer[root_signature_index]);
+        _texture_count = *reinterpret_cast<u32 *>(&buffer[texture_count_index]);
+        _material_surface = reinterpret_cast<MaterialSurface *>(&buffer[material_surface_index]);
 
-        _shader_ids = (id::id_type *)&buffer[material_surface_index + sizeof(MaterialSurface)];
-        _texture_ids = _texture_count ? &_shader_ids[std::popcount((u32)_shader_flags)] : nullptr;
-        _descriptor_indices = _texture_count ? (u32 *)&_texture_ids[_texture_count] : nullptr;
+        _shader_ids = reinterpret_cast<id::id_type *>(&buffer[material_surface_index + sizeof(MaterialSurface)]);
+        _texture_ids = _texture_count ? &_shader_ids[std::popcount(static_cast<u32>(_shader_flags))] : nullptr;
+        _descriptor_indices = _texture_count ? static_cast<u32 *>(&_texture_ids[_texture_count]) : nullptr;
     }
 
     constexpr static u32 shader_flags_index{sizeof(MaterialType::Type)};
@@ -227,7 +229,7 @@ auto create_root_signature(MaterialType::Type type, ShaderFlags::Flags flags) ->
 {
     assert(type < MaterialType::count);
     static_assert(sizeof(type) == sizeof(u32) && sizeof(flags) == sizeof(u32));
-    const u64 key{((u64)type << 32) | flags};
+    const u64 key{(static_cast<u64>(type) << 32) | flags};
     const auto pair = mtl_rs_map.find(key);
     if (pair != mtl_rs_map.end())
     {
@@ -288,15 +290,15 @@ auto create_root_signature(MaterialType::Type type, ShaderFlags::Flags flags) ->
             };
 
             char name[64];
-            std::snprintf(name, sizeof(name), "GPass Root Signature - key %llu", (unsigned long long)key);
-            root_signature = vkx::create_root_signature(&parameters[0], (u32)std::size(parameters), name);
+            std::snprintf(name, sizeof(name), "GPass Root Signature - key %llu", static_cast<unsigned long long>(key));
+            root_signature = vkx::create_root_signature(&parameters[0], static_cast<u32>(std::size(parameters)), name);
         }
         break;
         default: break;
     }
 
     assert(root_signature.is_valid());
-    const id::id_type id{(id::id_type)root_signatures.size()};
+    const id::id_type id{static_cast<id::id_type>(root_signatures.size())};
     root_signatures.emplace_back(root_signature);
     mtl_rs_map[key] = id;
     return id;
@@ -305,7 +307,7 @@ auto create_root_signature(MaterialType::Type type, ShaderFlags::Flags flags) ->
 // Pipelines are cached by a hash of their (zero-initialized) description, like D3D12's PSO streams.
 auto create_pso_if_needed(const vkx::GraphicsPipelineDesc &desc, bool is_depth) -> id::id_type
 {
-    const u64 key{math::calc_crc32_u64((const u8 *)&desc, sizeof(desc))};
+    const u64 key{math::calc_crc32_u64(reinterpret_cast<const u8 *>(&desc), sizeof(desc))};
 
     { // Lock scope to check if PSO already exists
         const std::scoped_lock lock{pso_mutex};
@@ -333,7 +335,7 @@ auto create_pso_if_needed(const vkx::GraphicsPipelineDesc &desc, bool is_depth) 
             return pair->second;
         }
 
-        const id::id_type id{(id::id_type)pipeline_states.size()};
+        const id::id_type id{static_cast<id::id_type>(pipeline_states.size())};
         pipeline_states.emplace_back(pipeline);
         pso_map[key] = id;
         return id;
@@ -343,7 +345,7 @@ auto create_pso_if_needed(const vkx::GraphicsPipelineDesc &desc, bool is_depth) 
 auto get_shader_type(u32 flag) -> ShaderType::Type
 {
     assert(flag);
-    return (ShaderType::Type)std::countr_zero(flag);
+    return static_cast<ShaderType::Type>(std::countr_zero(flag));
 }
 
 auto get_shader_byte_code(
@@ -357,8 +359,8 @@ auto get_shader_byte_code(
     const u32 key{type == ShaderType::vertex ? elements_type : u32_invalid_id};
     primal::content::compiled_shader_ptr shader{primal::content::get_shader(material.shader_ids()[shader_index], key)};
     assert(shader);
-    assert(((uintptr_t)shader->byte_code() & 3) == 0 && "SPIR-V must be 4-byte aligned.");
-    return {(const u32 *)shader->byte_code(), shader->byte_code_size(), vkx::spirv_entry_point};
+    assert((reinterpret_cast<uintptr_t>(shader->byte_code()) & 3) == 0 && "SPIR-V must be 4-byte aligned.");
+    return {reinterpret_cast<const u32 *>(shader->byte_code()), shader->byte_code_size(), vkx::spirv_entry_point};
 }
 
 auto create_pso(id::id_type material_id, VkPrimitiveTopology primitive_topology, u32 elements_type) -> PsoId
@@ -473,7 +475,7 @@ auto create_resource_from_texture_data(const u8 *const data) -> VulkanTexture
             log_message(
                 "Vulkan: texture format DXGI_FORMAT %u (VkFormat %d) can't be sampled on this device.\n",
                 dxgi_format,
-                (s32)format.format);
+                static_cast<s32>(format.format));
             assert(false);
             return {};
         }
@@ -483,7 +485,7 @@ auto create_resource_from_texture_data(const u8 *const data) -> VulkanTexture
                 "Warning: texture format DXGI_FORMAT %u (VkFormat %d) can't be filtered linearly on this device; "
                 "linear/anisotropic sampling of it is undefined.\n",
                 dxgi_format,
-                (s32)format.format);
+                static_cast<s32>(format.format));
         }
     }
 
@@ -502,7 +504,7 @@ auto create_resource_from_texture_data(const u8 *const data) -> VulkanTexture
         for (u32 i{0}; i < mip_levels; ++i)
         {
             depth_per_mip_level[i] = depth_per_mip;
-            depth_per_mip = std::max(depth_per_mip >> 1, (u32)1);
+            depth_per_mip = std::max(depth_per_mip >> 1, static_cast<u32>(1));
         }
     }
 
@@ -575,8 +577,8 @@ auto create_resource_from_texture_data(const u8 *const data) -> VulkanTexture
     }
 
     assert(upload_size && upload_size <= u32_invalid_id);
-    upload::VulkanUploadContext context{(u32)upload_size};
-    u8 *const cpu_address{(u8 *)context.cpu_address()};
+    upload::VulkanUploadContext context{static_cast<u32>(upload_size)};
+    u8 *const cpu_address{static_cast<u8 *>(context.cpu_address())};
     for (u32 i{0}; i < subresource_count; ++i)
     {
         std::memcpy(cpu_address + regions[i].bufferOffset, subresources[i].data, subresources[i].size);
@@ -689,10 +691,10 @@ auto add(const u8 *const data, id::id_type *const ids, u32 count) -> void
         l.index_count = blob.read<u32>();
         l.elements_type = blob.read<u32>();
         l.primitive_topology = blob.read<u32>();
-        l.index_size = (u32)((l.vertex_count < (1 << 16)) ? sizeof(u16) : sizeof(u32));
+        l.index_size = static_cast<u32>((l.vertex_count < (1 << 16)) ? sizeof(u16) : sizeof(u32));
 
         // NOTE: element size may be 0, for position-only vertex formats.
-        l.sizes[0] = (u32)sizeof(math::v3) * l.vertex_count;
+        l.sizes[0] = static_cast<u32>(sizeof(math::v3)) * l.vertex_count;
         l.sizes[1] = l.element_size * l.vertex_count;
         l.sizes[2] = l.index_size * l.index_count;
 
@@ -715,7 +717,7 @@ auto add(const u8 *const data, id::id_type *const ids, u32 count) -> void
 
     // One buffer for all submeshes: positions and elements are bound as root SRVs, indices as index buffers.
     VulkanBufferInitInfo info{};
-    info.size = (u32)dst_offset;
+    info.size = static_cast<u32>(dst_offset);
     info.alignment = sizeof(math::v4);
     info.usage =
         VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
@@ -727,7 +729,11 @@ auto add(const u8 *const data, id::id_type *const ids, u32 count) -> void
         upload::VulkanUploadContext context{mesh_data_size};
         std::memcpy(context.cpu_address(), mesh_data, mesh_data_size);
         ::vkCmdCopyBuffer(
-            context.command_buffer(), context.upload_buffer(), vk_buffer, (u32)regions.size(), regions.data());
+            context.command_buffer(),
+            context.upload_buffer(),
+            vk_buffer,
+            static_cast<u32>(regions.size()),
+            regions.data());
         context.end_upload();
     }
 
@@ -751,7 +757,7 @@ auto add(const u8 *const data, id::id_type *const ids, u32 count) -> void
         view.index_buffer_view.size_in_bytes = l.sizes[2];
         view.index_buffer_view.index_type = (l.index_size == sizeof(u16)) ? VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32;
 
-        view.primitive_topology = get_vk_primitive_topology((PrimitiveTopology::Type)l.primitive_topology);
+        view.primitive_topology = get_vk_primitive_topology(static_cast<PrimitiveTopology::Type>(l.primitive_topology));
         view.elements_type = l.elements_type;
         view.resource_index = resource_id;
 
@@ -926,7 +932,7 @@ auto add(
     submesh::get_views(gpu_ids.data(), material_count, views_cache);
 
     // NOTE: the list of ids starts with geometry id and ends with an invalid id to mark the end of the list.
-    std::unique_ptr<id::id_type[]> items{std::make_unique<id::id_type[]>(1 + (u64)material_count + 1)};
+    std::unique_ptr<id::id_type[]> items{std::make_unique<id::id_type[]>(1 + static_cast<u64>(material_count) + 1)};
 
     items[0] = geometry_content_id;
     id::id_type *const item_ids{&items[1]};

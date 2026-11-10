@@ -29,7 +29,7 @@ struct U32SetBits<0>
 
 static_assert(U32SetBits<frame_buffer_count>::bits < (1 << 8), "That's quite a large frame buffer count!");
 
-constexpr u8 dirty_bits_mask{(u8)U32SetBits<frame_buffer_count>::bits};
+constexpr u8 dirty_bits_mask{static_cast<u8>(U32SetBits<frame_buffer_count>::bits)};
 
 struct LightOwner
 {
@@ -66,7 +66,7 @@ class LightSet
 
             if (index == u32_invalid_id)
             {
-                index = (u32)_non_cullable_owners.size();
+                index = static_cast<u32>(_non_cullable_owners.size());
                 _non_cullable_owners.emplace_back();
                 _non_cullable_lights.emplace_back();
             }
@@ -114,7 +114,7 @@ class LightSet
             // If no empty slot was found then add a new item
             if (index == u32_invalid_id)
             {
-                index = (u32)_cullable_owners.size();
+                index = static_cast<u32>(_cullable_owners.size());
                 _cullable_lights.emplace_back();
                 _culling_info.emplace_back();
                 _bounding_spheres.emplace_back();
@@ -491,7 +491,7 @@ class LightSet
         assert(
             buffer_size >= math::align_size_up<D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT>(
                                non_cullable_light_count() * sizeof(hlsl::DirectionalLightParameters)));
-        const u32 count{(u32)_non_cullable_owners.size()};
+        const u32 count{static_cast<u32>(_non_cullable_owners.size())};
         u32 index{0};
         for (u32 i{0}; i < count; ++i)
         {
@@ -710,7 +710,8 @@ class D3D12LightBuffer
             }
 
             set.non_cullable_lights(
-                (hlsl::DirectionalLightParameters *)_buffers[LightBuffer::non_cullable_light].cpu_address,
+                reinterpret_cast<hlsl::DirectionalLightParameters *>(
+                    _buffers[LightBuffer::non_cullable_light].cpu_address),
                 _buffers[LightBuffer::non_cullable_light].buffer.size());
         }
 
@@ -849,7 +850,7 @@ class D3D12LightBuffer
                                                     : L"Bounding Spheres Buffer");
 
         const D3D12_RANGE range{};
-        DXCall(_buffers[type].buffer.buffer()->Map(0, &range, (void **)(&_buffers[type].cpu_address)));
+        DXCall(_buffers[type].buffer.buffer()->Map(0, &range, reinterpret_cast<void **>(&_buffers[type].cpu_address)));
         assert(_buffers[type].cpu_address);
     }
 
@@ -862,112 +863,112 @@ D3D12LightBuffer light_buffers[frame_buffer_count];
 
 constexpr auto set_is_enabled(LightSet &set, LightId id, const void *const data, [[maybe_unused]] u32 size) -> void
 {
-    const bool is_enabled{*(bool *)data};
+    const bool is_enabled{*static_cast<const bool *>(data)};
     assert(sizeof(is_enabled) == size);
     set.enable(id, is_enabled);
 }
 
 constexpr auto set_intensity(LightSet &set, LightId id, const void *const data, [[maybe_unused]] u32 size) -> void
 {
-    const f32 intensity{*(f32 *)data};
+    const f32 intensity{*static_cast<const f32 *>(data)};
     assert(sizeof(intensity) == size);
     set.intensity(id, intensity);
 }
 
 constexpr auto set_color(LightSet &set, LightId id, const void *const data, [[maybe_unused]] u32 size) -> void
 {
-    const math::v3 color{*(math::v3 *)data};
+    const math::v3 color{*static_cast<const math::v3 *>(data)};
     assert(sizeof(color) == size);
     set.color(id, color);
 }
 
 CONSTEXPR auto set_attenuation(LightSet &set, LightId id, const void *const data, [[maybe_unused]] u32 size) -> void
 {
-    const math::v3 attenuation{*(math::v3 *)data};
+    const math::v3 attenuation{*static_cast<const math::v3 *>(data)};
     assert(sizeof(attenuation) == size);
     set.attenuation(id, attenuation);
 }
 
 CONSTEXPR auto set_range(LightSet &set, LightId id, const void *const data, [[maybe_unused]] u32 size) -> void
 {
-    const f32 range{*(f32 *)data};
+    const f32 range{*static_cast<const f32 *>(data)};
     assert(sizeof(range) == size);
     set.range(id, range);
 }
 
 auto set_umbra(LightSet &set, LightId id, const void *const data, [[maybe_unused]] u32 size) -> void
 {
-    const f32 umbra{*(f32 *)data};
+    const f32 umbra{*static_cast<const f32 *>(data)};
     assert(sizeof(umbra) == size);
     set.umbra(id, umbra);
 }
 
 auto set_penumbra(LightSet &set, LightId id, const void *const data, [[maybe_unused]] u32 size) -> void
 {
-    const f32 penumbra{*(f32 *)data};
+    const f32 penumbra{*static_cast<const f32 *>(data)};
     assert(sizeof(penumbra) == size);
     set.penumbra(id, penumbra);
 }
 
 constexpr auto get_is_enabled(const LightSet &set, LightId id, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    bool *const is_enabled{(bool *)data};
+    bool *const is_enabled{static_cast<bool *>(data)};
     assert(sizeof(bool) == size);
     *is_enabled = set.is_enabled(id);
 }
 
 constexpr auto get_intensity(const LightSet &set, LightId id, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    f32 *const intensity{(f32 *)data};
+    f32 *const intensity{static_cast<f32 *>(data)};
     assert(sizeof(f32) == size);
     *intensity = set.intensity(id);
 }
 
 constexpr auto get_color(const LightSet &set, LightId id, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    math::v3 *const color{(math::v3 *)data};
+    math::v3 *const color{static_cast<math::v3 *>(data)};
     assert(sizeof(math::v3) == size);
     *color = set.color(id);
 }
 
 CONSTEXPR auto get_attenuation(const LightSet &set, LightId id, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    math::v3 *const attenuation{(math::v3 *)data};
+    math::v3 *const attenuation{static_cast<math::v3 *>(data)};
     assert(sizeof(math::v3) == size);
     *attenuation = set.attenuation(id);
 }
 
 CONSTEXPR auto get_range(const LightSet &set, LightId id, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    f32 *const range{(f32 *)data};
+    f32 *const range{static_cast<f32 *>(data)};
     assert(sizeof(f32) == size);
     *range = set.range(id);
 }
 
 auto get_umbra(const LightSet &set, LightId id, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    f32 *const umbra{(f32 *)data};
+    f32 *const umbra{static_cast<f32 *>(data)};
     assert(sizeof(f32) == size);
     *umbra = set.umbra(id);
 }
 
 auto get_penumbra(const LightSet &set, LightId id, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    f32 *const penumbra{(f32 *)data};
+    f32 *const penumbra{static_cast<f32 *>(data)};
     assert(sizeof(f32) == size);
     *penumbra = set.penumbra(id);
 }
 
 constexpr auto get_type(const LightSet &set, LightId id, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    graphics::Light::Type *const type{(graphics::Light::Type *)data};
+    graphics::Light::Type *const type{static_cast<graphics::Light::Type *>(data)};
     assert(sizeof(graphics::Light::Type) == size);
     *type = set.type(id);
 }
 
 constexpr auto get_entity_id(const LightSet &set, LightId id, void *const data, [[maybe_unused]] u32 size) -> void
 {
-    id::id_type *const entity_id{(id::id_type *)data};
+    id::id_type *const entity_id{static_cast<id::id_type *>(data)};
     assert(sizeof(id::id_type) == size);
     *entity_id = set.entity_id(id);
 }

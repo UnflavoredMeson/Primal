@@ -135,7 +135,7 @@ auto on_window_event(const platform::WindowEvent &event) -> void
             {
                 const platform::Window win{surface->surface.window};
                 surface->surface.surface.resize(win.width(), win.height());
-                surface->camera.aspect_ratio((f32)win.width() / win.height());
+                surface->camera.aspect_ratio(static_cast<f32>(win.width()) / win.height());
             }
             break;
         case WindowEvent::key_down:
@@ -218,7 +218,7 @@ auto read_file(const std::filesystem::path &path, std::unique_ptr<u8[]> &data, u
     }
     data = std::make_unique<u8[]>(size);
     std::ifstream file{path, std::ios::in | std::ios::binary};
-    if (!file || !file.read((char *)data.get(), size))
+    if (!file || !file.read(reinterpret_cast<char *>(data.get()), size))
     {
         file.close();
         return false;
@@ -236,7 +236,7 @@ auto create_camera_surface(CameraSurface &surface, platform::WindowInitInfo info
     // surface.entity = create_one_game_entity({ -5.49f, 1.73f, 9.26f }, { 0.19f, 5.61f, 0.f }, nullptr,
     // "CameraScript");
     surface.camera = graphics::create_camera(graphics::PerspectiveCameraInitInfo{surface.entity.get_id()});
-    surface.camera.aspect_ratio((f32)surface.surface.window.width() / surface.surface.window.height());
+    surface.camera.aspect_ratio(static_cast<f32>(surface.surface.window.width()) / surface.surface.window.height());
 }
 
 auto destroy_camera_surface(CameraSurface &surface) -> void
@@ -306,7 +306,7 @@ auto test_initialize() -> bool
     ::create_render_items();
 
     render_item_id_cache.resize(4 + 12);
-    geometry::get_render_item_ids(render_item_id_cache.data(), (u32)render_item_id_cache.size());
+    geometry::get_render_item_ids(render_item_id_cache.data(), static_cast<u32>(render_item_id_cache.size()));
 
     input::InputSource source{};
     source.binding = std::hash<std::string>()("move");

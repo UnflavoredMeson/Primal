@@ -91,14 +91,14 @@ auto mouse_button_code(u8 button) -> InputCode::Code
         case SDL_BUTTON_LEFT: return InputCode::mouse_left;
         case SDL_BUTTON_RIGHT: return InputCode::mouse_right;
         case SDL_BUTTON_MIDDLE: return InputCode::mouse_middle;
-        default: return (InputCode::Code)u32_invalid_id;
+        default: return static_cast<InputCode::Code>(u32_invalid_id);
     }
 }
 }
 
 auto map_scancode(u32 scancode) -> u32
 {
-    switch ((SDL_Scancode)scancode)
+    switch (static_cast<SDL_Scancode>(scancode))
     {
         case SDL_SCANCODE_BACKSPACE: return InputCode::key_backspace;
         case SDL_SCANCODE_TAB: return InputCode::key_tab;
@@ -232,7 +232,7 @@ auto process_input_event(const SDL_Event &event) -> void
             const u32 code{map_scancode(event.key.scancode)};
             if (code != u32_invalid_id)
             {
-                set(InputSource::keyboard, (InputCode::Code)code, {is_down ? 1.f : 0.f, 0.f, 0.f});
+                set(InputSource::keyboard, static_cast<InputCode::Code>(code), {is_down ? 1.f : 0.f, 0.f, 0.f});
             }
         }
         break;

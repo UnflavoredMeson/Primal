@@ -47,13 +47,13 @@ auto create(InitInfo info, game_entity::Entity entity) -> Component
     }
     else
     {
-        id = GeometryId{(id::id_type)id_mapping.size()};
+        id = GeometryId{static_cast<id::id_type>(id_mapping.size())};
         id_mapping.emplace_back();
         generations.push_back(0);
     }
 
     assert(id::is_valid(id));
-    const id::id_type index{(id::id_type)render_item_ids.size()};
+    const id::id_type index{static_cast<id::id_type>(render_item_ids.size())};
     render_item_ids.emplace_back(
         graphics::add_render_item(entity.get_id(), info.geometry_content_id, info.material_count, info.material_ids));
     owner_ids.emplace_back(id::index(id));

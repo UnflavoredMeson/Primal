@@ -24,7 +24,8 @@ class BlobStreamReader
     [[nodiscard]] constexpr auto read() -> T
     {
         static_assert(std::is_arithmetic_v<T>, "Template argument should be a primitve type.");
-        T value{*((T *)_position)};
+        T value; // memcpy: the blob isn't aligned for T
+        std::memcpy(&value, _position, sizeof(T));
         _position += sizeof(T);
         return value;
     }
@@ -79,7 +80,7 @@ class BlobStreamWriter
     {
         static_assert(std::is_arithmetic_v<T>, "Template argument should be a primitve type.");
         assert(&_position[sizeof(T)] <= &_buffer[_buffer_size]);
-        *((T *)_position) = value;
+        std::memcpy(_position, &value, sizeof(T));
         _position += sizeof(T);
     }
 

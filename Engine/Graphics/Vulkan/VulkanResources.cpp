@@ -30,7 +30,8 @@ auto DescriptorHeap::initialize(u32 capacity) -> bool
     const VkDevice device{core::device()};
     assert(device);
 
-    const VkMutableDescriptorTypeListEXT type_list{(u32)std::size(heap_descriptor_types), &heap_descriptor_types[0]};
+    const VkMutableDescriptorTypeListEXT type_list{
+        static_cast<u32>(std::size(heap_descriptor_types)), &heap_descriptor_types[0]};
     VkMutableDescriptorTypeCreateInfoEXT mutable_info{VK_STRUCTURE_TYPE_MUTABLE_DESCRIPTOR_TYPE_CREATE_INFO_EXT};
     mutable_info.mutableDescriptorTypeListCount = 1;
     mutable_info.pMutableDescriptorTypeLists = &type_list;
@@ -234,7 +235,7 @@ auto DescriptorHeap::write_uniform_buffer(const DescriptorHandle &handle, const 
 VulkanBuffer::VulkanBuffer(const VulkanBufferInitInfo &info, bool is_cpu_accessible)
 {
     assert(!_buffer && info.size && info.alignment && info.usage);
-    _size = (u32)math::align_size_up(info.size, info.alignment);
+    _size = static_cast<u32>(math::align_size_up(info.size, info.alignment));
 
     VkBufferCreateInfo buffer_info{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
     buffer_info.size = _size;
@@ -262,7 +263,7 @@ VulkanBuffer::VulkanBuffer(const VulkanBufferInitInfo &info, bool is_cpu_accessi
         reset();
         return;
     }
-    _cpu_address = (u8 *)allocation.pMappedData;
+    _cpu_address = static_cast<u8 *>(allocation.pMappedData);
     assert(!is_cpu_accessible || _cpu_address);
     NAME_VK_OBJECT_INDEXED(_buffer, VK_OBJECT_TYPE_BUFFER, _size, "Vulkan Buffer - size");
 
@@ -303,7 +304,7 @@ ConstantBuffer::ConstantBuffer(const VulkanBufferInitInfo &info)
 auto ConstantBuffer::allocate(u32 size) -> u8 *
 {
     const std::scoped_lock lock{_mutex};
-    const u32 aligned_size{(u32)math::align_size_up<alignment>(size)};
+    const u32 aligned_size{static_cast<u32>(math::align_size_up<alignment>(size))};
     assert(_cpu_offset + aligned_size <= _buffer.size());
     if (_cpu_offset + aligned_size <= _buffer.size())
     {
@@ -387,7 +388,8 @@ VulkanTexture::VulkanTexture(const VulkanTextureInitInfo &info)
         view_info.format = _format;
         // Depth/stencil formats: shaders sample the depth aspect.
         view_info.subresourceRange = {
-            _aspect & VK_IMAGE_ASPECT_STENCIL_BIT ? (VkImageAspectFlags)VK_IMAGE_ASPECT_DEPTH_BIT : _aspect,
+            _aspect & VK_IMAGE_ASPECT_STENCIL_BIT ? static_cast<VkImageAspectFlags>(VK_IMAGE_ASPECT_DEPTH_BIT)
+                                                  : _aspect,
             0,
             VK_REMAINING_MIP_LEVELS,
             0,

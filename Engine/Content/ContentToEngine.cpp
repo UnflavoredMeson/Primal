@@ -18,13 +18,13 @@ class GeometryHierarchyStream
         assert(buffer && lods);
         if (lods != u32_invalid_id)
         {
-            *((u32 *)buffer) = lods;
+            *(reinterpret_cast<u32 *>(buffer)) = lods;
         }
 
-        _lod_count = *((u32 *)buffer);
-        _thresholds = (f32 *)(&buffer[sizeof(u32)]);
-        _lod_offsets = (LodOffset *)(&_thresholds[_lod_count]);
-        _gpu_ids = (id::id_type *)(&_lod_offsets[_lod_count]);
+        _lod_count = *(reinterpret_cast<u32 *>(buffer));
+        _thresholds = reinterpret_cast<f32 *>(&buffer[sizeof(u32)]);
+        _lod_offsets = reinterpret_cast<LodOffset *>(&_thresholds[_lod_count]);
+        _gpu_ids = reinterpret_cast<id::id_type *>(&_lod_offsets[_lod_count]);
     }
 
     constexpr auto gpu_ids(u32 lod, id::id_type *&ids, u32 &id_count) -> void
@@ -92,7 +92,7 @@ struct ShaderGroup
 };
 
 // This constant indicates that an element in geometry_hierarchies is not a pointer, but a gpu_id
-constexpr uintptr_t single_mesh_marker{(uintptr_t)0x01};
+constexpr uintptr_t single_mesh_marker{static_cast<uintptr_t>(0x01)};
 utl::free_list<u8 *> geometry_hierarchies;
 std::mutex geometry_mutex{};
 
@@ -103,7 +103,7 @@ std::mutex shader_mutex{};
 auto get_geometry_hierarchy_buffer_size(const void *const data) -> u32
 {
     assert(data);
-    utl::BlobStreamReader blob{(const u8 *)data};
+    utl::BlobStreamReader blob{static_cast<const u8 *>(data)};
     const u32 lod_count{blob.read<u32>()};
     assert(lod_count);
     blob.skip(sizeof(f32) * lod_count); // skip thresholds
@@ -127,14 +127,14 @@ auto create_mesh_hierarchy(const void *const data) -> id::id_type
 {
     assert(data);
     const u32 size{get_geometry_hierarchy_buffer_size(data)};
-    u8 *const hierarchy_buffer{(u8 *)std::malloc(size)};
+    u8 *const hierarchy_buffer{static_cast<u8 *>(std::malloc(size))};
 
-    utl::BlobStreamReader blob{(const u8 *)data};
+    utl::BlobStreamReader blob{static_cast<const u8 *>(data)};
     const u32 lod_count{blob.read<u32>()};
     assert(lod_count);
     // NOTE: the count is written here rather than passed to the stream: with lod_count == u32_invalid_id (corrupt
     //       data) the stream would read it back from uninitialized memory (GCC -Wmaybe-uninitialized).
-    *((u32 *)hierarchy_buffer) = lod_count;
+    *(reinterpret_cast<u32 *>(hierarchy_buffer)) = lod_count;
     const GeometryHierarchyStream stream{hierarchy_buffer};
 
     for (u32 lod_idx{0}; lod_idx < lod_count; ++lod_idx)
@@ -148,7 +148,7 @@ auto create_mesh_hierarchy(const void *const data) -> id::id_type
     {
         const u32 id_count{blob.read<u32>()};
         assert(id_count < (1 << 16));
-        stream.lod_offsets()[lod_idx] = {(u16)submesh_index, (u16)id_count};
+        stream.lod_offsets()[lod_idx] = {static_cast<u16>(submesh_index), static_cast<u16>(id_count)};
         submesh_index += id_count;
         assert(submesh_index < (1 << 16));
     }
@@ -183,7 +183,7 @@ auto create_mesh_hierarchy(const void *const data) -> id::id_type
 auto create_single_submesh(const void *const data) -> id::id_type
 {
     assert(data);
-    utl::BlobStreamReader blob{(const u8 *)data};
+    utl::BlobStreamReader blob{static_cast<const u8 *>(data)};
     // skip lod_count, lod_threshold, submesh_count
     blob.skip(sizeof(u32) + sizeof(f32) + sizeof(u32));
     id::id_type gpu_id{id::invalid_id};
@@ -193,7 +193,8 @@ auto create_single_submesh(const void *const data) -> id::id_type
     // create a fake pointer and put it in the geometry_hierarchies.
     static_assert(sizeof(uintptr_t) > sizeof(id::id_type));
     constexpr u8 shift_bits{(sizeof(uintptr_t) - sizeof(id::id_type)) << 3};
-    u8 *const fake_pointer{(u8 *)((((uintptr_t)gpu_id) << shift_bits) | single_mesh_marker)};
+    u8 *const fake_pointer{
+        reinterpret_cast<u8 *>(((static_cast<uintptr_t>(gpu_id)) << shift_bits) | single_mesh_marker)};
     const std::scoped_lock lock{geometry_mutex};
     return geometry_hierarchies.add(fake_pointer);
 }
@@ -203,7 +204,7 @@ auto create_single_submesh(const void *const data) -> id::id_type
 auto is_single_mesh(const void *const data) -> bool
 {
     assert(data);
-    utl::BlobStreamReader blob{(const u8 *)data};
+    utl::BlobStreamReader blob{static_cast<const u8 *>(data)};
     const u32 lod_count{blob.read<u32>()};
     assert(lod_count);
     if (lod_count > 1)
@@ -220,10 +221,10 @@ auto is_single_mesh(const void *const data) -> bool
 
 constexpr auto gpu_id_from_fake_pointer(u8 const *const pointer) -> id::id_type
 {
-    assert((uintptr_t)pointer & single_mesh_marker);
+    assert(reinterpret_cast<uintptr_t>(pointer) & single_mesh_marker);
     static_assert(sizeof(uintptr_t) > sizeof(id::id_type));
     constexpr u8 shift_bits{(sizeof(uintptr_t) - sizeof(id::id_type)) << 3};
-    return ((uintptr_t)pointer >> shift_bits) & (uintptr_t)id::invalid_id;
+    return (reinterpret_cast<uintptr_t>(pointer) >> shift_bits) & static_cast<uintptr_t>(id::invalid_id);
 }
 
 // NOTE: Expects 'data' to contain:
@@ -272,7 +273,7 @@ auto destroy_geometry_resource(id::id_type id) -> void
 {
     const std::scoped_lock lock{geometry_mutex};
     u8 *const pointer{geometry_hierarchies[id]};
-    if ((uintptr_t)pointer & single_mesh_marker)
+    if (reinterpret_cast<uintptr_t>(pointer) & single_mesh_marker)
     {
         const id::id_type gpu_id{gpu_id_from_fake_pointer(pointer)};
         graphics::remove_mesh(&gpu_id, 1);
@@ -282,7 +283,7 @@ auto destroy_geometry_resource(id::id_type id) -> void
         const GeometryHierarchyStream stream{pointer};
         const u32 lod_count{stream.lod_count()};
         const LodOffset lod_offset{stream.lod_offsets()[lod_count - 1]};
-        const u32 gpu_id_count{(u32)lod_offset.offset + (u32)lod_offset.count};
+        const u32 gpu_id_count{static_cast<u32>(lod_offset.offset) + static_cast<u32>(lod_offset.count)};
         graphics::remove_mesh(stream.gpu_ids(), gpu_id_count);
 
         std::free(pointer);
@@ -302,7 +303,7 @@ auto destroy_geometry_resource(id::id_type id) -> void
 [[nodiscard]] auto create_material_resource(const void *const data) -> id::id_type
 {
     assert(data);
-    return graphics::add_material(*(const graphics::MaterialInitInfo *)data);
+    return graphics::add_material(*static_cast<const graphics::MaterialInitInfo *>(data));
 }
 
 auto destroy_material_resource(id::id_type id) -> void
@@ -321,7 +322,7 @@ auto destroy_material_resource(id::id_type id) -> void
 [[nodiscard]] auto create_texture_resource(const void *const data) -> id::id_type
 {
     assert(data);
-    return graphics::add_texture((const u8 *)data);
+    return graphics::add_texture(static_cast<const u8 *>(data));
 }
 
 auto destroy_texture_resource(id::id_type id) -> void
@@ -376,7 +377,7 @@ auto add_shader_group(const u8 *const *shaders, u32 num_shaders, const u32 *cons
     for (u32 i{0}; i < num_shaders; ++i)
     {
         assert(shaders[i]);
-        const compiled_shader_ptr shader_ptr{(compiled_shader_ptr)shaders[i]};
+        const compiled_shader_ptr shader_ptr{reinterpret_cast<compiled_shader_ptr>(shaders[i])};
         const u64 size{shader_ptr->buffer_size()};
         std::unique_ptr<u8[]> shader{std::make_unique<u8[]>(size)};
         std::memcpy(shader.get(), shaders[i], size);
@@ -398,7 +399,7 @@ auto remove_shader_group(id::id_type id) -> void
 auto get_engine_shaders(const u8 *const blob, u64 size, compiled_shader_ptr *const shaders, u32 shader_count) -> bool
 {
     assert(blob && shaders && shader_count);
-    assert(((uintptr_t)blob % EngineShadersHeader::record_alignment) == 0);
+    assert((reinterpret_cast<uintptr_t>(blob) % EngineShadersHeader::record_alignment) == 0);
     if (size < sizeof(EngineShadersHeader))
     {
         return false;
@@ -443,7 +444,7 @@ auto get_shader(id::id_type id, u32 shader_key) -> compiled_shader_ptr
     {
         if (key == shader_key)
         {
-            return (compiled_shader_ptr)value.get();
+            return reinterpret_cast<compiled_shader_ptr>(value.get());
         }
     }
 
@@ -455,7 +456,7 @@ auto get_submesh_gpu_ids(id::id_type geometry_content_id, u32 id_count, id::id_t
 {
     const std::scoped_lock lock{geometry_mutex};
     u8 *const pointer{geometry_hierarchies[geometry_content_id]};
-    if ((uintptr_t)pointer & single_mesh_marker)
+    if (reinterpret_cast<uintptr_t>(pointer) & single_mesh_marker)
     {
         assert(id_count == 1);
         *gpu_ids = gpu_id_from_fake_pointer(pointer);
@@ -469,7 +470,7 @@ auto get_submesh_gpu_ids(id::id_type geometry_content_id, u32 id_count, id::id_t
             {
                 const u32 lod_count{stream.lod_count()};
                 const LodOffset lod_offset{stream.lod_offsets()[lod_count - 1]};
-                const u32 gpu_id_count{(u32)lod_offset.offset + (u32)lod_offset.count};
+                const u32 gpu_id_count{static_cast<u32>(lod_offset.offset) + static_cast<u32>(lod_offset.count)};
                 return gpu_id_count == id_count;
             }());
 
@@ -491,7 +492,7 @@ auto get_lod_offsets(
     for (u32 i{0}; i < id_count; ++i)
     {
         u8 *const pointer{geometry_hierarchies[geometry_ids[i]]};
-        if ((uintptr_t)pointer & single_mesh_marker)
+        if (reinterpret_cast<uintptr_t>(pointer) & single_mesh_marker)
         {
             offsets.emplace_back(LodOffset{0, 1});
         }

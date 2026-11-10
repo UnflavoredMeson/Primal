@@ -80,7 +80,7 @@ auto create_plane(
         }
     }
 
-    assert(m.positions.size() == (((u64)horizontal_count + 1) * ((u64)vertical_count + 1)));
+    assert(m.positions.size() == ((static_cast<u64>(horizontal_count) + 1) * (static_cast<u64>(vertical_count) + 1)));
 
     const u32 row_length{horizontal_count + 1}; // number of vertices in a row
     for (u32 j{0}; j < vertical_count; ++j)
@@ -140,14 +140,14 @@ auto create_cube(const PrimitiveInitInfo &info) -> Mesh
     {
         const u32 axes_index{face >> 1};
         const math::u32v2 &axis{axes[axes_index]};
-        const u32 x_count{math::clamp(segments[axis.x], (u32)1, (u32)10)};
-        const u32 y_count{math::clamp(segments[axis.y], (u32)1, (u32)10)};
+        const u32 x_count{math::clamp(segments[axis.x], static_cast<u32>(1), static_cast<u32>(10))};
+        const u32 y_count{math::clamp(segments[axis.y], static_cast<u32>(1), static_cast<u32>(10))};
         const f32 x_step{1.f / x_count};
         const f32 y_step{1.f / y_count};
         const f32 u_step{0.25f / x_count};
         const f32 v_step{0.25f / y_count};
 
-        const u32 raw_index_offset{(u32)m.positions.size()};
+        const u32 raw_index_offset{static_cast<u32>(m.positions.size())};
 
         for (u32 y{0}; y <= y_count; ++y)
         {
@@ -162,8 +162,8 @@ auto create_cube(const PrimitiveInitInfo &info) -> Mesh
                 uv.y -= y * v_step;
 #else
                 math::v2 uv{0.f, 1.f};
-                uv.x += (f32)(x % 2);
-                uv.y -= (f32)(y % 2);
+                uv.x += static_cast<f32>(x % 2);
+                uv.y -= static_cast<f32>(y % 2);
 #endif
                 uvs.emplace_back(uv);
             }
@@ -303,7 +303,7 @@ auto create_uv_sphere(const PrimitiveInitInfo &info) -> Mesh
     }
 
     // Indices for the bottom cap, connecting the south posle to the last ring
-    const u32 south_pole_index{(u32)m.positions.size() - 1};
+    const u32 south_pole_index{static_cast<u32>(m.positions.size()) - 1};
     for (u32 i{0}; i < (phi_count - 1); ++i)
     {
         uvs[c] = {(2 * i + 1) * 0.5f * inv_phi_count, 0.f};

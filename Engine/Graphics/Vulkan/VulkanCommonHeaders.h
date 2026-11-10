@@ -53,6 +53,34 @@ constexpr u32 minimum_api_version{VK_API_VERSION_1_3};
 PRIMAL_VK_PRINTF_FORMAT(1, 2)
 auto log_message(const char *format, ...) -> void; // NOLINT(modernize-avoid-variadic-functions)
 
+// Vulkan handles as u64 (debug names, deferred releases). Dispatchable handles are pointers; non-dispatchable handles
+// are pointers in 64-bit builds and u64 in 32-bit ones, so a single kind of cast doesn't fit both.
+template <typename T>
+[[nodiscard]] auto handle_to_u64(T handle) -> u64
+{
+    if constexpr (std::is_pointer_v<T>)
+    {
+        return reinterpret_cast<u64>(handle);
+    }
+    else
+    {
+        return static_cast<u64>(handle);
+    }
+}
+
+template <typename T>
+[[nodiscard]] auto handle_from_u64(u64 value) -> T
+{
+    if constexpr (std::is_pointer_v<T>)
+    {
+        return reinterpret_cast<T>(value);
+    }
+    else
+    {
+        return static_cast<T>(value);
+    }
+}
+
 namespace detail
 {
 // Logs a failed Vulkan call. Returns true if the call succeeded (result >= 0, which includes
@@ -63,7 +91,7 @@ inline auto check_result(VkResult result, const char *call, const char *file, u3
     {
         return true;
     }
-    log_message("Vulkan error %d in: %s\nLine: %u\n%s\n", (s32)result, file, line, call);
+    log_message("Vulkan error %d in: %s\nLine: %u\n%s\n", static_cast<s32>(result), file, line, call);
 #ifdef _DEBUG
     PRIMAL_VK_DEBUG_BREAK();
 #endif
@@ -81,11 +109,12 @@ inline auto check_result(VkResult result, const char *call, const char *file, u3
 
 #ifdef _DEBUG
 // Names a Vulkan object for validation messages and RenderDoc (VK_EXT_debug_utils).
-#define NAME_VK_OBJECT(handle, type, name) ::primal::graphics::vulkan::core::set_object_name((u64)(handle), type, name)
+#define NAME_VK_OBJECT(handle, type, name)                                                                             \
+    ::primal::graphics::vulkan::core::set_object_name(::primal::graphics::vulkan::handle_to_u64(handle), type, name)
 #define NAME_VK_OBJECT_INDEXED(handle, type, n, name)                                                                  \
     {                                                                                                                  \
         char full_name[128];                                                                                           \
-        if (std::snprintf(full_name, sizeof(full_name), "%s[%u]", name, (u32)(n)) > 0)                                 \
+        if (std::snprintf(full_name, sizeof(full_name), "%s[%u]", name, static_cast<u32>(n)) > 0)                      \
             NAME_VK_OBJECT(handle, type, full_name);                                                                   \
     }
 #else

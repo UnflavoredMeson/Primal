@@ -61,11 +61,11 @@ class D3D12Surface
 
     [[nodiscard]] constexpr auto width() const -> u32
     {
-        return (u32)_viewport.Width;
+        return static_cast<u32>(_viewport.Width);
     }
     [[nodiscard]] constexpr auto height() const -> u32
     {
-        return (u32)_viewport.Height;
+        return static_cast<u32>(_viewport.Height);
     }
     [[nodiscard]] constexpr auto back_buffer() const -> ID3D12Resource *
     {

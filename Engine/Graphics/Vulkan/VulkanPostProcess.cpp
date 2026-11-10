@@ -47,8 +47,8 @@ auto create_fx_root_signature() -> bool
         param::sampler(vkx::StaticSampler::point, 0, pixel),
         param::sampler(vkx::StaticSampler::linear, 1, pixel),
     };
-    fx_root_sig =
-        vkx::create_root_signature(&parameters[0], (u32)std::size(parameters), "Post-process FX Root Signature");
+    fx_root_sig = vkx::create_root_signature(
+        &parameters[0], static_cast<u32>(std::size(parameters)), "Post-process FX Root Signature");
     return fx_root_sig.is_valid();
 }
 

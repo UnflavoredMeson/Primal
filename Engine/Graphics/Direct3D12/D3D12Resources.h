@@ -201,7 +201,7 @@ class ConstantBuffer
     template <typename T>
     [[nodiscard]] constexpr auto allocate() -> T *
     {
-        return (T *)allocate(sizeof(T));
+        return reinterpret_cast<T *>(allocate(sizeof(T)));
     }
 
     [[nodiscard]] constexpr auto buffer() const -> ID3D12Resource *
@@ -230,10 +230,10 @@ class ConstantBuffer
         {
             return {};
         }
-        const u8 *const address{(const u8 *)allocation};
+        const u8 *const address{reinterpret_cast<const u8 *>(allocation)};
         assert(address <= _cpu_address + _cpu_offset);
         assert(address >= _cpu_address);
-        const u64 offset{(u64)(address - _cpu_address)};
+        const u64 offset{static_cast<u64>(address - _cpu_address)};
         return _buffer.gpu_address() + offset;
     }
 

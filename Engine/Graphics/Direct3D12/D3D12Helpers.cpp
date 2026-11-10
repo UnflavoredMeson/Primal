@@ -51,7 +51,7 @@ auto create_root_signature(const D3D12_ROOT_SIGNATURE_DESC1 &desc) -> ID3D12Root
 
     if (FAILED(hr = device_config->SerializeVersionedRootSignature(&versioned_desc, &signature_blob, &error_blob)))
     {
-        DEBUG_OP(const char *error_msg{error_blob ? (const char *)error_blob->GetBufferPointer() : ""});
+        DEBUG_OP(const char *error_msg{error_blob ? static_cast<const char *>(error_blob->GetBufferPointer()) : ""});
         DEBUG_OP(::OutputDebugStringA(error_msg));
         return nullptr;
     }

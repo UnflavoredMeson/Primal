@@ -21,7 +21,7 @@ utl::vector<detail::InputSystemBase *> input_callbacks;
 
 constexpr auto get_key(InputSource::Type type, u32 code) -> u64
 {
-    return ((u64)type << 32) | (u64)code;
+    return (static_cast<u64>(type) << 32) | static_cast<u64>(code);
 }
 
 }
@@ -30,7 +30,7 @@ auto bind(InputSource source) -> void
 {
     assert(source.source_type < InputSource::count);
     const u64 key{get_key(source.source_type, source.code)};
-    unbind(source.source_type, (InputCode::Code)source.code);
+    unbind(source.source_type, static_cast<InputCode::Code>(source.code));
 
     input_bindings[source.binding].sources.emplace_back(source);
     source_binding_map[key] = source.binding;
@@ -147,7 +147,7 @@ auto get(u64 binding, InputValue &value) -> void
     for (const auto &source : sources)
     {
         assert(source.binding == binding);
-        get(source.source_type, (InputCode::Code)source.code, sub_value);
+        get(source.source_type, static_cast<InputCode::Code>(source.code), sub_value);
         assert(source.axis <= Axis::z);
         if (source.source_type == InputSource::mouse)
         {

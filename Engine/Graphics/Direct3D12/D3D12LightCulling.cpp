@@ -113,9 +113,10 @@ auto resize_buffers(CullingParameters &culler) -> void
     const u32 frustum_count{culler.frustum_count};
 
     const u32 frustums_buffer_size{sizeof(hlsl::Frustum) * frustum_count};
-    const u32 light_grid_buffer_size{(u32)math::align_size_up<sizeof(math::v4)>(sizeof(math::u32v2) * frustum_count)};
+    const u32 light_grid_buffer_size{
+        static_cast<u32>(math::align_size_up<sizeof(math::v4)>(sizeof(math::u32v2) * frustum_count))};
     const u32 light_index_list_buffer_size{
-        (u32)math::align_size_up<sizeof(math::v4)>(sizeof(u32) * max_lights_per_tile * frustum_count)};
+        static_cast<u32>(math::align_size_up<sizeof(math::v4)>(sizeof(u32) * max_lights_per_tile * frustum_count))};
     const u32 light_grid_and_index_list_buffer_size{light_grid_buffer_size + light_index_list_buffer_size};
 
     D3D12BufferInitInfo info{};
@@ -156,8 +157,8 @@ auto resize(CullingParameters &culler) -> void
     constexpr u32 tile_size{light_culling_tile_size};
     assert(culler.view_width >= tile_size && culler.view_height >= tile_size);
     const math::u32v2 tile_count{
-        (u32)math::align_size_up<tile_size>(culler.view_width) / tile_size,
-        (u32)math::align_size_up<tile_size>(culler.view_height) / tile_size};
+        static_cast<u32>(math::align_size_up<tile_size>(culler.view_width)) / tile_size,
+        static_cast<u32>(math::align_size_up<tile_size>(culler.view_height)) / tile_size};
 
     culler.frustum_count = tile_count.x * tile_count.y;
 
@@ -165,8 +166,8 @@ auto resize(CullingParameters &culler) -> void
     {
         hlsl::LightCullingDispatchParameters &params{culler.grid_frustums_dispatch_params};
         params.NumThreads = tile_count;
-        params.NumThreadGroups.x = (u32)math::align_size_up<tile_size>(tile_count.x) / tile_size;
-        params.NumThreadGroups.y = (u32)math::align_size_up<tile_size>(tile_count.y) / tile_size;
+        params.NumThreadGroups.x = static_cast<u32>(math::align_size_up<tile_size>(tile_count.x)) / tile_size;
+        params.NumThreadGroups.y = static_cast<u32>(math::align_size_up<tile_size>(tile_count.y)) / tile_size;
     }
 
     // Dispatch parameters for light culling

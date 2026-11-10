@@ -68,7 +68,7 @@ auto get_cache_ptr(const game_entity::Entity *const entity) -> transform::Compon
     // cache_map didn't have an entry for this id, new entry inserted
     if (pair.second)
     {
-        index = (u32)transform_cache.size();
+        index = static_cast<u32>(transform_cache.size());
         transform_cache.emplace_back();
         transform_cache.back().id = id;
         cache_map[id] = index;
@@ -146,13 +146,13 @@ auto create(InitInfo info, game_entity::Entity entity) -> Component
     }
     else
     {
-        id = ScriptId{(id::id_type)id_mapping.size()};
+        id = ScriptId{static_cast<id::id_type>(id_mapping.size())};
         id_mapping.emplace_back();
         generations.push_back(0);
     }
 
     assert(id::is_valid(id));
-    const id::id_type index{(id::id_type)entity_scripts.size()};
+    const id::id_type index{static_cast<id::id_type>(entity_scripts.size())};
     entity_scripts.emplace_back(info.script_creator(entity));
     assert(entity_scripts.back()->get_id() == entity.get_id());
     id_mapping[id::index(id)] = index;
@@ -184,7 +184,7 @@ auto update(f32 dt) -> void
 
     if (!transform_cache.empty())
     {
-        transform::update(transform_cache.data(), (u32)transform_cache.size());
+        transform::update(transform_cache.data(), static_cast<u32>(transform_cache.size()));
         transform_cache.clear();
 
 #if USE_TRANSFORM_CACHE_MAP
@@ -221,7 +221,7 @@ auto EntityScript::set_scale(const game_entity::Entity *const entity, math::v3 s
 
 extern "C" __declspec(dllexport) auto get_script_names() -> LPSAFEARRAY
 {
-    const u32 size{(u32)primal::script::script_names().size()};
+    const u32 size{static_cast<u32>(primal::script::script_names().size())};
     if (!size)
     {
         return nullptr;

@@ -142,8 +142,8 @@ auto get_adapters_by_performance() -> utl::vector<ComPtr<IDXGIAdapter>>
     }
 
     using PFN_CreateDXGIFactory1 = HRESULT(WINAPI *)(REFIID, void **);
-    const PFN_CreateDXGIFactory1 create_dxgi_factory1{
-        (PFN_CreateDXGIFactory1)((void *)::GetProcAddress(dxgi_module, "CreateDXGIFactory1"))};
+    const PFN_CreateDXGIFactory1 create_dxgi_factory1{static_cast<PFN_CreateDXGIFactory1>(
+        reinterpret_cast<void *>(::GetProcAddress(dxgi_module, "CreateDXGIFactory1")))};
     if (!create_dxgi_factory1)
     {
         return {};
@@ -198,8 +198,8 @@ auto create_device() -> void
         }
     }
 
-    const PFN_D3D11_CREATE_DEVICE d3d11_create_device{
-        (PFN_D3D11_CREATE_DEVICE)((void *)::GetProcAddress(d3d11_module, "D3D11CreateDevice"))};
+    const PFN_D3D11_CREATE_DEVICE d3d11_create_device{static_cast<PFN_D3D11_CREATE_DEVICE>(
+        reinterpret_cast<void *>(::GetProcAddress(d3d11_module, "D3D11CreateDevice")))};
     if (!d3d11_create_device)
     {
         return;
@@ -339,10 +339,10 @@ auto texture_info_from_metadata(const TexMetadata &metadata, TextureInfo &info) 
     using namespace primal::content;
     const DXGI_FORMAT format{metadata.format};
     info.format = format;
-    info.width = (u32)metadata.width;
-    info.height = (u32)metadata.height;
-    info.array_size = metadata.IsVolumemap() ? (u32)metadata.depth : (u32)metadata.arraySize;
-    info.mip_levels = (u32)metadata.mipLevels;
+    info.width = static_cast<u32>(metadata.width);
+    info.height = static_cast<u32>(metadata.height);
+    info.array_size = metadata.IsVolumemap() ? static_cast<u32>(metadata.depth) : static_cast<u32>(metadata.arraySize);
+    info.mip_levels = static_cast<u32>(metadata.mipLevels);
     set_or_clear_flag(info.flags, TextureFlags::has_alpha, HasAlpha(format));
     set_or_clear_flag(info.flags, TextureFlags::is_hdr, is_hdr(format));
     set_or_clear_flag(info.flags, TextureFlags::is_premultiplied_alpha, metadata.IsPMAlpha());
@@ -354,7 +354,7 @@ auto texture_info_from_metadata(const TexMetadata &metadata, TextureInfo &info) 
 auto copy_subresources(const ScratchImage &scratch, TextureData *const data) -> void
 {
     const Image *const images{scratch.GetImages()};
-    const u32 image_count{(u32)scratch.GetImageCount()};
+    const u32 image_count{static_cast<u32>(scratch.GetImageCount())};
     assert(images && scratch.GetMetadata().mipLevels && scratch.GetMetadata().mipLevels <= TextureData::max_mips);
 
     u64 subresource_size{0};
@@ -365,15 +365,15 @@ auto copy_subresources(const ScratchImage &scratch, TextureData *const data) -> 
         subresource_size += sizeof(u32) * 4 + images[i].slicePitch;
     }
 
-    if (subresource_size > ~(u32)0)
+    if (subresource_size > ~static_cast<u32>(0))
     {
         // Support up to 4GB per resource.
         data->info.import_error = ImportError::max_size_exceeded;
         return;
     }
 
-    data->subresource_size = (u32)subresource_size;
-    data->subresource_data = (u8 *const)::CoTaskMemRealloc(data->subresource_data, subresource_size);
+    data->subresource_size = static_cast<u32>(subresource_size);
+    data->subresource_data = static_cast<u8 *const>(::CoTaskMemRealloc(data->subresource_data, subresource_size));
     assert(data->subresource_data);
 
     utl::BlobStreamWriter blob{data->subresource_data, data->subresource_size};
@@ -381,10 +381,10 @@ auto copy_subresources(const ScratchImage &scratch, TextureData *const data) -> 
     for (u32 i{0}; i < image_count; ++i)
     {
         const Image &image{images[i]};
-        blob.write((u32)image.width);
-        blob.write((u32)image.height);
-        blob.write((u32)image.rowPitch);
-        blob.write((u32)image.slicePitch);
+        blob.write(static_cast<u32>(image.width));
+        blob.write(static_cast<u32>(image.height));
+        blob.write(static_cast<u32>(image.rowPitch));
+        blob.write(static_cast<u32>(image.slicePitch));
         blob.write(image.pixels, image.slicePitch);
     }
 }
@@ -403,7 +403,7 @@ auto copy_subresources(const ScratchImage &scratch, TextureData *const data) -> 
         u32 depth_per_mip_level{info.array_size};
         for (u32 i{1}; i < info.mip_levels; ++i)
         {
-            depth_per_mip_level = std::max(depth_per_mip_level >> 1, (u32)1);
+            depth_per_mip_level = std::max(depth_per_mip_level >> 1, static_cast<u32>(1));
             image_count += depth_per_mip_level;
         }
     }
@@ -420,10 +420,10 @@ auto copy_subresources(const ScratchImage &scratch, TextureData *const data) -> 
         Image image{};
         image.width = blob.read<u32>();
         image.height = blob.read<u32>();
-        image.format = (DXGI_FORMAT)info.format;
+        image.format = static_cast<DXGI_FORMAT>(info.format);
         image.rowPitch = blob.read<u32>();
         image.slicePitch = blob.read<u32>();
-        image.pixels = (u8 *)blob.position();
+        image.pixels = const_cast<u8 *>(blob.position());
 
         blob.skip(image.slicePitch);
 
@@ -445,15 +445,15 @@ auto copy_icon(const Image &bc_image, TextureData *const data) -> void
     const Image &image{scratch.GetImages()[0]};
 
     // 4 x u32 for width, height, rowPitch and slicePitch
-    data->icon_size = (u32)(sizeof(u32) * 4 + image.slicePitch);
-    data->icon = (u8 *const)::CoTaskMemRealloc(data->icon, data->icon_size);
+    data->icon_size = static_cast<u32>(sizeof(u32) * 4 + image.slicePitch);
+    data->icon = static_cast<u8 *const>(::CoTaskMemRealloc(data->icon, data->icon_size));
     assert(data->icon);
 
     utl::BlobStreamWriter blob{data->icon, data->icon_size};
-    blob.write((u32)image.width);
-    blob.write((u32)image.height);
-    blob.write((u32)image.rowPitch);
-    blob.write((u32)image.slicePitch);
+    blob.write(static_cast<u32>(image.width));
+    blob.write(static_cast<u32>(image.height));
+    blob.write(static_cast<u32>(image.rowPitch));
+    blob.write(static_cast<u32>(image.slicePitch));
     blob.write(image.pixels, image.slicePitch);
 }
 
@@ -535,7 +535,10 @@ auto copy_icon(const Image &bc_image, TextureData *const data) -> void
 {
     const TexMetadata &metadata{source.GetMetadata()};
     mip_levels = math::clamp(
-        mip_levels, (u32)0, get_max_mip_count((u32)metadata.width, (u32)metadata.height, (u32)metadata.depth));
+        mip_levels,
+        static_cast<u32>(0),
+        get_max_mip_count(
+            static_cast<u32>(metadata.width), static_cast<u32>(metadata.height), static_cast<u32>(metadata.depth)));
     HRESULT hr{S_OK};
 
     ScratchImage mip_scratch{};
@@ -577,7 +580,7 @@ auto copy_icon(const Image &bc_image, TextureData *const data) -> void
 
     ScratchImage scratch;
     HRESULT hr{S_OK};
-    const u32 array_size{(u32)images.size()};
+    const u32 array_size{static_cast<u32>(images.size())};
 
     { // Scope for working scratch
         ScratchImage working_scratch{};
@@ -592,7 +595,7 @@ auto copy_icon(const Image &bc_image, TextureData *const data) -> void
         {
             const Image &image{images[0]};
 
-            if (math::is_equal((f32)image.width / (f32)image.height, 2.f))
+            if (math::is_equal(static_cast<f32>(image.width) / static_cast<f32>(image.height), 2.f))
             {
                 if (!run_on_gpu(
                         [&](ID3D11Device *device)
@@ -662,7 +665,7 @@ auto determine_output_format(TextureData *const data, ScratchImage &scratch, con
     assert(data && data->import_settings.compress);
     using namespace primal::content;
     DXGI_FORMAT image_format{image->format};
-    DXGI_FORMAT output_format{(DXGI_FORMAT)data->import_settings.output_format};
+    DXGI_FORMAT output_format{static_cast<DXGI_FORMAT>(data->import_settings.output_format)};
 
     // Determine the best block compressed format if import settings
     // don't explicitly specify a format.
@@ -792,7 +795,7 @@ auto can_use_gpu(DXGI_FORMAT format) -> bool
     using namespace primal::content;
     assert(data->import_settings.compress);
     const TextureInfo &info{data->info};
-    const DXGI_FORMAT format{(DXGI_FORMAT)info.format};
+    const DXGI_FORMAT format{static_cast<DXGI_FORMAT>(info.format)};
     assert(IsCompressed(format));
     utl::vector<Image> images = subresource_data_to_images(data);
     const bool is_3d{(info.flags & TextureFlags::is_volume_map) != 0};
@@ -812,7 +815,8 @@ auto can_use_gpu(DXGI_FORMAT format) -> bool
     metadata.dimension = is_3d ? TEX_DIMENSION_TEXTURE3D : TEX_DIMENSION_TEXTURE2D;
 
     ScratchImage scratch;
-    const HRESULT hr{Decompress(images.data(), (size_t)images.size(), metadata, DXGI_FORMAT_UNKNOWN, scratch)};
+    const HRESULT hr{
+        Decompress(images.data(), static_cast<size_t>(images.size()), metadata, DXGI_FORMAT_UNKNOWN, scratch)};
 
     if (FAILED(hr))
     {
@@ -827,14 +831,14 @@ auto prefilter_ibl(TextureData *const data, IblFilter::Type filter_type) -> void
 {
     assert(data->import_settings.prefilter_cubemap);
     TextureInfo &info{data->info};
-    const DXGI_FORMAT format{(DXGI_FORMAT)info.format};
+    const DXGI_FORMAT format{static_cast<DXGI_FORMAT>(info.format)};
     assert(!IsCompressed(format));
     utl::vector<Image> images = subresource_data_to_images(data);
     assert(!images.empty() && !IsCompressed(images[0].format));
     assert(info.flags & content::TextureFlags::is_cube_map);
     assert(info.width == info.height);
     const u32 cubemap_count{info.array_size / 6};
-    assert(info.mip_levels == (u8)(math::log2(info.width) + 1));
+    assert(info.mip_levels == static_cast<u8>(math::log2(info.width) + 1));
 
     HRESULT hr{S_OK};
 
@@ -974,8 +978,8 @@ EDITOR_INTERFACE auto Import(TextureData *const data) -> void
 
         if (i == 0)
         {
-            width = (u32)metadata.width;
-            height = (u32)metadata.height;
+            width = static_cast<u32>(metadata.width);
+            height = static_cast<u32>(metadata.height);
             format = metadata.format;
         }
 
@@ -993,8 +997,8 @@ EDITOR_INTERFACE auto Import(TextureData *const data) -> void
             return;
         }
 
-        const u32 array_size{(u32)metadata.arraySize};
-        const u32 depth{(u32)metadata.depth};
+        const u32 array_size{static_cast<u32>(metadata.arraySize)};
+        const u32 depth{static_cast<u32>(metadata.depth)};
 
         for (u32 array_index{0}; array_index < array_size; ++array_index)
         {

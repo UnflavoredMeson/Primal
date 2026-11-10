@@ -45,7 +45,6 @@ Checks: >
   -modernize-use-std-format,
   -modernize-use-ranges,
   -modernize-use-integer-sign-comparison,
-  -modernize-avoid-c-style-cast,
   readability-identifier-naming,
   readability-redundant-*,
   readability-container-size-empty,

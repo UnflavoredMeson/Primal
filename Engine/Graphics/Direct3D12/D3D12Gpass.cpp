@@ -81,7 +81,7 @@ struct GpassCache
 
     CONSTEXPR auto size() const -> u32
     {
-        return (u32)d3d12_render_item_ids.size();
+        return static_cast<u32>(d3d12_render_item_ids.size());
     }
 
     CONSTEXPR auto clear() -> void
@@ -104,23 +104,23 @@ struct GpassCache
 
             _buffer.resize(new_buffer_size);
 
-            entity_ids = (id::id_type *)_buffer.data();
+            entity_ids = reinterpret_cast<id::id_type *>(_buffer.data());
             submesh_gpu_ids = (&entity_ids[items_count]);
             material_ids = (&submesh_gpu_ids[items_count]);
-            gpass_pipeline_states = (ID3D12PipelineState **)&material_ids[items_count];
+            gpass_pipeline_states = reinterpret_cast<ID3D12PipelineState **>(&material_ids[items_count]);
             depth_pipeline_states = (&gpass_pipeline_states[items_count]);
-            root_signatures = (ID3D12RootSignature **)&depth_pipeline_states[items_count];
-            cmd_signatures = (ID3D12CommandSignature **)&root_signatures[items_count];
-            material_types = (MaterialType::Type *)&cmd_signatures[items_count];
-            descriptor_indices = (u32 **)&material_types[items_count];
-            texture_counts = (u32 *)&descriptor_indices[items_count];
-            material_surfaces = (MaterialSurface **)&texture_counts[items_count];
-            position_buffers = (D3D12_GPU_VIRTUAL_ADDRESS *)&material_surfaces[items_count];
+            root_signatures = reinterpret_cast<ID3D12RootSignature **>(&depth_pipeline_states[items_count]);
+            cmd_signatures = reinterpret_cast<ID3D12CommandSignature **>(&root_signatures[items_count]);
+            material_types = reinterpret_cast<MaterialType::Type *>(&cmd_signatures[items_count]);
+            descriptor_indices = reinterpret_cast<u32 **>(&material_types[items_count]);
+            texture_counts = reinterpret_cast<u32 *>(&descriptor_indices[items_count]);
+            material_surfaces = reinterpret_cast<MaterialSurface **>(&texture_counts[items_count]);
+            position_buffers = reinterpret_cast<D3D12_GPU_VIRTUAL_ADDRESS *>(&material_surfaces[items_count]);
             element_buffers = (&position_buffers[items_count]);
-            index_buffer_views = (D3D12_INDEX_BUFFER_VIEW *)&element_buffers[items_count];
-            primitive_topologies = (D3D_PRIMITIVE_TOPOLOGY *)&index_buffer_views[items_count];
-            elements_types = (u32 *)&primitive_topologies[items_count];
-            per_object_data = (D3D12_GPU_VIRTUAL_ADDRESS *)&elements_types[items_count];
+            index_buffer_views = reinterpret_cast<D3D12_INDEX_BUFFER_VIEW *>(&element_buffers[items_count]);
+            primitive_topologies = reinterpret_cast<D3D_PRIMITIVE_TOPOLOGY *>(&index_buffer_views[items_count]);
+            elements_types = reinterpret_cast<u32 *>(&primitive_topologies[items_count]);
+            per_object_data = reinterpret_cast<D3D12_GPU_VIRTUAL_ADDRESS *>(&elements_types[items_count]);
             material_data = (&per_object_data[items_count]);
         }
     }
@@ -172,7 +172,7 @@ class CommandBuffer
             NAME_D3D12_OBJECT_INDEXED(_cmd_buffer.buffer(), core::current_frame_index(), L"Indirect Command Buffer");
 
             const D3D12_RANGE read_range{0, 0}; // We won't be reading from this buffer on the CPU.
-            DXCall(_cmd_buffer.buffer()->Map(0, &read_range, (void **)&_cpu_address));
+            DXCall(_cmd_buffer.buffer()->Map(0, &read_range, reinterpret_cast<void **>(&_cpu_address)));
             assert(_cpu_address);
         }
     }
@@ -345,7 +345,7 @@ auto prepare_render_frame(const D3D12FrameInfo &d3d12_info) -> void
 
     ConstantBuffer &cbuffer{core::cbuffer()};
     const u32 size{items_count * sizeof(MaterialSurface) + cache.descriptor_index_count * sizeof(u32)};
-    u32 *const material_data{(u32 *)cbuffer.allocate(size)};
+    u32 *const material_data{reinterpret_cast<u32 *>(cbuffer.allocate(size))};
     u32 mtl_data_offset{0};
 
     for (u32 i{0}; i < items_count; ++i)
@@ -390,9 +390,9 @@ auto group_by_pso() -> void
     {
         u32 item_index{0};
         u32 pso_count{0};
-        const u8 pass_mask{pass == 0 ? (u8)0x0f : (u8)0xf0};
-        const u8 flag_set{pass == 0 ? (u8)0x01 : (u8)0x10};
-        const u8 flag_new_pso{pass == 0 ? (u8)0x02 : (u8)0x20};
+        const u8 pass_mask{pass == 0 ? static_cast<u8>(0x0f) : static_cast<u8>(0xf0)};
+        const u8 flag_set{pass == 0 ? static_cast<u8>(0x01) : static_cast<u8>(0x10)};
+        const u8 flag_new_pso{pass == 0 ? static_cast<u8>(0x02) : static_cast<u8>(0x20)};
         utl::vector<u32> &grouped_indices{pass == 0 ? cache.gpass_grouped_indices : cache.depth_grouped_indices};
         ID3D12PipelineState **&pipeline_states{pass == 0 ? cache.gpass_pipeline_states : cache.depth_pipeline_states};
 
@@ -694,7 +694,7 @@ auto depth_prepass_indirect(id3d12_graphics_command_list *cmd_list, const D3D12F
     group_by_pso();
 
     const u32 pso_count{cache.depth_pso_count};
-    u32 *const new_pso_indices{(u32 *)alloca(pso_count * sizeof(u32))};
+    u32 *const new_pso_indices{static_cast<u32 *>(alloca(pso_count * sizeof(u32)))};
     record_depth_command_buffer(d3d12_info, new_pso_indices, pso_count);
 
     // NOLINTBEGIN(clang-analyzer-core.CallAndMessage,clang-analyzer-core.UndefinedBinaryOperatorResult):
@@ -737,7 +737,7 @@ auto render_indirect(id3d12_graphics_command_list *cmd_list, const D3D12FrameInf
     const u32 frame_idx{d3d12_info.frame_index};
     const CommandBuffer &cmd_buffer{command_buffers[frame_idx]};
     const u32 pso_count{cache.gpass_pso_count};
-    u32 *const new_pso_indices{(u32 *)alloca(pso_count * sizeof(u32))};
+    u32 *const new_pso_indices{static_cast<u32 *>(alloca(pso_count * sizeof(u32)))};
     record_gpass_command_buffer(d3d12_info, new_pso_indices, pso_count);
 
     // NOLINTBEGIN(clang-analyzer-core.CallAndMessage,clang-analyzer-core.UndefinedBinaryOperatorResult):

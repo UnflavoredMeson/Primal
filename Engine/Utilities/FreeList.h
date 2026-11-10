@@ -36,14 +36,15 @@ class free_list
         u32 id{u32_invalid_id};
         if (_next_free_index == u32_invalid_id)
         {
-            id = (u32)_array.size();
+            id = static_cast<u32>(_array.size());
             _array.emplace_back(std::forward<params>(p)...);
         }
         else
         {
             id = _next_free_index;
             assert(id < _array.size() && already_removed(id, true));
-            _next_free_index = *(const u32 *)std::addressof(_array[id]);
+            // The freed slot holds the next free index, not a T (see remove()).
+            std::memcpy(&_next_free_index, static_cast<const void *>(std::addressof(_array[id])), sizeof(u32));
             new (std::addressof(_array[id])) T(std::forward<params>(p)...);
         }
         ++_size;
@@ -56,8 +57,9 @@ class free_list
         T &item{_array[id]};
         item.~T();
         // Fill the destroyed item's storage with a debug pattern (void* cast: T needn't be trivially copyable).
-        DEBUG_OP(std::memset((void *)std::addressof(_array[id]), 0xcc, sizeof(T)));
-        *(u32 *)std::addressof(_array[id]) = _next_free_index;
+        DEBUG_OP(std::memset(static_cast<void *>(std::addressof(_array[id])), 0xcc, sizeof(T)));
+        // The freed slot stores the index of the next free one (memcpy: the slot isn't a u32 object).
+        std::memcpy(static_cast<void *>(std::addressof(_array[id])), &_next_free_index, sizeof(u32));
         _next_free_index = id;
         --_size;
     }
@@ -69,7 +71,7 @@ class free_list
 
     constexpr auto capacity() const -> u32
     {
-        return (u32)_array.size();
+        return static_cast<u32>(_array.size());
     }
 
     constexpr auto empty() const -> bool
@@ -96,7 +98,7 @@ class free_list
         if constexpr (sizeof(T) > sizeof(u32))
         {
             u32 i{sizeof(u32)}; // skip the first 4 bytes.
-            const u8 *const p{(const u8 *)std::addressof(_array[id])};
+            const u8 *const p{reinterpret_cast<const u8 *>(std::addressof(_array[id]))};
             // NOTE: test the bound first, p[sizeof(T)] is past the item (past the array for the last one).
             while ((i < sizeof(T)) && (p[i] == 0xcc))
             {

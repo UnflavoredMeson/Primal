@@ -138,7 +138,7 @@ auto create_root_signature(const RootParameter *parameters, u32 count, [[maybe_u
     assert(set_layouts[1]);
 
     VkPipelineLayoutCreateInfo layout_info{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
-    layout_info.setLayoutCount = (u32)std::size(set_layouts);
+    layout_info.setLayoutCount = static_cast<u32>(std::size(set_layouts));
     layout_info.pSetLayouts = &set_layouts[0];
     if (!VkCall(::vkCreatePipelineLayout(device, &layout_info, nullptr, &signature.layout)))
     {
@@ -265,7 +265,7 @@ auto create_graphics_pipeline(const GraphicsPipelineDesc &desc, [[maybe_unused]]
 
     constexpr VkDynamicState dynamic_states[]{VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
     VkPipelineDynamicStateCreateInfo dynamic{VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO};
-    dynamic.dynamicStateCount = (u32)std::size(dynamic_states);
+    dynamic.dynamicStateCount = static_cast<u32>(std::size(dynamic_states));
     dynamic.pDynamicStates = &dynamic_states[0];
 
     VkPipelineRenderingCreateInfo rendering{VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO};
@@ -320,7 +320,8 @@ auto create_compute_pipeline(VkPipelineLayout layout, const ShaderBytecode &cs, 
 
 auto set_viewport(VkCommandBuffer cmd, u32 width, u32 height) -> void
 {
-    const VkViewport viewport{0.f, (f32)height, (f32)width, -(f32)height, 0.f, 1.f};
+    const VkViewport viewport{
+        0.f, static_cast<f32>(height), static_cast<f32>(width), -static_cast<f32>(height), 0.f, 1.f};
     const VkRect2D scissor{{0, 0}, {width, height}};
     ::vkCmdSetViewport(cmd, 0, 1, &viewport);
     ::vkCmdSetScissor(cmd, 0, 1, &scissor);
@@ -370,8 +371,9 @@ auto dxgi_format_info(u32 dxgi_format) -> FormatInfo
 
 auto load_device_functions(VkDevice device) -> void
 {
-    cmd_push_descriptor_set =
-        device ? (PFN_vkCmdPushDescriptorSetKHR)::vkGetDeviceProcAddr(device, "vkCmdPushDescriptorSetKHR") : nullptr;
+    cmd_push_descriptor_set = device ? reinterpret_cast<PFN_vkCmdPushDescriptorSetKHR>(
+                                           ::vkGetDeviceProcAddr(device, "vkCmdPushDescriptorSetKHR"))
+                                     : nullptr;
     assert(!device || cmd_push_descriptor_set);
 }
 

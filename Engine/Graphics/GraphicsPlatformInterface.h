@@ -55,6 +55,6 @@ struct PlatformInterface
         void (*remove_render_item)(id::id_type);
     } resources;
 
-    GraphicsPlatform platform = (GraphicsPlatform)-1;
+    GraphicsPlatform platform = static_cast<GraphicsPlatform>(-1);
 };
 }

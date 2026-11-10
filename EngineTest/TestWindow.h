@@ -36,7 +36,7 @@ auto on_window_event(const platform::WindowEvent &event) -> void
         {
             const platform::Window win{event.window};
             std::fprintf(
-                stderr, "window %u resized: %u x %u\n", (u32)(id::id_type)event.window, win.width(), win.height());
+                stderr, "window %u resized: %u x %u\n", static_cast<u32>(event.window), win.width(), win.height());
         }
         break;
         case WindowEvent::key_down:

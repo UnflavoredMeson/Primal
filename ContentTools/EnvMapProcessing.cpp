@@ -68,12 +68,12 @@ auto direction_to_equirectangular(const math::v3 &dir) -> math::v2
 auto sample_cube_face(const Image &env_map, const Image &cube_face, u32 face_index, bool mirror) -> void
 {
     assert(cube_face.width == cube_face.height);
-    const f32 inv_width{1.f / (f32)cube_face.width};
-    const f32 inv_height{1.f / (f32)cube_face.height};
-    const u32 row_pitch{(u32)cube_face.rowPitch};
-    const u32 env_width{(u32)env_map.width - 1};
-    const u32 env_height{(u32)env_map.height - 1};
-    const u32 env_row_pitch{(u32)env_map.rowPitch};
+    const f32 inv_width{1.f / static_cast<f32>(cube_face.width)};
+    const f32 inv_height{1.f / static_cast<f32>(cube_face.height)};
+    const u32 row_pitch{static_cast<u32>(cube_face.rowPitch)};
+    const u32 env_width{static_cast<u32>(env_map.width) - 1};
+    const u32 env_height{static_cast<u32>(env_map.height) - 1};
+    const u32 env_row_pitch{static_cast<u32>(env_map.rowPitch)};
     // assume both env_map and cube_face are using DXGI_FORMAT_R32G32B32A32_FLOAT
     constexpr u32 bytes_per_pixel{sizeof(f32) * 4};
 
@@ -97,7 +97,8 @@ auto sample_cube_face(const Image &env_map, const Image &cube_face, u32 face_ind
             const f32 pos_y{uv.y * env_height};
             u8 *dst_pixel{&cube_face.pixels[row_pitch * y + x * bytes_per_pixel]};
 
-            u8 const *const src_pixel{&env_map.pixels[env_row_pitch * (u32)pos_y + (u32)pos_x * bytes_per_pixel]};
+            u8 const *const src_pixel{
+                &env_map.pixels[env_row_pitch * static_cast<u32>(pos_y) + static_cast<u32>(pos_x) * bytes_per_pixel]};
             std::memcpy(dst_pixel, src_pixel, bytes_per_pixel);
         }
     }
@@ -109,11 +110,13 @@ auto reset_d3d11_context(ID3D11DeviceContext *ctx) -> void
     std::memset(&zero_mem_block, 0, sizeof(zero_mem_block));
 
     ctx->CSSetUnorderedAccessViews(
-        0, D3D11_1_UAV_SLOT_COUNT, (ID3D11UnorderedAccessView **)&zero_mem_block[0], nullptr);
+        0, D3D11_1_UAV_SLOT_COUNT, reinterpret_cast<ID3D11UnorderedAccessView **>(&zero_mem_block[0]), nullptr);
     ctx->CSSetShaderResources(
-        0, D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT, (ID3D11ShaderResourceView **)&zero_mem_block[0]);
+        0,
+        D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT,
+        reinterpret_cast<ID3D11ShaderResourceView **>(&zero_mem_block[0]));
     ctx->CSSetConstantBuffers(
-        0, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT, (ID3D11Buffer **)&zero_mem_block[0]);
+        0, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT, reinterpret_cast<ID3D11Buffer **>(&zero_mem_block[0]));
 }
 
 auto set_constants(ID3D11DeviceContext *ctx, ID3D11Buffer *constant_buffer, ShaderConstants constants) -> HRESULT
@@ -232,7 +235,7 @@ auto download_texture_2d(
             }
 
             const Image &img{*result.GetImage(mip, img_idx, 0)};
-            u8 const *src{(u8 *)mapped_resource.pData};
+            u8 const *src{static_cast<u8 *>(mapped_resource.pData)};
             u8 *dst{img.pixels};
 
             for (u32 row{0}; row < img.height; ++row)
@@ -295,7 +298,7 @@ auto equirectangular_to_cubemap(
     for (u32 i{0}; i < env_map_count; ++i)
     {
         const Image &env_map{env_maps[i]};
-        assert(math::is_equal((f32)env_map.width / (f32)env_map.height, 2.f));
+        assert(math::is_equal(static_cast<f32>(env_map.width) / static_cast<f32>(env_map.height), 2.f));
 
         // NOTE: all env_maps are equirectangular images with the same size and format.
         //       We already checked for matching size and format in the main import function.
@@ -465,8 +468,8 @@ auto equirectangular_to_cubemap(
         ComPtr<ID3D11Texture2D> env_map{};
         {
             D3D11_TEXTURE2D_DESC desc{};
-            desc.Width = (u32)src.width;
-            desc.Height = (u32)src.height;
+            desc.Width = static_cast<u32>(src.width);
+            desc.Height = static_cast<u32>(src.height);
             desc.MipLevels = 1;
             desc.ArraySize = 1;
             desc.Format = format;
@@ -478,7 +481,7 @@ auto equirectangular_to_cubemap(
 
             D3D11_SUBRESOURCE_DATA data{};
             data.pSysMem = src.pixels;
-            data.SysMemPitch = (u32)src.rowPitch;
+            data.SysMemPitch = static_cast<u32>(src.rowPitch);
 
             hr = device->CreateTexture2D(&desc, &data, env_map.ReleaseAndGetAddressOf());
             if (FAILED(hr))
@@ -526,7 +529,7 @@ auto prefilter_diffuse(
     ScratchImage &prefiltered_diffuse) -> HRESULT
 {
     const TexMetadata &meta_data{cubemaps.GetMetadata()};
-    const u32 array_size{(u32)meta_data.arraySize};
+    const u32 array_size{static_cast<u32>(meta_data.arraySize)};
     const u32 cubemap_count{array_size / 6};
     assert(device && meta_data.IsCubemap() && cubemap_count && !(array_size % 6));
     ComPtr<ID3D11DeviceContext> ctx{};
@@ -541,9 +544,9 @@ auto prefilter_diffuse(
     ComPtr<ID3D11Texture2D> cubemaps_cpu{};
     {
         D3D11_TEXTURE2D_DESC desc{};
-        desc.Width = (u32)meta_data.width;
-        desc.Height = (u32)meta_data.height;
-        desc.MipLevels = (u32)meta_data.mipLevels;
+        desc.Width = static_cast<u32>(meta_data.width);
+        desc.Height = static_cast<u32>(meta_data.height);
+        desc.MipLevels = static_cast<u32>(meta_data.mipLevels);
         desc.ArraySize = array_size;
         desc.Format = meta_data.format;
         desc.SampleDesc = {1, 0};
@@ -553,13 +556,13 @@ auto prefilter_diffuse(
         desc.MiscFlags = D3D11_RESOURCE_MISC_TEXTURECUBE;
 
         {
-            const u32 image_count{(u32)cubemaps.GetImageCount()};
+            const u32 image_count{static_cast<u32>(cubemaps.GetImageCount())};
             const Image *images{cubemaps.GetImages()};
             utl::vector<D3D11_SUBRESOURCE_DATA> input_data(image_count);
             for (u32 i{0}; i < image_count; ++i)
             {
                 input_data[i].pSysMem = images[i].pixels;
-                input_data[i].SysMemPitch = (u32)images[i].rowPitch;
+                input_data[i].SysMemPitch = static_cast<u32>(images[i].rowPitch);
             }
 
             hr = device->CreateTexture2D(&desc, input_data.data(), cubemaps_in.GetAddressOf());
@@ -609,7 +612,7 @@ auto prefilter_diffuse(
         }
 
         ShaderConstants constants{};
-        constants.CubeMapInSize = (u32)meta_data.width;
+        constants.CubeMapInSize = static_cast<u32>(meta_data.width);
         constants.CubeMapOutSize = prefiltered_diffuse_cubemap_size;
         constants.SampleCount = sample_count;
         hr = set_constants(ctx.Get(), constant_buffer.Get(), constants);
@@ -679,7 +682,7 @@ auto prefilter_specular(
     ScratchImage &prefiltered_specular) -> HRESULT
 {
     const TexMetadata &meta_data{cubemaps.GetMetadata()};
-    const u32 array_size{(u32)meta_data.arraySize};
+    const u32 array_size{static_cast<u32>(meta_data.arraySize)};
     const u32 cubemap_count{array_size / 6};
     assert(device && meta_data.IsCubemap() && cubemap_count && !(array_size % 6));
     ComPtr<ID3D11DeviceContext> ctx{};
@@ -694,9 +697,9 @@ auto prefilter_specular(
     ComPtr<ID3D11Texture2D> cubemaps_cpu{};
     {
         D3D11_TEXTURE2D_DESC desc{};
-        desc.Width = (u32)meta_data.width;
-        desc.Height = (u32)meta_data.height;
-        desc.MipLevels = (u32)meta_data.mipLevels;
+        desc.Width = static_cast<u32>(meta_data.width);
+        desc.Height = static_cast<u32>(meta_data.height);
+        desc.MipLevels = static_cast<u32>(meta_data.mipLevels);
         desc.ArraySize = array_size;
         desc.Format = meta_data.format;
         desc.SampleDesc = {1, 0};
@@ -706,13 +709,13 @@ auto prefilter_specular(
         desc.MiscFlags = D3D11_RESOURCE_MISC_TEXTURECUBE;
 
         {
-            const u32 image_count{(u32)cubemaps.GetImageCount()};
+            const u32 image_count{static_cast<u32>(cubemaps.GetImageCount())};
             const Image *images{cubemaps.GetImages()};
             utl::vector<D3D11_SUBRESOURCE_DATA> input_data(image_count);
             for (u32 i{0}; i < image_count; ++i)
             {
                 input_data[i].pSysMem = images[i].pixels;
-                input_data[i].SysMemPitch = (u32)images[i].rowPitch;
+                input_data[i].SysMemPitch = static_cast<u32>(images[i].rowPitch);
             }
 
             hr = device->CreateTexture2D(&desc, input_data.data(), cubemaps_in.GetAddressOf());
@@ -778,7 +781,7 @@ auto prefilter_specular(
             device,
             meta_data.format,
             i * 6,
-            (u32)meta_data.mipLevels,
+            static_cast<u32>(meta_data.mipLevels),
             cubemaps_in.Get(),
             cubemap_in_srv.ReleaseAndGetAddressOf());
         if (FAILED(hr))
@@ -799,8 +802,8 @@ auto prefilter_specular(
             }
 
             ShaderConstants constants{};
-            constants.CubeMapInSize = (u32)meta_data.width;
-            constants.CubeMapOutSize = std::max((u32)1, prefiltered_specular_cubemap_size >> mip);
+            constants.CubeMapInSize = static_cast<u32>(meta_data.width);
+            constants.CubeMapOutSize = std::max(static_cast<u32>(1), prefiltered_specular_cubemap_size >> mip);
             constants.SampleCount = sample_count;
             constants.Roughness = mip * (1.f / roughness_mip_levels);
             hr = set_constants(ctx.Get(), constant_buffer.Get(), constants);
@@ -809,7 +812,7 @@ auto prefilter_specular(
                 return hr;
             }
 
-            const u32 block_size{std::max((u32)1, ((prefiltered_specular_cubemap_size >> mip) + 15) >> 4)};
+            const u32 block_size{std::max(static_cast<u32>(1), ((prefiltered_specular_cubemap_size >> mip) + 15) >> 4)};
             dispatch(
                 ctx.Get(),
                 cubemap_in_srv.GetAddressOf(),

@@ -37,7 +37,10 @@ class D3D12Command
         desc.Type = type;
 
         DXCall(hr = device->CreateCommandQueue(&desc, IID_PPV_ARGS(&_cmd_queue)));
-        if (FAILED(hr)) { goto _error; }
+        if (FAILED(hr))
+        {
+            goto _error;
+        }
         NAME_D3D12_OBJECT(
             _cmd_queue,
             type == D3D12_COMMAND_LIST_TYPE_DIRECT    ? L"GFX Command Queue"
@@ -588,21 +591,21 @@ auto set_option(RendererOption::Option option, const void *const parameter, [[ma
         case RendererOption::vsync:
         {
             assert(parameter_size == sizeof(bool));
-            const bool enable{*(const bool *)parameter};
+            const bool enable{*static_cast<const bool *>(parameter)};
             options.enable_vsync = enable || !tearing_is_supported;
         }
         break;
         case RendererOption::raytracing:
         {
             assert(parameter_size == sizeof(bool));
-            const bool enable{*(const bool *)parameter};
+            const bool enable{*static_cast<const bool *>(parameter)};
             options.enable_dxr = enable;
         }
         break;
         case RendererOption::msaa:
         {
             assert(parameter_size == sizeof(u32));
-            const u32 msaa_samples{*(const u32 *)parameter};
+            const u32 msaa_samples{*static_cast<const u32 *>(parameter)};
             if (msaa_samples == 1 || msaa_samples == 2 || msaa_samples == 4 || msaa_samples == 8)
             {
                 options.msaa_samples = msaa_samples;
@@ -622,19 +625,19 @@ auto get_option(RendererOption::Option option, void *const parameter, [[maybe_un
         case RendererOption::vsync:
         {
             assert(parameter_size == sizeof(bool));
-            *(bool *)parameter = options.enable_vsync;
+            *static_cast<bool *>(parameter) = options.enable_vsync;
         }
         break;
         case RendererOption::raytracing:
         {
             assert(parameter_size == sizeof(bool));
-            *(bool *)parameter = options.enable_dxr;
+            *static_cast<bool *>(parameter) = options.enable_dxr;
         }
         break;
         case RendererOption::msaa:
         {
             assert(parameter_size == sizeof(u32));
-            *(u32 *)parameter = options.msaa_samples;
+            *static_cast<u32 *>(parameter) = options.msaa_samples;
         }
         break;
         default: break;

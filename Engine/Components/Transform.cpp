@@ -107,7 +107,7 @@ auto create(InitInfo info, game_entity::Entity entity) -> Component
         positions[entity_index] = math::v3{info.position};
         scales[entity_index] = math::v3{info.scale};
         has_transform[entity_index] = 0;
-        changes_from_previous_frame[entity_index] = (u8)ComponentFlags::all;
+        changes_from_previous_frame[entity_index] = static_cast<u8>(ComponentFlags::all);
     }
     else
     {
@@ -119,8 +119,8 @@ auto create(InitInfo info, game_entity::Entity entity) -> Component
         calculate_local_frame(rotations.back(), local_frames.back());
         positions.emplace_back(info.position);
         scales.emplace_back(info.scale);
-        has_transform.emplace_back((u8)0);
-        changes_from_previous_frame.emplace_back((u8)ComponentFlags::all);
+        has_transform.emplace_back(static_cast<u8>(0));
+        changes_from_previous_frame.emplace_back(static_cast<u8>(ComponentFlags::all));
     }
 
     // NOTE: each entity has a transform component. Therefor, id's for transform components

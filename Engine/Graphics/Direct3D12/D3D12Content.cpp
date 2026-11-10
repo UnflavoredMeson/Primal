@@ -110,11 +110,12 @@ class D3D12MaterialStream
         _buffer = material_buffer.get();
         u8 *const buffer{_buffer};
 
-        *(MaterialType::Type *)buffer = info.type;
-        *(ShaderFlags::Flags *)&buffer[shader_flags_index] = (ShaderFlags::Flags)flags;
-        *(id::id_type *)&buffer[root_signature_index] = create_root_signature(info.type, (ShaderFlags::Flags)flags);
-        *(u32 *)&buffer[texture_count_index] = info.texture_count;
-        *(MaterialSurface *)&buffer[material_surface_index] = info.surface;
+        *reinterpret_cast<MaterialType::Type *>(buffer) = info.type;
+        *reinterpret_cast<ShaderFlags::Flags *>(&buffer[shader_flags_index]) = static_cast<ShaderFlags::Flags>(flags);
+        *reinterpret_cast<id::id_type *>(&buffer[root_signature_index]) =
+            create_root_signature(info.type, static_cast<ShaderFlags::Flags>(flags));
+        *reinterpret_cast<u32 *>(&buffer[texture_count_index]) = info.texture_count;
+        *reinterpret_cast<MaterialSurface *>(&buffer[material_surface_index]) = info.surface;
 
         initialize();
 
@@ -134,7 +135,7 @@ class D3D12MaterialStream
             }
         }
 
-        assert(shader_index == (u32)_mm_popcnt_u32(_shader_flags));
+        assert(shader_index == static_cast<u32>(_mm_popcnt_u32(_shader_flags)));
     }
 
     [[nodiscard]] constexpr auto texture_count() const -> u32
@@ -176,15 +177,15 @@ class D3D12MaterialStream
         assert(_buffer);
         u8 *const buffer{_buffer};
 
-        _type = *(MaterialType::Type *)buffer;
-        _shader_flags = *(ShaderFlags::Flags *)&buffer[shader_flags_index];
-        _root_signature_id = *(id::id_type *)&buffer[root_signature_index];
-        _texture_count = *(u32 *)&buffer[texture_count_index];
-        _material_surface = (MaterialSurface *)&buffer[material_surface_index];
+        _type = *reinterpret_cast<MaterialType::Type *>(buffer);
+        _shader_flags = *reinterpret_cast<ShaderFlags::Flags *>(&buffer[shader_flags_index]);
+        _root_signature_id = *reinterpret_cast<id::id_type *>(&buffer[root_signature_index]);
+        _texture_count = *reinterpret_cast<u32 *>(&buffer[texture_count_index]);
+        _material_surface = reinterpret_cast<MaterialSurface *>(&buffer[material_surface_index]);
 
-        _shader_ids = (id::id_type *)&buffer[material_surface_index + sizeof(MaterialSurface)];
+        _shader_ids = reinterpret_cast<id::id_type *>(&buffer[material_surface_index + sizeof(MaterialSurface)]);
         _texture_ids = _texture_count ? &_shader_ids[_mm_popcnt_u32(_shader_flags)] : nullptr;
-        _descriptor_indices = _texture_count ? (u32 *)&_texture_ids[_texture_count] : nullptr;
+        _descriptor_indices = _texture_count ? static_cast<u32 *>(&_texture_ids[_texture_count]) : nullptr;
     }
 
     constexpr static u32 shader_flags_index{sizeof(MaterialType::Type)};
@@ -311,7 +312,7 @@ auto create_root_signature(MaterialType::Type type, ShaderFlags::Flags flags) ->
 {
     assert(type < MaterialType::count);
     static_assert(sizeof(type) == sizeof(u32) && sizeof(flags) == sizeof(u32));
-    const u64 key{((u64)type << 32) | flags};
+    const u64 key{(static_cast<u64>(type) << 32) | flags};
     const auto pair = mtl_rs_map.find(key);
     if (pair != mtl_rs_map.end())
     {
@@ -383,7 +384,7 @@ auto create_root_signature(MaterialType::Type type, ShaderFlags::Flags flags) ->
     }
 
     assert(root_signature);
-    const id::id_type id{(id::id_type)root_signatures.size()};
+    const id::id_type id{static_cast<id::id_type>(root_signatures.size())};
     root_signatures.emplace_back(root_signature);
     mtl_rs_map[key] = id;
     NAME_D3D12_OBJECT_INDEXED(root_signature, key, L"GPass Root Signature - key");
@@ -410,13 +411,13 @@ auto create_pso_if_needed(const u8 *const stream_ptr, u64 aligned_stream_size, [
     }
 
     // Creating a new PSO is lock-free
-    d3dx::D3D12PipelineStateSubobjectStream *const stream{(d3dx::D3D12PipelineStateSubobjectStream *)stream_ptr};
+    auto *const stream{reinterpret_cast<d3dx::D3D12PipelineStateSubobjectStream *>(const_cast<u8 *>(stream_ptr))};
     ID3D12PipelineState *pso{d3dx::create_pipeline_state(stream, sizeof(d3dx::D3D12PipelineStateSubobjectStream))};
 
     { // Lock scope to add the new PSO's pointer and id (I know, scoping is not necessary, but it's more obvious this
       // way.)
         const std::scoped_lock lock{pso_mutex};
-        const id::id_type id{(u32)pipeline_states.size()};
+        const id::id_type id{static_cast<u32>(pipeline_states.size())};
         pipeline_states.emplace_back(pso);
         NAME_D3D12_OBJECT_INDEXED(
             pipeline_states.back(),
@@ -434,7 +435,7 @@ auto get_shader_type(u32 flag) -> ShaderType::Type
     assert(flag);
     unsigned long index;
     _BitScanForward(&index, flag);
-    return (ShaderType::Type)index;
+    return static_cast<ShaderType::Type>(index);
 }
 
 auto get_shader_byte_code(
@@ -455,11 +456,12 @@ auto create_pso(id::id_type material_id, D3D12_PRIMITIVE_TOPOLOGY primitive_topo
 {
     constexpr u64 aligned_stream_size{
         math::align_size_up<sizeof(u64)>(sizeof(d3dx::D3D12PipelineStateSubobjectStream))};
-    u8 *const stream_ptr{(u8 *)alloca(aligned_stream_size)};
+    u8 *const stream_ptr{static_cast<u8 *>(alloca(aligned_stream_size))};
     ZeroMemory(stream_ptr, aligned_stream_size);
     new (stream_ptr) d3dx::D3D12PipelineStateSubobjectStream{};
 
-    d3dx::D3D12PipelineStateSubobjectStream &stream{*(d3dx::D3D12PipelineStateSubobjectStream *)stream_ptr};
+    d3dx::D3D12PipelineStateSubobjectStream &stream{
+        *reinterpret_cast<d3dx::D3D12PipelineStateSubobjectStream *>(stream_ptr)};
     D3D12_SHADER_BYTECODE depth_prepass_vertex_shader{};
 
     { // Lock materials
@@ -539,7 +541,7 @@ auto create_resource_from_texture_data(const u8 *const data) -> D3D12Texture
     u32 array_size{blob.read<u32>()};
     const u32 flags{blob.read<u32>()};
     const u32 mip_levels{blob.read<u32>()};
-    const DXGI_FORMAT format{(DXGI_FORMAT)blob.read<u32>()};
+    const DXGI_FORMAT format{static_cast<DXGI_FORMAT>(blob.read<u32>())};
     const bool is_3d{(flags & primal::content::TextureFlags::is_volume_map) != 0};
 
     assert(mip_levels <= D3D12Texture::max_mips);
@@ -559,7 +561,7 @@ auto create_resource_from_texture_data(const u8 *const data) -> D3D12Texture
         for (u32 i{0}; i < mip_levels; ++i)
         {
             depth_per_mip_level[i] = depth_per_mip;
-            depth_per_mip = std::max(depth_per_mip >> 1, (u32)1);
+            depth_per_mip = std::max(depth_per_mip >> 1, static_cast<u32>(1));
         }
     }
 
@@ -585,8 +587,8 @@ auto create_resource_from_texture_data(const u8 *const data) -> D3D12Texture
     desc.Alignment = 0;
     desc.Width = width;
     desc.Height = height;
-    desc.DepthOrArraySize = is_3d ? (u16)depth : (u16)array_size;
-    desc.MipLevels = (u16)mip_levels;
+    desc.DepthOrArraySize = is_3d ? static_cast<u16>(depth) : static_cast<u16>(array_size);
+    desc.MipLevels = static_cast<u16>(mip_levels);
     desc.Format = format;
     desc.SampleDesc = {1, 0};
     desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
@@ -600,17 +602,18 @@ auto create_resource_from_texture_data(const u8 *const data) -> D3D12Texture
         (sizeof(D3D12_PLACED_SUBRESOURCE_FOOTPRINT) + sizeof(u32) + sizeof(u64)) * subresource_count};
     const std::unique_ptr<u8[]> footprints_data{std::make_unique<u8[]>(footprints_data_size)};
 
-    D3D12_PLACED_SUBRESOURCE_FOOTPRINT *const layouts{(D3D12_PLACED_SUBRESOURCE_FOOTPRINT *)footprints_data.get()};
-    u32 *const num_rows{(u32 *)&layouts[subresource_count]};
-    u64 *const row_sizes{(u64 *)&num_rows[subresource_count]};
+    D3D12_PLACED_SUBRESOURCE_FOOTPRINT *const layouts{
+        reinterpret_cast<D3D12_PLACED_SUBRESOURCE_FOOTPRINT *>(footprints_data.get())};
+    u32 *const num_rows{reinterpret_cast<u32 *>(&layouts[subresource_count])};
+    u64 *const row_sizes{reinterpret_cast<u64 *>(&num_rows[subresource_count])};
     u64 required_size{0};
     id3d12_device *device{core::device()};
 
     device->GetCopyableFootprints(&desc, 0, subresource_count, 0, layouts, num_rows, row_sizes, &required_size);
 
     assert(required_size);
-    upload::D3D12UploadContext context{(u32)required_size};
-    u8 *const cpu_address{(u8 *)context.cpu_address()};
+    upload::D3D12UploadContext context{static_cast<u32>(required_size)};
+    u8 *const cpu_address{static_cast<u8 *>(context.cpu_address())};
 
     for (u32 subresource_idx{0}; subresource_idx < subresource_count; ++subresource_idx)
     {
@@ -624,8 +627,8 @@ auto create_resource_from_texture_data(const u8 *const data) -> D3D12Texture
 
         for (u32 depth_idx{0}; depth_idx < subresource_depth; ++depth_idx)
         {
-            u8 const *const src_slice{(u8 *)subresource.pData + subresource.SlicePitch * depth_idx};
-            u8 *const dst_slice{(u8 *)copy_dst.pData + copy_dst.SlicePitch * depth_idx};
+            u8 const *const src_slice{static_cast<const u8 *>(subresource.pData) + subresource.SlicePitch * depth_idx};
+            u8 *const dst_slice{static_cast<u8 *>(copy_dst.pData) + copy_dst.SlicePitch * depth_idx};
 
             for (u32 row_idx{0}; row_idx < subresource_height; ++row_idx)
             {
@@ -785,9 +788,9 @@ auto add(const u8 *const data, id::id_type *const ids, u32 count) -> void
         const u32 element_buffer_size{element_size * vertex_count};
         const u32 index_buffer_size{index_size * index_count};
 
-        const u32 aligned_position_buffer_size{(u32)math::align_size_up<alignment>(position_buffer_size)};
-        const u32 aligned_element_buffer_size{(u32)math::align_size_up<alignment>(element_buffer_size)};
-        const u32 aligned_index_buffer_size{(u32)math::align_size_up<alignment>(index_buffer_size)};
+        const u32 aligned_position_buffer_size{static_cast<u32>(math::align_size_up<alignment>(position_buffer_size))};
+        const u32 aligned_element_buffer_size{static_cast<u32>(math::align_size_up<alignment>(element_buffer_size))};
+        const u32 aligned_index_buffer_size{static_cast<u32>(math::align_size_up<alignment>(index_buffer_size))};
 
         SubmeshView view{};
         view.position_buffer_view.BufferLocation = address;
@@ -805,7 +808,7 @@ auto add(const u8 *const data, id::id_type *const ids, u32 count) -> void
         view.index_buffer_view.SizeInBytes = index_buffer_size;
         view.index_buffer_view.Format = (index_size == sizeof(u16)) ? DXGI_FORMAT_R16_UINT : DXGI_FORMAT_R32_UINT;
 
-        view.primitive_topology = get_d3d_primitive_topology((PrimitiveTopology::Type)primitive_topology);
+        view.primitive_topology = get_d3d_primitive_topology(static_cast<PrimitiveTopology::Type>(primitive_topology));
         view.elements_type = elements_type;
         view.resource_index = resource_id;
 
@@ -965,26 +968,27 @@ auto add(
 {
     assert(id::is_valid(entity_id) && id::is_valid(geometry_content_id));
     assert(material_count && material_ids);
-    id::id_type *const gpu_ids{(id::id_type *)alloca(material_count * sizeof(id::id_type))};
+    id::id_type *const gpu_ids{static_cast<id::id_type *>(alloca(material_count * sizeof(id::id_type)))};
     primal::content::get_submesh_gpu_ids(geometry_content_id, material_count, gpu_ids);
 
     const submesh::ViewsCache views_cache{
-        (D3D12_GPU_VIRTUAL_ADDRESS *)alloca(material_count * sizeof(D3D12_GPU_VIRTUAL_ADDRESS)),
-        (D3D12_GPU_VIRTUAL_ADDRESS *)alloca(material_count * sizeof(D3D12_GPU_VIRTUAL_ADDRESS)),
-        (D3D12_INDEX_BUFFER_VIEW *)alloca(material_count * sizeof(D3D12_INDEX_BUFFER_VIEW)),
-        (D3D_PRIMITIVE_TOPOLOGY *)alloca(material_count * sizeof(D3D_PRIMITIVE_TOPOLOGY)),
-        (u32 *)alloca(material_count * sizeof(u32))};
+        static_cast<D3D12_GPU_VIRTUAL_ADDRESS *>(alloca(material_count * sizeof(D3D12_GPU_VIRTUAL_ADDRESS))),
+        static_cast<D3D12_GPU_VIRTUAL_ADDRESS *>(alloca(material_count * sizeof(D3D12_GPU_VIRTUAL_ADDRESS))),
+        static_cast<D3D12_INDEX_BUFFER_VIEW *>(alloca(material_count * sizeof(D3D12_INDEX_BUFFER_VIEW))),
+        static_cast<D3D_PRIMITIVE_TOPOLOGY *>(alloca(material_count * sizeof(D3D_PRIMITIVE_TOPOLOGY))),
+        static_cast<u32 *>(alloca(material_count * sizeof(u32)))};
 
     submesh::get_views(gpu_ids, material_count, views_cache);
 
     // NOTE: the list of ids starts with geomtery id and ends with an invalid id to mark the end of the list.
     std::unique_ptr<id::id_type[]> items{
-        std::make_unique<id::id_type[]>(sizeof(id::id_type) * (1 + (u64)material_count + 1))};
+        std::make_unique<id::id_type[]>(sizeof(id::id_type) * (1 + static_cast<u64>(material_count) + 1))};
 
     items[0] = geometry_content_id;
     id::id_type *const item_ids{&items[1]};
 
-    D3D12RenderItem *const d3d12_items{(D3D12RenderItem *)alloca(material_count * sizeof(D3D12RenderItem))};
+    D3D12RenderItem *const d3d12_items{
+        static_cast<D3D12RenderItem *>(alloca(material_count * sizeof(D3D12RenderItem)))};
 
     for (u32 i{0}; i < material_count; ++i)
     {

@@ -101,14 +101,14 @@ auto query_native_handle(SDL_Window *sdl_window, NativeWindowHandle &handle) -> 
     {
         handle.kind = NativeWindowHandle::x11;
         handle.display = ::SDL_GetPointerProperty(props, SDL_PROP_WINDOW_X11_DISPLAY_POINTER, nullptr);
-        handle.window = (u64)::SDL_GetNumberProperty(props, SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0);
+        handle.window = static_cast<u64>(::SDL_GetNumberProperty(props, SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0));
     }
     else if (driver && ::SDL_strcmp(driver, "wayland") == 0)
     {
         handle.kind = NativeWindowHandle::wayland;
         handle.display = ::SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_DISPLAY_POINTER, nullptr);
         handle.window =
-            (u64)(uintptr_t)::SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_SURFACE_POINTER, nullptr);
+            reinterpret_cast<u64>(::SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_SURFACE_POINTER, nullptr));
     }
     else
     {
@@ -195,7 +195,7 @@ auto process_key_event(const SDL_Event &e) -> void
     }
 
     WindowEvent event{e.type == SDL_EVENT_KEY_DOWN ? WindowEvent::key_down : WindowEvent::key_up, id};
-    event.key = (input::InputCode::Code)code;
+    event.key = static_cast<input::InputCode::Code>(code);
     event.modifiers = input::modifier_keys();
     send_event(get_from_id(id), event);
 }
@@ -204,7 +204,7 @@ auto resize_window(WindowId id, u32 width, u32 height) -> void
 {
     const WindowInfo &info{get_from_id(id)};
     // NOTE: like PlatformWin32.cpp, this also resizes while in fullscreen mode.
-    ::SDL_SetWindowSize(info.sdl_window, (int)width, (int)height);
+    ::SDL_SetWindowSize(info.sdl_window, static_cast<int>(width), static_cast<int>(height));
 }
 
 auto set_window_fullscreen(WindowId id, bool is_fullscreen) -> void
@@ -228,8 +228,8 @@ auto get_window_handle(WindowId id) -> window_handle
     // The native handle must stay valid for the window's lifetime (graphics surfaces are made from it).
     assert(
         info.native.kind != NativeWindowHandle::x11 ||
-        info.native.window == (u64)::SDL_GetNumberProperty(
-                                  ::SDL_GetWindowProperties(info.sdl_window), SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0));
+        info.native.window == static_cast<u64>(::SDL_GetNumberProperty(
+                                  ::SDL_GetWindowProperties(info.sdl_window), SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0)));
     return &info.native;
 }
 
@@ -243,7 +243,7 @@ auto get_window_size(WindowId id) -> math::u32v4
     // Client area in pixels as { left, top, right, bottom }, like GetClientRect() on Win32.
     int width{0}, height{0};
     ::SDL_GetWindowSizeInPixels(get_from_id(id).sdl_window, &width, &height);
-    return {0, 0, (u32)width, (u32)height};
+    return {0, 0, static_cast<u32>(width), static_cast<u32>(height)};
 }
 
 auto is_window_closed(WindowId id) -> bool
@@ -332,7 +332,8 @@ auto create_window(const WindowInitInfo *init_info /* = nullptr */) -> Window
 
     const WindowId id{windows.add(info)};
     ++window_count;
-    ::SDL_SetNumberProperty(::SDL_GetWindowProperties(sdl_window), window_id_property, (s64)(id::id_type)id);
+    ::SDL_SetNumberProperty(
+        ::SDL_GetWindowProperties(sdl_window), window_id_property, static_cast<s64>(static_cast<id::id_type>(id)));
     paint_background(windows[id]);
     return Window{id};
 }

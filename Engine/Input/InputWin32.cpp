@@ -336,7 +336,7 @@ auto set_modifier_inputs(InputCode::Code code) -> void
 
 constexpr auto get_mouse_position(LPARAM lparam) -> math::v2
 {
-    return {(f32)((s16)(lparam & 0x0000ffff)), (f32)((s16)(lparam >> 16))};
+    return {static_cast<f32>(static_cast<s16>(lparam & 0x0000ffff)), static_cast<f32>(static_cast<s16>(lparam >> 16))};
 }
 
 }
@@ -440,7 +440,9 @@ auto process_input_message(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) ->
         break;
         case WM_MOUSEWHEEL:
         {
-            set(InputSource::mouse, InputCode::mouse_wheel, {(f32)(GET_WHEEL_DELTA_WPARAM(wparam)), 0.f, 0.f});
+            set(InputSource::mouse,
+                InputCode::mouse_wheel,
+                {static_cast<f32>(GET_WHEEL_DELTA_WPARAM(wparam)), 0.f, 0.f});
         }
         break;
         default: break;

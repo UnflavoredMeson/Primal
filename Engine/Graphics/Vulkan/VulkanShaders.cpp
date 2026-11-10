@@ -45,7 +45,7 @@ auto load_engine_shaders() -> bool
     // SPIR-V is an array of 32-bit words.
     for ([[maybe_unused]] const content::compiled_shader_ptr shader : engine_shaders)
     {
-        assert(((uintptr_t)shader->byte_code() & 3) == 0 && (shader->byte_code_size() & 3) == 0);
+        assert((reinterpret_cast<uintptr_t>(shader->byte_code()) & 3) == 0 && (shader->byte_code_size() & 3) == 0);
     }
 
     return true;
@@ -72,7 +72,7 @@ auto get_engine_shader(EngineShader::Id id) -> vkx::ShaderBytecode
     assert(id < EngineShader::count);
     const content::compiled_shader_ptr shader{engine_shaders[id]};
     assert(shader && shader->byte_code_size());
-    return {(const u32 *)shader->byte_code(), shader->byte_code_size(), vkx::spirv_entry_point};
+    return {reinterpret_cast<const u32 *>(shader->byte_code()), shader->byte_code_size(), vkx::spirv_entry_point};
 }
 
 }

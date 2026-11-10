@@ -93,7 +93,7 @@ auto on_window_event(const platform::WindowEvent &event) -> void
                 std::fprintf(
                     stderr,
                     "surface %u resized: %u x %u\n",
-                    (u32)(id::id_type)surface->surface.get_id(),
+                    static_cast<u32>(surface->surface.get_id()),
                     surface->surface.width(),
                     surface->surface.height());
             }

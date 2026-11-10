@@ -63,7 +63,8 @@ auto FbxContext::load_fbx_file(const char *file) -> void
     importer->Destroy();
 
     // Get scene scale in meters.
-    _scene_scale = (f32)_fbx_scene->GetGlobalSettings().GetSystemUnit().GetConversionFactorTo(FbxSystemUnit::m);
+    _scene_scale =
+        static_cast<f32>(_fbx_scene->GetGlobalSettings().GetSystemUnit().GetConversionFactorTo(FbxSystemUnit::m));
 }
 
 auto FbxContext::get_scene(FbxNode *root /*= nullptr*/) -> void
@@ -169,7 +170,7 @@ auto FbxContext::get_mesh(FbxNodeAttribute *attribute, utl::vector<Mesh> &meshes
 {
     assert(attribute);
 
-    FbxMesh *fbx_mesh{(FbxMesh *)attribute};
+    FbxMesh *fbx_mesh{static_cast<FbxMesh *>(attribute)};
     if (fbx_mesh->RemoveBadPolygons() < 0)
     {
         return;
@@ -177,7 +178,7 @@ auto FbxContext::get_mesh(FbxNodeAttribute *attribute, utl::vector<Mesh> &meshes
 
     // Triangulate the mesh if needed.
     FbxGeometryConverter gc{_fbx_manager};
-    fbx_mesh = (FbxMesh *)gc.Triangulate(fbx_mesh, true);
+    fbx_mesh = static_cast<FbxMesh *>(gc.Triangulate(fbx_mesh, true));
     if (!fbx_mesh || fbx_mesh->RemoveBadPolygons() < 0)
     {
         return;
@@ -201,7 +202,7 @@ auto FbxContext::get_lod_group(FbxNodeAttribute *attribute) -> void
 {
     assert(attribute);
 
-    FbxLODGroup *lod_grp{(FbxLODGroup *)attribute};
+    FbxLODGroup *lod_grp{static_cast<FbxLODGroup *>(attribute)};
     FbxNode *const node{lod_grp->GetNode()};
     LodGroup lod{};
     lod.name = (node->GetName()[0] != '\0') ? node->GetName() : lod_grp->GetName();
@@ -219,7 +220,7 @@ auto FbxContext::get_lod_group(FbxNodeAttribute *attribute) -> void
             lod_threshold = threshold.value() * _scene_scale;
         }
 
-        get_meshes(node->GetChild(i), lod.meshes, (u32)lod.meshes.size(), lod_threshold);
+        get_meshes(node->GetChild(i), lod.meshes, static_cast<u32>(lod.meshes.size()), lod_threshold);
     }
 
     if (lod.meshes.size())
@@ -265,7 +266,7 @@ auto FbxContext::get_mesh_data(FbxMesh *fbx_mesh, Mesh &m) -> bool
 
     for (s32 i{0}; i < num_indices; ++i)
     {
-        const u32 v_idx{(u32)indices[i]};
+        const u32 v_idx{static_cast<u32>(indices[i])};
         // Did we encounter this vertex before? If so, just add its index.
         // If not, add the vertex and a new index.
         if (vertex_ref[v_idx] != u32_invalid_id)
@@ -275,9 +276,9 @@ auto FbxContext::get_mesh_data(FbxMesh *fbx_mesh, Mesh &m) -> bool
         else
         {
             FbxVector4 v = transform.MultT(vertices[v_idx]) * _scene_scale;
-            m.raw_indices[i] = (u32)m.positions.size();
+            m.raw_indices[i] = static_cast<u32>(m.positions.size());
             vertex_ref[v_idx] = m.raw_indices[i];
-            m.positions.emplace_back((f32)v[0], (f32)v[1], (f32)v[2]);
+            m.positions.emplace_back(static_cast<f32>(v[0]), static_cast<f32>(v[1]), static_cast<f32>(v[2]));
         }
     }
 
@@ -292,10 +293,11 @@ auto FbxContext::get_mesh_data(FbxMesh *fbx_mesh, Mesh &m) -> bool
         {
             const s32 mtl_index{mtl_indices->GetAt(i)};
             assert(mtl_index >= 0);
-            m.material_indices.emplace_back((u32)mtl_index);
-            if (std::find(m.material_used.begin(), m.material_used.end(), (u32)mtl_index) == m.material_used.end())
+            m.material_indices.emplace_back(static_cast<u32>(mtl_index));
+            if (std::find(m.material_used.begin(), m.material_used.end(), static_cast<u32>(mtl_index)) ==
+                m.material_used.end())
             {
-                m.material_used.emplace_back((u32)mtl_index);
+                m.material_used.emplace_back(static_cast<u32>(mtl_index));
             }
         }
     }
@@ -317,7 +319,7 @@ auto FbxContext::get_mesh_data(FbxMesh *fbx_mesh, Mesh &m) -> bool
             {
                 FbxVector4 n{inverse_transpose.MultT(normals[i])};
                 n.Normalize();
-                m.normals.emplace_back((f32)n[0], (f32)n[1], (f32)n[2]);
+                m.normals.emplace_back(static_cast<f32>(n[0]), static_cast<f32>(n[1]), static_cast<f32>(n[2]));
             }
         }
         else
@@ -344,11 +346,12 @@ auto FbxContext::get_mesh_data(FbxMesh *fbx_mesh, Mesh &m) -> bool
             {
                 // TODO: not sure if this transformation is correct.
                 FbxVector4 t{tangents->GetAt(i)};
-                const f32 handedness{(f32)t[3]};
+                const f32 handedness{static_cast<f32>(t[3])};
                 t[3] = 0.0;
                 t = transform.MultT(t);
                 t.Normalize();
-                m.tangents.emplace_back((f32)t[0], (f32)t[1], (f32)t[2], -handedness);
+                m.tangents.emplace_back(
+                    static_cast<f32>(t[0]), static_cast<f32>(t[1]), static_cast<f32>(t[2]), -handedness);
             }
         }
         else
@@ -376,7 +379,7 @@ auto FbxContext::get_mesh_data(FbxMesh *fbx_mesh, Mesh &m) -> bool
             {
                 // Assuming FBX UVs always have their origin at the bottom-left, the V-axis
                 // should be flipped, since DirectX uses the upper-left corner as the origin.
-                m.uv_sets[i].emplace_back((f32)uvs[j][0], 1.f - (f32)uvs[j][1]);
+                m.uv_sets[i].emplace_back(static_cast<f32>(uvs[j][0]), 1.f - static_cast<f32>(uvs[j][1]));
             }
         }
     }

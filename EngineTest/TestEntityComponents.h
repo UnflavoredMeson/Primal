@@ -16,7 +16,7 @@ class EngineTest : public Test
   public:
     auto initialize() -> bool override
     {
-        std::srand((u32)std::time(nullptr)); // NOLINT(bugprone-random-generator-seed): a test, any seed
+        std::srand(static_cast<u32>(std::time(nullptr))); // NOLINT(bugprone-random-generator-seed): a test, any seed
         return true;
     }
 
@@ -28,7 +28,7 @@ class EngineTest : public Test
             {
                 create_random();
                 remove_random();
-                _num_entities = (u32)_entities.size();
+                _num_entities = static_cast<u32>(_entities.size());
             }
             print_results();
         } while (std::getchar() != 'q');
@@ -71,7 +71,7 @@ class EngineTest : public Test
         }
         while (count > 0)
         {
-            const u32 index{(u32)std::rand() % (u32)_entities.size()};
+            const u32 index{static_cast<u32>(std::rand()) % static_cast<u32>(_entities.size())};
             const game_entity::Entity entity{_entities[index]};
             assert(entity.is_valid() && id::is_valid(entity.get_id()));
             if (entity.is_valid())

@@ -17,7 +17,8 @@ class TicketMutex
 
     auto lock() -> void
     {
-        const u64 ticket{(u64)_InterlockedExchangeAdd64((__int64 volatile *)&_ticket, 1)};
+        const u64 ticket{
+            static_cast<u64>(_InterlockedExchangeAdd64(reinterpret_cast<__int64 volatile *>(&_ticket), 1))};
         while (_serving != ticket)
         {
             _mm_pause();
@@ -26,7 +27,7 @@ class TicketMutex
 
     auto unlock() -> void
     {
-        _InterlockedExchangeAdd64((__int64 volatile *)&_serving, 1);
+        _InterlockedExchangeAdd64(reinterpret_cast<__int64 volatile *>(&_serving), 1);
     }
 
   private:

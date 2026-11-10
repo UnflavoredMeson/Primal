@@ -121,7 +121,7 @@ auto DescriptorHeap::free(DescriptorHandle &handle) -> void
     assert(handle.cpu.ptr >= _cpu_start.ptr);
     assert((handle.cpu.ptr - _cpu_start.ptr) % _descriptor_size == 0);
     assert(handle.index < _capacity);
-    const u32 index{(u32)(handle.cpu.ptr - _cpu_start.ptr) / _descriptor_size};
+    const u32 index{static_cast<u32>(handle.cpu.ptr - _cpu_start.ptr) / _descriptor_size};
     assert(handle.index == index);
 
     const u32 frame_idx{core::current_frame_index()};
@@ -133,7 +133,7 @@ auto DescriptorHeap::free(DescriptorHandle &handle) -> void
 D3D12Buffer::D3D12Buffer(const D3D12BufferInitInfo &info, bool is_cpu_accessible)
 {
     assert(!_buffer && info.size && info.alignment);
-    _size = (u32)math::align_size_up(info.size, info.alignment);
+    _size = static_cast<u32>(math::align_size_up(info.size, info.alignment));
     _buffer = d3dx::create_buffer(
         info.data, _size, is_cpu_accessible, info.initial_state, info.flags, info.heap, info.allocation_info.Offset);
     _gpu_address = _buffer->GetGPUVirtualAddress();
@@ -153,14 +153,14 @@ ConstantBuffer::ConstantBuffer(const D3D12BufferInitInfo &info)
     NAME_D3D12_OBJECT_INDEXED(buffer(), size(), L"Constant Buffer - size");
 
     const D3D12_RANGE range{};
-    DXCall(buffer()->Map(0, &range, (void **)&_cpu_address));
+    DXCall(buffer()->Map(0, &range, reinterpret_cast<void **>(&_cpu_address)));
     assert(_cpu_address);
 }
 
 auto ConstantBuffer::allocate(u32 size) -> u8 *
 {
     const std::scoped_lock lock{_mutex};
-    const u32 aligned_size{(u32)d3dx::align_size_for_constant_buffer(size)};
+    const u32 aligned_size{static_cast<u32>(d3dx::align_size_for_constant_buffer(size))};
     assert(_cpu_offset + aligned_size <= _buffer.size());
     if (_cpu_offset + aligned_size <= _buffer.size())
     {

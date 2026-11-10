@@ -37,7 +37,7 @@ auto get_from_id(WindowId id) -> WindowInfo &
 
 auto get_id_from_handle(HWND handle) -> WindowId
 {
-    return WindowId{(id::id_type)::GetWindowLongPtr(handle, GWLP_USERDATA)};
+    return WindowId{static_cast<id::id_type>(::GetWindowLongPtr(handle, GWLP_USERDATA))};
 }
 
 auto get_from_handle(HWND handle) -> WindowInfo &
@@ -56,9 +56,9 @@ auto to_wide(const char *utf8) -> std::wstring
     {
         return {};
     }
-    std::wstring wide((size_t)length, L'\0');
+    std::wstring wide(static_cast<size_t>(length), L'\0');
     ::MultiByteToWideChar(CP_UTF8, 0, utf8, -1, wide.data(), length);
-    wide.resize((size_t)length - 1); // drop the terminating null
+    wide.resize(static_cast<size_t>(length) - 1); // drop the terminating null
     return wide;
 }
 
@@ -91,7 +91,7 @@ LRESULT CALLBACK internal_window_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM
             DEBUG_OP(::SetLastError(0));
             const WindowId id{windows.add()};
             windows[id].hwnd = hwnd;
-            ::SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)id);
+            ::SetWindowLongPtr(hwnd, GWLP_USERDATA, static_cast<LONG_PTR>(id));
             assert(::GetLastError() == 0);
         }
         break;
@@ -142,11 +142,11 @@ LRESULT CALLBACK internal_window_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM
     {
         const bool is_down{msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN};
         const bool is_repeat{is_down && (lparam & (1 << 30))};
-        const u32 code{input::map_virtual_key((u32)wparam)};
+        const u32 code{input::map_virtual_key(static_cast<u32>(wparam))};
         if (!is_repeat && code != u32_invalid_id)
         {
             event = {is_down ? WindowEvent::key_down : WindowEvent::key_up, get_id_from_handle(hwnd)};
-            event.key = (input::InputCode::Code)code;
+            event.key = static_cast<input::InputCode::Code>(code);
             event.modifiers = input::modifier_keys();
             has_event = true;
         }
@@ -256,7 +256,11 @@ auto get_window_size(WindowId id) -> math::u32v4
 {
     const WindowInfo &info{get_from_id(id)};
     const RECT &area{info.is_fullscreen ? info.fullscreen_area : info.client_area};
-    return {(u32)area.left, (u32)area.top, (u32)area.right, (u32)area.bottom};
+    return {
+        static_cast<u32>(area.left),
+        static_cast<u32>(area.top),
+        static_cast<u32>(area.right),
+        static_cast<u32>(area.bottom)};
 }
 
 auto is_window_closed(WindowId id) -> bool
@@ -277,7 +281,7 @@ auto set_window_has_graphics_surface(WindowId, bool) -> void
 
 auto create_window(const WindowInitInfo *init_info /* = nullptr */) -> Window
 {
-    HWND parent{(init_info && init_info->parent) ? (HWND)init_info->parent->window : nullptr};
+    HWND parent{(init_info && init_info->parent) ? reinterpret_cast<HWND>(init_info->parent->window) : nullptr};
     assert(!init_info || !init_info->parent || init_info->parent->kind == NativeWindowHandle::win32);
 
     // Setup a window class
@@ -335,7 +339,10 @@ auto create_window(const WindowInitInfo *init_info /* = nullptr */) -> Window
 
     if (info.hwnd)
     {
-        info.native = {NativeWindowHandle::win32, (void *)::GetModuleHandleW(nullptr), (u64)info.hwnd};
+        info.native = {
+            NativeWindowHandle::win32,
+            reinterpret_cast<void *>(::GetModuleHandleW(nullptr)),
+            reinterpret_cast<u64>(info.hwnd)};
 
         ::ShowWindow(info.hwnd, SW_SHOWNORMAL);
         ::UpdateWindow(info.hwnd);

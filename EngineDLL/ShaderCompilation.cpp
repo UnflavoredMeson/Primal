@@ -299,7 +299,7 @@ class ShaderCompiler
         com_ptr<IDxcResult> results{nullptr};
         DXCall(
             hr = _compiler->Compile(
-                &buffer, args.data(), (u32)args.size(), _include_handler.Get(), IID_PPV_ARGS(&results)));
+                &buffer, args.data(), static_cast<u32>(args.size()), _include_handler.Get(), IID_PPV_ARGS(&results)));
         if (FAILED(hr))
         {
             return {};
@@ -341,7 +341,7 @@ class ShaderCompiler
 
         if (is_spirv())
         {
-            hash_byte_code((const u8 *)shader->GetBufferPointer(), shader->GetBufferSize(), result.hash);
+            hash_byte_code(static_cast<const u8 *>(shader->GetBufferPointer()), shader->GetBufferSize(), result.hash);
         }
         else
         {
@@ -351,7 +351,7 @@ class ShaderCompiler
             {
                 return {};
             }
-            DxcShaderHash *const hash_buffer{(DxcShaderHash *)hash->GetBufferPointer()};
+            DxcShaderHash *const hash_buffer{static_cast<DxcShaderHash *>(hash->GetBufferPointer())};
             // different source code could result in the same byte code, so we only care about byte code hash.
             assert(!(hash_buffer->Flags & DXC_HASHFLAG_INCLUDES_SOURCE));
             static_assert(sizeof(DxcShaderHash::HashDigest) == shader_hash_length);
@@ -362,7 +362,7 @@ class ShaderCompiler
         for (u32 i{0}; i < shader_hash_length; ++i)
         {
             char hash_bytes[4]{}; // 2 chars for hex value, a space and termination 0.
-            std::snprintf(hash_bytes, sizeof(hash_bytes), "%02x ", (u32)result.hash[i]);
+            std::snprintf(hash_bytes, sizeof(hash_bytes), "%02x ", static_cast<u32>(result.hash[i]));
             shader_log(hash_bytes);
         }
         shader_log("\n");
@@ -406,7 +406,7 @@ class ShaderCompiler
         args.emplace_back(L"-E");
         args.emplace_back(to_wstring(info.function)); // Entry function
         args.emplace_back(L"-T");
-        args.emplace_back(to_wstring(_profile_strings[(u32)info.type])); // Target profile
+        args.emplace_back(to_wstring(_profile_strings[static_cast<u32>(info.type)])); // Target profile
         args.emplace_back(L"-I");
         args.emplace_back(to_wstring(shaders_source_path)); // Include path
         args.emplace_back(L"-enable-16bit-types");
@@ -517,7 +517,7 @@ auto compiled_shaders_key(ShaderCompiler &compiler) -> std::string
         {
             for (const wchar_t c : arg)
             {
-                text += (char)c; // arguments are ASCII
+                text += static_cast<char>(c); // arguments are ASCII
             }
             text += ' ';
         }
@@ -525,12 +525,12 @@ auto compiled_shaders_key(ShaderCompiler &compiler) -> std::string
     }
 
     u8 hash[shader_hash_length]{};
-    hash_byte_code((const u8 *)text.data(), text.size(), hash);
+    hash_byte_code(reinterpret_cast<const u8 *>(text.data()), text.size(), hash);
     std::string key;
     for (const u8 b : hash)
     {
         char hex[3]{};
-        std::snprintf(hex, sizeof(hex), "%02x", (u32)b);
+        std::snprintf(hex, sizeof(hex), "%02x", static_cast<u32>(b));
         key += hex;
     }
     return key;
@@ -617,8 +617,8 @@ auto save_compiled_shaders(
         content::EngineShadersHeader header{};
         header.magic = content::EngineShadersHeader::magic_value;
         header.version = content::EngineShadersHeader::current_version;
-        header.shader_count = (u32)shaders.size();
-        file.write((const char *)&header, sizeof(header));
+        header.shader_count = static_cast<u32>(shaders.size());
+        file.write(reinterpret_cast<const char *>(&header), sizeof(header));
 
         constexpr u64 alignment{content::EngineShadersHeader::record_alignment};
         constexpr char padding[alignment]{};
@@ -626,11 +626,12 @@ auto save_compiled_shaders(
         {
             void *const byte_code{shader.byte_code->GetBufferPointer()};
             const u64 byte_code_length{shader.byte_code->GetBufferSize()};
-            file.write((char *)&byte_code_length, sizeof(byte_code_length));
-            file.write((char *)&shader.hash[0], shader_hash_length);
-            file.write((char *)byte_code, byte_code_length);
+            file.write(reinterpret_cast<const char *>(&byte_code_length), sizeof(byte_code_length));
+            file.write(reinterpret_cast<const char *>(&shader.hash[0]), shader_hash_length);
+            file.write(static_cast<char *>(byte_code), byte_code_length);
             const u64 record_size{content::CompiledShader::buffer_size(byte_code_length)};
-            file.write(padding, (std::streamsize)(math::align_size_up<alignment>(record_size) - record_size));
+            file.write(
+                padding, static_cast<std::streamsize>(math::align_size_up<alignment>(record_size) - record_size));
         }
         if (!file.flush())
         {
@@ -641,7 +642,7 @@ auto save_compiled_shaders(
     // Written last: the key only exists next to a complete shaders.bin.
     std::ofstream key_file{key_path};
     key_file << key << '\n';
-    return (bool)key_file.flush();
+    return static_cast<bool>(key_file.flush());
 }
 
 auto pack_compiled_shader(DxcCompiledShader compiled_shader, bool include_errors_and_disassembly)
@@ -650,8 +651,10 @@ auto pack_compiled_shader(DxcCompiledShader compiled_shader, bool include_errors
     if (compiled_shader.byte_code && compiled_shader.byte_code->GetBufferPointer() &&
         compiled_shader.byte_code->GetBufferSize())
     {
-        const u64 errors_length{compiled_shader.errors ? (u64)compiled_shader.errors->GetStringLength() : 0};
-        const u64 assembly_length{compiled_shader.assembly ? (u64)compiled_shader.assembly->GetStringLength() : 0};
+        const u64 errors_length{
+            compiled_shader.errors ? static_cast<u64>(compiled_shader.errors->GetStringLength()) : 0};
+        const u64 assembly_length{
+            compiled_shader.assembly ? static_cast<u64>(compiled_shader.assembly->GetStringLength()) : 0};
         const u64 extra_size{
             include_errors_and_disassembly ? sizeof(u64) + sizeof(u64) + errors_length + assembly_length : 0};
         const u64 buffer_size{
@@ -659,9 +662,11 @@ auto pack_compiled_shader(DxcCompiledShader compiled_shader, bool include_errors
             extra_size};
         std::unique_ptr<u8[]> buffer{std::make_unique<u8[]>(buffer_size)};
         utl::BlobStreamWriter blob{buffer.get(), buffer_size};
-        blob.write((u64)compiled_shader.byte_code->GetBufferSize());
+        blob.write(static_cast<u64>(compiled_shader.byte_code->GetBufferSize()));
         blob.write(compiled_shader.hash, content::CompiledShader::hash_length);
-        blob.write((u8 *)compiled_shader.byte_code->GetBufferPointer(), compiled_shader.byte_code->GetBufferSize());
+        blob.write(
+            static_cast<u8 *>(compiled_shader.byte_code->GetBufferPointer()),
+            compiled_shader.byte_code->GetBufferSize());
         if (include_errors_and_disassembly)
         {
             blob.write(errors_length);

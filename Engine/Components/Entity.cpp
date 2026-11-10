@@ -39,7 +39,7 @@ auto create(EntityInfo info) -> Entity
     }
     else
     {
-        id = EntityId{(id::id_type)generations.size()};
+        id = EntityId{static_cast<id::id_type>(generations.size())};
         generations.push_back(0);
 
         // Resize components

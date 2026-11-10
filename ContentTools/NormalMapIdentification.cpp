@@ -66,13 +66,15 @@ using sampler = Color (*)(const u8 *const);
 
 auto sample_pixel_rgb(const u8 *const pixel) -> Color
 {
-    Color c{(f32)pixel[0], (f32)pixel[1], (f32)pixel[2], (f32)pixel[3]};
+    Color c{
+        static_cast<f32>(pixel[0]), static_cast<f32>(pixel[1]), static_cast<f32>(pixel[2]), static_cast<f32>(pixel[3])};
     return c * inv255;
 }
 
 auto sample_pixel_bgr(const u8 *const pixel) -> Color
 {
-    Color c{(f32)pixel[2], (f32)pixel[1], (f32)pixel[0], (f32)pixel[3]};
+    Color c{
+        static_cast<f32>(pixel[2]), static_cast<f32>(pixel[1]), static_cast<f32>(pixel[0]), static_cast<f32>(pixel[3])};
     return c * inv255;
 }
 
@@ -93,8 +95,8 @@ auto evaluate_image(const Image *const image, sampler sample) -> bool
 {
     constexpr u32 sample_count{4096};
     const size_t image_size{image->slicePitch};
-    const size_t sample_interval{std::max(image_size / sample_count, (size_t)4)};
-    const u32 min_sample_count{std::max((u32)(image_size / sample_interval) >> 2, (u32)1)};
+    const size_t sample_interval{std::max(image_size / sample_count, static_cast<size_t>(4))};
+    const u32 min_sample_count{std::max(static_cast<u32>(image_size / sample_interval) >> 2, static_cast<u32>(1))};
     const u8 *const pixels{image->pixels};
 
     u32 accepted_samples{0};
@@ -121,13 +123,13 @@ auto evaluate_image(const Image *const image, sampler sample) -> bool
 
     if (accepted_samples >= min_sample_count)
     {
-        const f32 rejection_ratio{(f32)rejected_samples / (f32)accepted_samples};
+        const f32 rejection_ratio{static_cast<f32>(rejected_samples) / static_cast<f32>(accepted_samples)};
         if (rejection_ratio > rejection_ratio_threshold)
         {
             return false;
         }
 
-        average_color /= (f32)accepted_samples;
+        average_color /= static_cast<f32>(accepted_samples);
         const math::v3 v{average_color.r * 2.f - 1.f, average_color.g * 2.f - 1.f, average_color.b * 2.f - 1.f};
         const f32 avg_length{std::sqrt(v.x * v.x + v.y * v.y + v.z * v.z)};
         const f32 avg_normalized_z{v.z / avg_length};

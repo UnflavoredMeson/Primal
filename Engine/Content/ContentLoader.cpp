@@ -103,7 +103,7 @@ auto read_file(const std::filesystem::path &path, std::unique_ptr<u8[]> &data, u
     }
     data = std::make_unique<u8[]>(size);
     std::ifstream file{path, std::ios::in | std::ios::binary};
-    if (!file || !file.read((char *)data.get(), size))
+    if (!file || !file.read(reinterpret_cast<char *>(data.get()), size))
     {
         file.close();
         return false;

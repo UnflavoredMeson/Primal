@@ -140,12 +140,12 @@ auto generate_lights() -> void
             for (s32 z{-dim}; z < dim; ++z)
             {
                 create_light(
-                    {(f32)(x * scale.x), (f32)(y * scale.y), (f32)(z * scale.z)},
+                    {static_cast<f32>(x * scale.x), static_cast<f32>(y * scale.y), static_cast<f32>(z * scale.z)},
                     {random_float() * 3.14f, random_float() * 3.14f, random_float() * 3.14f},
                     random_float() > 0.5f ? graphics::Light::spot : graphics::Light::point,
                     left_set);
                 create_light(
-                    {(f32)(x * scale.x), (f32)(y * scale.y), (f32)(z * scale.z)},
+                    {static_cast<f32>(x * scale.x), static_cast<f32>(y * scale.y), static_cast<f32>(z * scale.z)},
                     {random_float() * 3.14f, random_float() * 3.14f, random_float() * 3.14f},
                     random_float() > 0.5f ? graphics::Light::spot : graphics::Light::point,
                     right_set);
@@ -183,35 +183,35 @@ auto test_lights([[maybe_unused]] f32 dt) -> void
 #if 0
     static f32 t{0};
     t += 0.05f;
-    for (u32 i{ 0 }; i < (u32)lights.size(); ++i)
+    for (u32 i{ 0 }; i < static_cast<u32>(lights.size()); ++i)
     {
         f32 sine{ DirectX::XMScalarSin(t + lights[i].get_id()) };
         sine *= sine;
         lights[i].intensity(2.f * sine);
     }
 #else
-    u32 count{(u32)(random_float(0.1f) * 100)};
+    u32 count{static_cast<u32>(random_float(0.1f) * 100)};
     for (u32 i{0}; i < count; ++i)
     {
         if (lights.empty())
         {
             break;
         }
-        const u32 index{(u32)(random_float() * (lights.size() - 1))};
+        const u32 index{static_cast<u32>(random_float() * (lights.size() - 1))};
         const graphics::Light light{lights[index]};
         light.is_enabled(false);
         utl::erase_unordered(lights, index);
         disabled_lights.emplace_back(light);
     }
 
-    count = (u32)(random_float(0.1f) * 50);
+    count = static_cast<u32>(random_float(0.1f) * 50);
     for (u32 i{0}; i < count; ++i)
     {
         if (lights.empty())
         {
             break;
         }
-        const u32 index{(u32)(random_float() * (lights.size() - 1))};
+        const u32 index{static_cast<u32>(random_float() * (lights.size() - 1))};
         const graphics::Light light{lights[index]};
         const game_entity::EntityId id{light.entity_id()};
         graphics::remove_light(light.get_id(), light.light_set_key());
@@ -219,14 +219,14 @@ auto test_lights([[maybe_unused]] f32 dt) -> void
         utl::erase_unordered(lights, index);
     }
 
-    count = (u32)(random_float(0.1f) * 50);
+    count = static_cast<u32>(random_float(0.1f) * 50);
     for (u32 i{0}; i < count; ++i)
     {
         if (disabled_lights.empty())
         {
             break;
         }
-        const u32 index{(u32)(random_float() * (disabled_lights.size() - 1))};
+        const u32 index{static_cast<u32>(random_float() * (disabled_lights.size() - 1))};
         const graphics::Light light{disabled_lights[index]};
         const game_entity::EntityId id{light.entity_id()};
         graphics::remove_light(light.get_id(), light.light_set_key());
@@ -234,14 +234,14 @@ auto test_lights([[maybe_unused]] f32 dt) -> void
         utl::erase_unordered(disabled_lights, index);
     }
 
-    count = (u32)(random_float(0.1f) * 100);
+    count = static_cast<u32>(random_float(0.1f) * 100);
     for (u32 i{0}; i < count; ++i)
     {
         if (disabled_lights.empty())
         {
             break;
         }
-        const u32 index{(u32)(random_float() * (disabled_lights.size() - 1))};
+        const u32 index{static_cast<u32>(random_float() * (disabled_lights.size() - 1))};
         const graphics::Light light{disabled_lights[index]};
         light.is_enabled(true);
         utl::erase_unordered(disabled_lights, index);
@@ -250,7 +250,7 @@ auto test_lights([[maybe_unused]] f32 dt) -> void
 
     constexpr f32 scale1{1};
     constexpr math::v3 scale{1.f * scale1, 0.5f * scale1, 1.f * scale1};
-    count = (u32)(random_float(0.1f) * 50);
+    count = static_cast<u32>(random_float(0.1f) * 50);
 
     for (u32 i{0}; i < count; ++i)
     {

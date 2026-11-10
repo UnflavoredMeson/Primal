@@ -98,7 +98,7 @@ D3D12UploadContext::D3D12UploadContext(u32 aligned_size)
         assert(_frame_index != u32_invalid_id);
         // Before unlocking, we prevent other threads from picking
         // this frame by making is_ready return false.
-        upload_frames[_frame_index].upload_buffer = (ID3D12Resource *)1;
+        upload_frames[_frame_index].upload_buffer = reinterpret_cast<ID3D12Resource *>(uintptr_t{1});
     }
 
     UploadFrame &frame{upload_frames[_frame_index]};
@@ -106,7 +106,7 @@ D3D12UploadContext::D3D12UploadContext(u32 aligned_size)
     NAME_D3D12_OBJECT_INDEXED(frame.upload_buffer, aligned_size, L"Upload Buffer - size");
 
     const D3D12_RANGE range{};
-    DXCall(frame.upload_buffer->Map(0, &range, (void **)&frame.cpu_address));
+    DXCall(frame.upload_buffer->Map(0, &range, reinterpret_cast<void **>(&frame.cpu_address)));
     assert(frame.cpu_address);
 
     _cmd_list = frame.cmd_list;

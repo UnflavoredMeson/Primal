@@ -79,12 +79,12 @@ auto patch_material_data(u8 const *data) -> u8 *
     const u32 texture_count{blob.read<u32>()};
     if (texture_count)
     {
-        id::id_type *const texture_ids{(id::id_type *)blob.position()};
+        id::id_type *const texture_ids{reinterpret_cast<id::id_type *>(const_cast<u8 *>(blob.position()))};
         blob.skip(sizeof(id::id_type) * texture_count);
-        *((id::id_type **)blob.position()) = texture_ids;
+        *(reinterpret_cast<id::id_type **>(const_cast<u8 *>(blob.position()))) = texture_ids;
     }
 
-    return (u8 *)blob.position();
+    return const_cast<u8 *>(blob.position());
 }
 
 auto calculate_thresholds(
@@ -239,7 +239,8 @@ EDITOR_INTERFACE auto CreateRenderSurface(HWND host, s32 width, s32 height) -> u
 
     assert(host);
     // NOTE: PlatformWin32.cpp tracks the mouse for child windows (WM_MOUSEHOVER/WM_MOUSELEAVE for the editor).
-    const platform::NativeWindowHandle parent{platform::NativeWindowHandle::win32, nullptr, (u64)host};
+    const platform::NativeWindowHandle parent{
+        platform::NativeWindowHandle::win32, nullptr, reinterpret_cast<u64>(host)};
     const platform::WindowInitInfo info{nullptr, &parent, nullptr, 0, 0, width, height};
     ViewportSurface surface{};
     surface.window = platform::create_window(&info);
@@ -247,7 +248,7 @@ EDITOR_INTERFACE auto CreateRenderSurface(HWND host, s32 width, s32 height) -> u
     surface.camera = create_camera();
     assert(surface.window.is_valid());
     surfaces.emplace_back(surface);
-    return (u32)surfaces.size() - 1;
+    return static_cast<u32>(surfaces.size()) - 1;
 }
 
 EDITOR_INTERFACE auto RemoveRenderSurface(u32 id) -> void
@@ -266,14 +267,14 @@ EDITOR_INTERFACE auto ResizeRenderSurface(u32 id) -> void
     const platform::Window &window{surfaces[id].window};
     window.resize(0, 0);
     surfaces[id].surface.resize(window.width(), window.height());
-    surfaces[id].camera.aspect_ratio((f32)window.width() / window.height());
+    surfaces[id].camera.aspect_ratio(static_cast<f32>(window.width()) / window.height());
 }
 
 EDITOR_INTERFACE auto GetWindowHandle(u32 id) -> HWND
 {
     const std::scoped_lock lock{mutex};
     assert(id < surfaces.size());
-    return (HWND)surfaces[id].window.handle()->window;
+    return reinterpret_cast<HWND>(surfaces[id].window.handle()->window);
 }
 
 EDITOR_INTERFACE auto CreateResource(u8 *data, content::AssetType::Type type) -> id::id_type
@@ -309,7 +310,7 @@ EDITOR_INTERFACE auto AddShaderGroup(ShaderGroupData const *data) -> id::id_type
     // }
     //
     utl::BlobStreamReader blob{data->data};
-    const u32 *const keys{(const u32 *)blob.position()};
+    const u32 *const keys{reinterpret_cast<const u32 *>(blob.position())};
     blob.skip(count * sizeof(u32)); // skip keys
 
     const u8 **shader_pointers{(const u8 **)alloca(count * sizeof(u8 *))};
@@ -338,7 +339,7 @@ EDITOR_INTERFACE auto CompileShader(ShaderData *data) -> u32
     assert(data && data->code && data->code_size && data->function_name);
     ShaderFileInfo info{};
     info.function = data->function_name;
-    info.type = (graphics::ShaderType::Type)data->type;
+    info.type = static_cast<graphics::ShaderType::Type>(data->type);
 
     const utl::vector<std::string> extra_args{::split(data->extra_args, ';')};
     utl::vector<std::wstring> w_extra_args{};
@@ -360,17 +361,17 @@ EDITOR_INTERFACE auto CompileShader(ShaderData *data) -> u32
 
     {
         utl::BlobStreamReader blob{compiled_shader.get()};
-        data->byte_code_size = (u32)blob.read<u64>();
+        data->byte_code_size = static_cast<u32>(blob.read<u64>());
         data->hash_size = content::CompiledShader::hash_length;
         blob.skip(data->hash_size + data->byte_code_size);
-        data->errors_size = (u32)blob.read<u64>();
-        data->assembly_size = (u32)blob.read<u64>();
+        data->errors_size = static_cast<u32>(blob.read<u64>());
+        data->assembly_size = static_cast<u32>(blob.read<u64>());
         buffer_size = data->byte_code_size + data->hash_size + data->errors_size + data->assembly_size;
     }
 
     assert(buffer_size);
 
-    data->byte_code_error_assembly_hash = (u8 *)::CoTaskMemAlloc(buffer_size);
+    data->byte_code_error_assembly_hash = static_cast<u8 *>(::CoTaskMemAlloc(buffer_size));
     assert(data->byte_code_error_assembly_hash);
 
     {
@@ -405,17 +406,17 @@ EDITOR_INTERFACE auto RenderFrame(u32 surface_id, id::id_type camera_id, u64 lig
     assert(surface_id < surfaces.size());
 
     const ViewportSurface &surface{surfaces[surface_id]};
-    const u32 count{(u32)surface.geometry_ids.size()};
+    const u32 count{static_cast<u32>(surface.geometry_ids.size())};
     const u64 item_id_buffer_size{sizeof(id::id_type) * count};
     const u64 threshold_buffer_size{sizeof(f32) * count};
     const u64 entity_id_buffer_size{sizeof(game_entity::EntityId) * count};
 
     frame_info_buffer.resize(item_id_buffer_size + threshold_buffer_size + entity_id_buffer_size);
 
-    id::id_type *item_ids{(id::id_type *)frame_info_buffer.data()};
-    f32 *thresholds{(f32 *)(frame_info_buffer.data() + item_id_buffer_size)};
-    game_entity::EntityId *entity_ids{
-        (game_entity::EntityId *)(frame_info_buffer.data() + item_id_buffer_size + threshold_buffer_size)};
+    id::id_type *item_ids{reinterpret_cast<id::id_type *>(frame_info_buffer.data())};
+    f32 *thresholds{reinterpret_cast<f32 *>(frame_info_buffer.data() + item_id_buffer_size)};
+    game_entity::EntityId *entity_ids{reinterpret_cast<game_entity::EntityId *>(
+        frame_info_buffer.data() + item_id_buffer_size + threshold_buffer_size)};
 
     if (count)
     {
@@ -513,7 +514,7 @@ EDITOR_INTERFACE auto CreateLight(
     graphics::LightInitInfo info{};
     info.light_set_key = light_set_key;
     info.entity_id = entity_id;
-    info.type = (graphics::Light::Type)blob.read<id::id_type>();
+    info.type = static_cast<graphics::Light::Type>(blob.read<id::id_type>());
     info.intensity = blob.read<f32>();
     info.color = {blob.read<f32>(), blob.read<f32>(), blob.read<f32>()};
     info.is_enabled = blob.read<u32>() != 0;
