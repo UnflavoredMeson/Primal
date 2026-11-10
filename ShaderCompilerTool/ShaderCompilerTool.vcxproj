@@ -51,6 +51,8 @@
   <ItemDefinitionGroup>
     <ClCompile>
       <WarningLevel>Level4</WarningLevel>
+      <!-- /WX; opt out with /p:PrimalWarningsAsErrors=false (CMake: PRIMAL_WARNINGS_AS_ERRORS) -->
+      <TreatWarningAsError Condition="'$(PrimalWarningsAsErrors)' != 'false'">true</TreatWarningAsError>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(SolutionDir)Engine\Common\;$(SolutionDir)Engine\;$(SolutionDir)EngineDLL\</AdditionalIncludeDirectories>

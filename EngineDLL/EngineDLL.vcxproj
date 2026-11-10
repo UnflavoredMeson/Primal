@@ -44,6 +44,8 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='DebugEditor|x64'">
     <ClCompile>
       <WarningLevel>Level4</WarningLevel>
+      <!-- /WX; opt out with /p:PrimalWarningsAsErrors=false (CMake: PRIMAL_WARNINGS_AS_ERRORS) -->
+      <TreatWarningAsError Condition="'$(PrimalWarningsAsErrors)' != 'false'">true</TreatWarningAsError>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;ENGINEDLL_EXPORTS;_WINDOWS;_USRDLL;USE_WITH_EDITOR;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
@@ -67,6 +69,8 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseEditor|x64'">
     <ClCompile>
       <WarningLevel>Level4</WarningLevel>
+      <!-- /WX; opt out with /p:PrimalWarningsAsErrors=false (CMake: PRIMAL_WARNINGS_AS_ERRORS) -->
+      <TreatWarningAsError Condition="'$(PrimalWarningsAsErrors)' != 'false'">true</TreatWarningAsError>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>

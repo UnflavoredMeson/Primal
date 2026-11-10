@@ -182,6 +182,8 @@
     <ClCompile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level4</WarningLevel>
+      <!-- /WX; opt out with /p:PrimalWarningsAsErrors=false (CMake: PRIMAL_WARNINGS_AS_ERRORS) -->
+      <TreatWarningAsError Condition="'$(PrimalWarningsAsErrors)' != 'false'">true</TreatWarningAsError>
       <PreprocessorDefinitions>_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
@@ -205,6 +207,8 @@
     <ClCompile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level4</WarningLevel>
+      <!-- /WX; opt out with /p:PrimalWarningsAsErrors=false (CMake: PRIMAL_WARNINGS_AS_ERRORS) -->
+      <TreatWarningAsError Condition="'$(PrimalWarningsAsErrors)' != 'false'">true</TreatWarningAsError>
       <PreprocessorDefinitions>_DEBUG;_LIB;USE_WITH_EDITOR;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeaderFile>
@@ -230,6 +234,8 @@
     <ClCompile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level4</WarningLevel>
+      <!-- /WX; opt out with /p:PrimalWarningsAsErrors=false (CMake: PRIMAL_WARNINGS_AS_ERRORS) -->
+      <TreatWarningAsError Condition="'$(PrimalWarningsAsErrors)' != 'false'">true</TreatWarningAsError>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -259,6 +265,8 @@
     <ClCompile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level4</WarningLevel>
+      <!-- /WX; opt out with /p:PrimalWarningsAsErrors=false (CMake: PRIMAL_WARNINGS_AS_ERRORS) -->
+      <TreatWarningAsError Condition="'$(PrimalWarningsAsErrors)' != 'false'">true</TreatWarningAsError>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>NDEBUG;_LIB;USE_WITH_EDITOR;%(PreprocessorDefinitions)</PreprocessorDefinitions>
