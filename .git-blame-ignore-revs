@@ -7,3 +7,6 @@
 
 # clang-tidy auto-fixes (const, braces, structured bindings, noexcept), #endif comments removed
 53f3c85f7ba0973b649722ec4e21eb29806ff50a
+
+# C-style casts -> C++ casts (clang-tidy modernize-avoid-c-style-cast + hand fixes)
+04b34d9af1b6e278def78854d08a88079b09d2b1
