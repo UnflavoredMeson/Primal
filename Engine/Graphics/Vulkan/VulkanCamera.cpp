@@ -2,6 +2,7 @@
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 // Port of Direct3D12/D3D12Camera.cpp (Copyright (c) Arash Khatami); API-independent apart from the names.
 #include "VulkanCamera.h"
+
 #include "EngineAPI/GameEntity.h"
 
 namespace primal::graphics::vulkan::camera

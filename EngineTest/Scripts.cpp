@@ -1,8 +1,8 @@
 // Copyright (c) Arash Khatami
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "Components/Entity.h"
-#include "Components/Transform.h"
 #include "Components/Script.h"
+#include "Components/Transform.h"
 #include "EngineAPI/Input.h"
 
 using namespace primal;

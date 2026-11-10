@@ -7,8 +7,9 @@
 //
 // Usage: PrimalShaderCompiler [d3d12] [vulkan]   (no arguments: the platform's default backend)
 
-#include "ShaderCompilation.h"
 #include "Platform/Platform.h"
+#include "ShaderCompilation.h"
+
 #include <cstdio>
 #include <cstring>
 

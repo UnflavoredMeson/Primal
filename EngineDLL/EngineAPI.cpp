@@ -1,18 +1,18 @@
 // Copyright (c) Arash Khatami
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
+#include "../ContentTools/ToolsCommon.h"
 #include "Common.h"
 #include "CommonHeaders.h"
-#include "Components/Script.h"
-#include "Graphics/Renderer.h"
-#include "Platform/PlatformTypes.h"
-#include "Platform/Platform.h"
-#include "Content/ContentToEngine.h"
-#include "ShaderCompilation.h"
-#include "../ContentTools/ToolsCommon.h"
-#include "Utilities/IOStream.h"
 #include "Components/Entity.h"
 #include "Components/Geometry.h"
+#include "Components/Script.h"
 #include "Components/Transform.h"
+#include "Content/ContentToEngine.h"
+#include "Graphics/Renderer.h"
+#include "Platform/Platform.h"
+#include "Platform/PlatformTypes.h"
+#include "ShaderCompilation.h"
+#include "Utilities/IOStream.h"
 #include "Utilities/Threading.h"
 
 #ifndef WIN32_LEAN_AND_MEAN

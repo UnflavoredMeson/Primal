@@ -1,6 +1,7 @@
 // Copyright (c) Arash Khatami
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "ToolsCommon.h"
+
 #include <DirectXTex.h>
 #include <dxgi1_6.h>
 
@@ -14,10 +15,10 @@ namespace
 
 namespace shaders
 {
+#include "EnvMapProcessing_ComputeBrdfIntegrationLutCS.inc"
 #include "EnvMapProcessing_EquirectangularToCubeMapCS.inc"
 #include "EnvMapProcessing_PrefilterDiffuseEnvMapCS.inc"
 #include "EnvMapProcessing_PrefilterSpecularEnvMapCS.inc"
-#include "EnvMapProcessing_ComputeBrdfIntegrationLutCS.inc"
 };
 
 constexpr u32 prefiltered_diffuse_cubemap_size{32};

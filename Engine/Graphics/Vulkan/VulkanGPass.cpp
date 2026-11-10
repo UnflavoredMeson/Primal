@@ -1,15 +1,16 @@
 // Copyright (c) 2026 Charles Smith
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "VulkanGPass.h"
+
 #include "Components/Entity.h"
 #include "Components/Transform.h"
+#include "Graphics/Shaders/SharedTypes.h"
 #include "VulkanCamera.h"
 #include "VulkanContent.h"
 #include "VulkanCore.h"
 #include "VulkanLight.h"
 #include "VulkanLightCulling.h"
 #include "VulkanResources.h"
-#include "Graphics/Shaders/SharedTypes.h"
 
 namespace primal::graphics::vulkan::gpass
 {

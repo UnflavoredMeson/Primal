@@ -2,8 +2,8 @@
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #pragma once
 #include "CommonHeaders.h"
-#include "Window.h"
 #include "EngineAPI/Input.h"
+#include "Window.h"
 
 #if PRIMAL_PLATFORM_WINDOWS
 // NOTE: kept so code that relied on PlatformTypes.h pulling in Windows.h keeps compiling.

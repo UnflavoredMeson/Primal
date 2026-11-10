@@ -2,8 +2,8 @@
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "CommonHeaders.h"
 #if PRIMAL_PLATFORM_WINDOWS
-#include "Platform/PlatformTypes.h"
 #include "Platform/Platform.h"
+#include "Platform/PlatformTypes.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN

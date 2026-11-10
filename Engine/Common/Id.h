@@ -1,7 +1,10 @@
 // Copyright (c) Arash Khatami
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #pragma once
-#include "CommonHeaders.h"
+#include "PrimitiveTypes.h"
+
+#include <cassert>
+#include <type_traits>
 
 namespace primal::id
 {

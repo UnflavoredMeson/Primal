@@ -3,6 +3,7 @@
 #pragma once
 #include "VulkanCommonHeaders.h"
 #include "VulkanHelpers.h"
+
 #include <type_traits>
 
 namespace primal::graphics::vulkan::camera

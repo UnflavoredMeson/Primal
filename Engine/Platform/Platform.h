@@ -3,6 +3,7 @@
 #pragma once
 #include "CommonHeaders.h"
 #include "Window.h"
+
 #include <filesystem>
 
 namespace primal::platform

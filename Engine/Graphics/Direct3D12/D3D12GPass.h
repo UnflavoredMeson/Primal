@@ -3,6 +3,8 @@
 #pragma once
 
 #include "D3D12CommonHeaders.h"
+#include "D3D12Helpers.h"
+#include "D3D12Resources.h"
 
 namespace primal::graphics::d3d12
 {

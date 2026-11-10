@@ -1,9 +1,9 @@
 // Copyright (c) Arash Khatami
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
+#include "Components/Geometry.h"
 #include "EngineAPI/GameEntity.h"
 #include "EngineAPI/Light.h"
 #include "EngineAPI/TransformComponent.h"
-#include "Components/Geometry.h"
 #include "Graphics/Renderer.h"
 
 #define RANDOM_LIGHTS 1

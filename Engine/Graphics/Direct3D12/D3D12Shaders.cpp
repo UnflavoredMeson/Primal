@@ -1,6 +1,7 @@
 // Copyright (c) Arash Khatami
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "D3D12Shaders.h"
+
 #include "Content/ContentLoader.h"
 #include "Content/ContentToEngine.h"
 

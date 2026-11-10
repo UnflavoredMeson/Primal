@@ -1,9 +1,10 @@
 // Copyright (c) Arash Khatami
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #pragma once
-#include "Test.h"
-#include "../Platform/PlatformTypes.h"
 #include "../Platform/Platform.h"
+#include "../Platform/PlatformTypes.h"
+#include "Test.h"
+
 #include <cstdio>
 #include <iterator>
 

@@ -4,13 +4,14 @@
 // vulkan_light_buffer).
 #include "VulkanLight.h"
 
-#include <algorithm>
+#include "Components/Transform.h"
+#include "EngineAPI/GameEntity.h"
+#include "Graphics/Shaders/SharedTypes.h"
+#include "VulkanContent.h"
 #include "VulkanCore.h"
 #include "VulkanResources.h"
-#include "Graphics/Shaders/SharedTypes.h"
-#include "EngineAPI/GameEntity.h"
-#include "Components/Transform.h"
-#include "VulkanContent.h"
+
+#include <algorithm>
 
 namespace primal::graphics::vulkan::light
 {

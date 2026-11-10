@@ -10,8 +10,8 @@
 #define NOMINMAX
 #endif
 
-#include <dxgi1_6.h>
 #include <d3d12.h>
+#include <dxgi1_6.h>
 #include <wrl.h>
 
 #pragma comment(lib, "dxgi.lib")
@@ -71,6 +71,3 @@ using id3d12_graphics_command_list = ID3D12GraphicsCommandList6;
 #define NAME_D3D12_OBJECT(x, name)
 #define NAME_D3D12_OBJECT_INDEXED(x, n, name)
 #endif
-
-#include "D3D12Helpers.h"
-#include "D3D12Resources.h"

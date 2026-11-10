@@ -1,11 +1,12 @@
 // Copyright (c) Arash Khatami
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "D3D12Content.h"
-#include "D3D12Core.h"
-#include "Utilities/IOStream.h"
+
 #include "Content/ContentToEngine.h"
+#include "D3D12Core.h"
 #include "D3D12GPass.h"
 #include "D3D12Upload.h"
+#include "Utilities/IOStream.h"
 
 namespace primal::graphics::d3d12::content
 {

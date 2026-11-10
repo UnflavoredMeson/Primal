@@ -1,11 +1,12 @@
 // Copyright (c) Arash Khatami
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "D3D12PostProcess.h"
+
 #include "D3D12Core.h"
-#include "D3D12Shaders.h"
-#include "D3D12Surface.h"
 #include "D3D12GPass.h"
 #include "D3D12LightCulling.h"
+#include "D3D12Shaders.h"
+#include "D3D12Surface.h"
 
 namespace primal::graphics::d3d12::fx
 {

@@ -2,9 +2,10 @@
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #pragma once
 #include "../Engine/Common/PlatformDetection.h"
-#include <thread>
+
 #include <chrono>
 #include <string>
+#include <thread>
 
 #ifndef TEST_ENTITY_COMPONENTS
 #define TEST_ENTITY_COMPONENTS 0
@@ -28,6 +29,10 @@ class Test
 };
 
 #if PRIMAL_PLATFORM_WINDOWS
+// Lean: the full Windows.h pulls in winsock, whose shutdown() clashes with the tests' own.
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
 #include <Windows.h>
 #else
 #include <cstdio>

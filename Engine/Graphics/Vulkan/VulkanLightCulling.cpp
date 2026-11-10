@@ -1,13 +1,14 @@
 // Copyright (c) 2026 Charles Smith
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "VulkanLightCulling.h"
+
+#include "Graphics/Shaders/SharedTypes.h"
 #include "VulkanCamera.h"
 #include "VulkanCore.h"
 #include "VulkanGPass.h"
 #include "VulkanLight.h"
 #include "VulkanResources.h"
 #include "VulkanShaders.h"
-#include "Graphics/Shaders/SharedTypes.h"
 
 namespace primal::graphics::vulkan::delight
 {

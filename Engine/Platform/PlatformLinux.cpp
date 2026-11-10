@@ -2,10 +2,12 @@
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "CommonHeaders.h"
 #if PRIMAL_PLATFORM_LINUX
+#include "Input/InputSDL.h"
 #include "Platform.h"
 #include "PlatformTypes.h"
-#include "Input/InputSDL.h"
+
 #include <SDL3/SDL.h>
+
 #include <cstdio>
 
 // Linux counterpart of PlatformWin32.cpp, using SDL3 for standalone windows.

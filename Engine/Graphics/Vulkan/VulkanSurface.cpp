@@ -1,9 +1,11 @@
 // Copyright (c) 2026 Charles Smith
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "VulkanSurface.h" // first: includes Windows.h with NOMINMAX (VulkanCommonHeaders.h)
+
+#include "Platform/PlatformTypes.h"
 #include "VulkanCore.h"
 #include "VulkanLightCulling.h"
-#include "Platform/PlatformTypes.h"
+
 #include <algorithm>
 
 #if PRIMAL_PLATFORM_LINUX

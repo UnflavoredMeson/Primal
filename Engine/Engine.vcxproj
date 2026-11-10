@@ -20,6 +20,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Common\CommonDefinitions.h" />
     <ClInclude Include="Common\CommonHeaders.h" />
     <ClInclude Include="Common\PlatformDetection.h" />
     <ClInclude Include="Common\Id.h" />

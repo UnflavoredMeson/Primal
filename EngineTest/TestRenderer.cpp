@@ -1,16 +1,18 @@
 // Copyright (c) Arash Khatami
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
-#include "Platform/PlatformTypes.h"
-#include "Platform/Platform.h"
-#include "Graphics/Renderer.h"
-#include "Content/ContentToEngine.h"
-#include "Components/Entity.h"
-#include "Components/Transform.h"
-#include "Components/Script.h"
-#include "Components/Geometry.h"
-#include "Input/Input.h"
 #include "TestRenderer.h"
+
 #include "../EngineDLL/ShaderCompilation.h"
+#include "Components/Entity.h"
+#include "Components/Geometry.h"
+#include "Components/Script.h"
+#include "Components/Transform.h"
+#include "Content/ContentToEngine.h"
+#include "Graphics/Renderer.h"
+#include "Input/Input.h"
+#include "Platform/Platform.h"
+#include "Platform/PlatformTypes.h"
+
 #include <cstdio>
 #include <filesystem>
 #include <fstream>

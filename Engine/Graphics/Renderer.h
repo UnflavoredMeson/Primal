@@ -2,9 +2,9 @@
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #pragma once
 #include "CommonHeaders.h"
-#include "Platform/Window.h"
 #include "EngineAPI/Camera.h"
 #include "EngineAPI/Light.h"
+#include "Platform/Window.h"
 
 namespace primal::graphics
 {
