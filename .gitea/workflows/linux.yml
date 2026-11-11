@@ -20,7 +20,7 @@ jobs:
     name: Format and include cycles
     runs-on: ubuntu-latest
     container:
-      image: gitea.unflavoredmeson.com/unflavoredmeson/primal-ci:2026-11-09
+      image: gitea.unflavoredmeson.com/unflavoredmeson/primal-ci:2026-11-09-b
     steps:
       - uses: actions/checkout@v4
       - run: Tools/CI/ci.sh checks
@@ -29,7 +29,7 @@ jobs:
     name: Build (${{ matrix.preset }})
     runs-on: ubuntu-latest
     container:
-      image: gitea.unflavoredmeson.com/unflavoredmeson/primal-ci:2026-11-09
+      image: gitea.unflavoredmeson.com/unflavoredmeson/primal-ci:2026-11-09-b
     strategy:
       fail-fast: false
       matrix:
@@ -42,7 +42,7 @@ jobs:
     name: ASan and UBSan
     runs-on: ubuntu-latest
     container:
-      image: gitea.unflavoredmeson.com/unflavoredmeson/primal-ci:2026-11-09
+      image: gitea.unflavoredmeson.com/unflavoredmeson/primal-ci:2026-11-09-b
     steps:
       - uses: actions/checkout@v4
       - run: Tools/CI/ci.sh sanitizers
@@ -51,7 +51,7 @@ jobs:
     name: clang-tidy
     runs-on: ubuntu-latest
     container:
-      image: gitea.unflavoredmeson.com/unflavoredmeson/primal-ci:2026-11-09
+      image: gitea.unflavoredmeson.com/unflavoredmeson/primal-ci:2026-11-09-b
     steps:
       - uses: actions/checkout@v4
       - run: Tools/CI/ci.sh tidy

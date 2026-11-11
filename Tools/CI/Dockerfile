@@ -21,6 +21,9 @@ RUN echo "Server = https://archive.archlinux.org/repos/${ARCH_SNAPSHOT}/\$repo/o
         sdl3 vulkan-headers vulkan-icd-loader directx-shader-compiler \
         # Tools/*.py, Tools/CI/ci.sh
         python git \
+        # the graphics tests (GraphicsTests/): a software Vulkan device (lavapipe), the validation layer, and a
+        # virtual X display (xvfb-run)
+        vulkan-swrast vulkan-validation-layers xorg-server-xvfb \
         # the Actions runner runs JavaScript actions (actions/checkout) with the container's node
         nodejs \
     && pacman -Scc --noconfirm \

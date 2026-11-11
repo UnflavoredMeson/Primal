@@ -16,6 +16,7 @@
 #include "VulkanUpload.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cstdarg>
 #include <cstdlib>
 
@@ -339,8 +340,12 @@ utl::vector<DeferredObject> deferred_releases[frame_buffer_count]{};
 u32 deferred_releases_flag[frame_buffer_count]{};
 std::mutex deferred_releases_mutex{};
 
-// Number of validation errors reported (validation is only on in debug builds). Printed at shutdown.
-u32 validation_error_count{0};
+// Validation messages since the last initialize() (validation is only on in debug builds). The error count is
+// printed at shutdown; both stay readable afterwards through vulkan::validation_stats(). Atomic: the layer calls
+// debug_callback() from whichever thread made the Vulkan call.
+std::atomic<u32> validation_error_count{0};
+std::atomic<u32> validation_warning_count{0};
+bool validation_enabled{false};
 
 struct Options
 {
@@ -372,6 +377,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(
     else if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
     {
         label = "warning";
+        ++validation_warning_count;
     }
     log_message("::Vulkan %s: %s\n", label, data && data->pMessage ? data->pMessage : "");
     return VK_FALSE;
@@ -572,6 +578,8 @@ auto create_instance() -> bool
     {
         return false;
     }
+    // Without VK_EXT_debug_utils the layer's messages don't reach debug_callback(), so they aren't counted.
+    validation_enabled = validation && debug_utils;
     if (validation)
     {
         log_message("::Vulkan validation layer enabled%s\n", layer_settings ? " (+ synchronization validation)" : "");
@@ -1051,6 +1059,11 @@ auto initialize() -> bool
     {
         shutdown();
     }
+    // NOTE: not in shutdown(): destroying the device and the instance is when leaked objects are reported, and the
+    //       tests read the counts after it.
+    validation_error_count = 0;
+    validation_warning_count = 0;
+    validation_enabled = false;
 
     if (!create_instance())
     {
@@ -1164,11 +1177,19 @@ auto shutdown() -> void
     }
     vk_instance = VK_NULL_HANDLE;
 
-    if (validation_error_count)
+    if (const u32 error_count{validation_error_count})
     {
-        log_message("::Vulkan: %u validation error(s) were reported.\n", validation_error_count);
+        log_message("::Vulkan: %u validation error(s) were reported.\n", error_count);
     }
-    validation_error_count = 0;
+}
+
+auto validation_stats() -> ValidationStats
+{
+    return {
+        .is_enabled = validation_enabled,
+        .error_count = validation_error_count,
+        .warning_count = validation_warning_count,
+    };
 }
 
 auto set_option(RendererOption::Option option, const void *const parameter, [[maybe_unused]] u32 parameter_size) -> void

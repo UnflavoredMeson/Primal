@@ -34,6 +34,8 @@ add_subdirectory(EngineTest)
 # The automated tests (doctest), also registered with CTest.
 enable_testing()
 add_subdirectory(UnitTests)
+# The automated tests that need a display and a Vulkan device.
+add_subdirectory(GraphicsTests)
 
 # Self-contained header check (target header_check, not built by default).
 include(PrimalHeaderCheck)

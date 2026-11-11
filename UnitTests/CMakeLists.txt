@@ -8,12 +8,14 @@
 
 add_executable(UnitTests
     Main.cpp
+    ContentLoaderTests.cpp
     EntityTests.cpp
     FreeListTests.cpp
     IdTests.cpp
     InputTests.cpp
     IOStreamTests.cpp
     MathTests.cpp
+    ShaderBlobTests.cpp
     VectorTests.cpp
 )
 

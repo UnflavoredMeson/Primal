@@ -3,6 +3,7 @@
 #pragma once
 #include "VulkanCommonHeaders.h"
 #include "VulkanHelpers.h"
+#include "VulkanInterface.h"
 
 #include <type_traits>
 
@@ -35,6 +36,7 @@ namespace primal::graphics::vulkan::core
 
 auto initialize() -> bool;
 auto shutdown() -> void;
+[[nodiscard]] auto validation_stats() -> ValidationStats;
 
 namespace detail
 {

@@ -7,6 +7,7 @@
 # To enable it, once a Windows machine or VM exists:
 #   1. Install on it: VS 2026 Build Tools (v145 toolset, C++ desktop workload, .NET SDK for the editor), Git, the
 #      Vulkan SDK (sets VULKAN_SDK) and the FBX SDK (ContentTools, editor configurations only).
+#      Details, and the runner setup: Tools/CI/WindowsRunner.md.
 #   2. Rename this file to `windows.yml` and remove the leading `# ` from every line below this block.
 #
 # name: Windows
