@@ -50,4 +50,8 @@ auto get_platform_interface(PlatformInterface &pi) -> void
     pi.platform = GraphicsPlatform::vulkan;
 }
 
+auto validation_stats() -> ValidationStats
+{
+    return core::validation_stats();
+}
 }

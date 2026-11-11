@@ -10,6 +10,7 @@ file(GLOB_RECURSE _primal_headers RELATIVE ${PROJECT_SOURCE_DIR} CONFIGURE_DEPEN
     ${PROJECT_SOURCE_DIR}/Engine/*.h
     ${PROJECT_SOURCE_DIR}/EngineDLL/*.h
     ${PROJECT_SOURCE_DIR}/EngineTest/*.h
+    ${PROJECT_SOURCE_DIR}/GraphicsTests/*.h
 )
 # Third-party code, Windows-only headers, and IncludeWindowCpp.h (it includes a .cpp into the platform TU).
 list(FILTER _primal_headers EXCLUDE REGEX

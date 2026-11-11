@@ -10,6 +10,8 @@ ns = {"m": "http://schemas.microsoft.com/developer/msbuild/2003"}
 d3d12_inc = f"{xwin}/packages/Microsoft.Direct3D.D3D12.1.619.4/build/native/include"
 dxc_inc = f"{xwin}/packages/Microsoft.Direct3D.DXC.1.9.2602.24/build/native/include"
 vk_inc = f"{xwin}/vk-include"
+# doctest.h as downloaded by the Linux CMake configure (cmake/PrimalDependencies.cmake).
+doctest_inc = f"{repo}/build/linux-debug/_deps/doctest-src"
 
 def sources(vcxproj):
     root = ET.parse(os.path.join(repo, vcxproj)).getroot()
@@ -60,6 +62,8 @@ dbs = {
     "shadertool": [command(f, ["_DEBUG", "_CONSOLE"], test_inc, f"{repo}/ShaderCompilerTool")
                    for f in ["ShaderCompilerTool/Main.cpp", "EngineDLL/ShaderCompilation.cpp"]],
 }
+dbs["unittests"] = [command(f, ["_DEBUG", "_CONSOLE"], test_inc + [doctest_inc],
+                            f"{repo}/UnitTests") for f in sources("UnitTests/UnitTests.vcxproj")]
 tests = ["ENTITY_COMPONENTS", "WINDOW", "RENDERER", "SURFACES"]
 for t in tests:
     files = ["EngineTest/Main.cpp"]

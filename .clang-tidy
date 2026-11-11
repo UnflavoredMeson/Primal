@@ -63,7 +63,7 @@ Checks: >
 
 WarningsAsErrors: ''
 # Only report headers of our own code (not SDL, DXC, DirectXMath, system headers).
-HeaderFilterRegex: '.*/(Engine|EngineDLL|EngineTest|ContentTools)/.*'
+HeaderFilterRegex: '.*/(Engine|EngineDLL|EngineTest|UnitTests|ContentTools)/.*'
 ExcludeHeaderFilterRegex: '.*/(ThirdParty|MikkTSpace)/.*'
 FormatStyle: file
 

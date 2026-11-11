@@ -175,6 +175,8 @@ auto unload_game() -> void
     {
         game_entity::remove(entity.get_id());
     }
+    // NOTE: without this, the next unload_game() would remove the same entities again.
+    entities.clear();
 }
 
 auto load_engine_shaders(std::unique_ptr<u8[]> &shaders, u64 &size) -> bool

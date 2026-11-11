@@ -116,9 +116,10 @@ auto register_script(size_t tag, script_creator func) -> u8
 
 auto get_script_creator(size_t tag) -> script_creator
 {
+    // NOTE: nullptr for a name that isn't registered (a game.bin or an editor project that names a script the
+    //       game code no longer has). The callers check for it.
     const auto script = primal::script::registry().find(tag);
-    assert(script != primal::script::registry().end() && script->first == tag);
-    return script->second;
+    return script != primal::script::registry().end() ? script->second : nullptr;
 }
 
 #ifdef USE_WITH_EDITOR

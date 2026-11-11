@@ -1,0 +1,8 @@
+# Copyright (c) 2026 Charles Smith
+# Distributed under the MIT license. See the LICENSE file in the project root for more information.
+#
+# LeakSanitizer suppressions for the sanitizer run of the graphics tests (ci.sh, with the noclose.c shim).
+# Only leaks in third-party libraries that the engine can't free. One per line, with where it was seen.
+
+# libX11 21.x through SDL 3.4 (X11 window title as a text property): 14 bytes per UTF-8 window title.
+leak:_Xutf8TextListToTextProperty

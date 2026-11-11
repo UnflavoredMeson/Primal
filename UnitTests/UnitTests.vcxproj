@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright (c) 2026 Charles Smith
+  Distributed under the MIT license. See the LICENSE file in the project root for more information.
+
+  UnitTests: the automated tests (doctest). One console executable runs every test and exits non-zero when one
+  fails. Same sources as UnitTests/CMakeLists.txt: keep the two lists in step.
+-->
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>16.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{d7dc3c8c-90e9-41bb-8e38-256d8f1d60f5}</ProjectGuid>
+    <RootNamespace>UnitTests</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup>
+    <!-- doctest (one header), downloaded by the DownloadDoctest target below into the solution's packages folder.
+         Same version and hash as cmake/PrimalDependencies.cmake: change both.
+         An external include directory: its warnings are off (ExternalWarningLevel below). -->
+    <DoctestVersion>2.5.3</DoctestVersion>
+    <DoctestHash>cfd518a3ef90f67e1f3ba514df23fb3627437de1a2feeba78cf5062a40021421</DoctestHash>
+    <DoctestDir>$(SolutionDir)packages\doctest.$(DoctestVersion)\</DoctestDir>
+    <ExternalIncludePath>$(DoctestDir);$(ExternalIncludePath)</ExternalIncludePath>
+  </PropertyGroup>
+  <!-- Compiler settings as in EngineTest.vcxproj (they must match engine.lib). -->
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <!-- /WX; opt out with /p:PrimalWarningsAsErrors=false (CMake: PRIMAL_WARNINGS_AS_ERRORS) -->
+      <TreatWarningAsError Condition="'$(PrimalWarningsAsErrors)' != 'false'">true</TreatWarningAsError>
+      <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>$(SolutionDir)Engine\Common\;$(SolutionDir)Engine\</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpp23</LanguageStandard>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <FloatingPointModel>Fast</FloatingPointModel>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>$(OutDir)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>engine.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="Main.cpp" />
+    <ClCompile Include="ContentLoaderTests.cpp" />
+    <ClCompile Include="EntityTests.cpp" />
+    <ClCompile Include="FreeListTests.cpp" />
+    <ClCompile Include="IdTests.cpp" />
+    <ClCompile Include="InputTests.cpp" />
+    <ClCompile Include="IOStreamTests.cpp" />
+    <ClCompile Include="MathTests.cpp" />
+    <ClCompile Include="ShaderBlobTests.cpp" />
+    <ClCompile Include="VectorTests.cpp" />
+  </ItemGroup>
+  <Import Project="$(SolutionDir)Engine\Vulkan.props" />
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+  <!-- Downloads doctest.h once; the hash is checked on every build. -->
+  <Target Name="DownloadDoctest" BeforeTargets="PrepareForBuild">
+    <DownloadFile Condition="!Exists('$(DoctestDir)doctest.h')" SourceUrl="https://raw.githubusercontent.com/doctest/doctest/v$(DoctestVersion)/doctest/doctest.h" DestinationFolder="$(DoctestDir)" />
+    <VerifyFileHash File="$(DoctestDir)doctest.h" Algorithm="SHA256" Hash="$(DoctestHash)" />
+  </Target>
+</Project>

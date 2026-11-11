@@ -7,6 +7,7 @@
 # To enable it, once a Windows machine or VM exists:
 #   1. Install on it: VS 2026 Build Tools (v145 toolset, C++ desktop workload, .NET SDK for the editor), Git, the
 #      Vulkan SDK (sets VULKAN_SDK) and the FBX SDK (ContentTools, editor configurations only).
+#      Details, and the runner setup: Tools/CI/WindowsRunner.md.
 #   2. Rename this file to `windows.yml` and remove the leading `# ` from every line below this block.
 #
 # name: Windows
@@ -94,6 +95,12 @@
 #             & $env:MSBUILD EngineTest\EngineTest.vcxproj "/p:SolutionDir=$PWD\" /p:Configuration=${{ matrix.configuration }} /p:Platform=x64 /p:PrimalEngineTest=$test "/p:IntDir=x64\${{ matrix.configuration }}\$test\" /p:TargetName=EngineTest_$test /m /nologo /v:minimal
 #             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 #           }
+#
+#       # The automated tests (UnitTests/, doctest): a console program, built with the solution.
+#       - name: Run the unit tests
+#         run: |
+#           & "x64\${{ matrix.configuration }}\UnitTests.exe"
+#           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 #
 #       # The test repeats until it reads 'q' from stdin. It is a GUI-subsystem program, hence Start-Process.
 #       - name: Run the entity-components test
