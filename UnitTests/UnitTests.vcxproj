@@ -97,6 +97,7 @@
     <ClCompile Include="IdTests.cpp" />
     <ClCompile Include="InputTests.cpp" />
     <ClCompile Include="IOStreamTests.cpp" />
+    <ClCompile Include="LogTests.cpp" />
     <ClCompile Include="MathTests.cpp" />
     <ClCompile Include="ShaderBlobTests.cpp" />
     <ClCompile Include="VectorTests.cpp" />

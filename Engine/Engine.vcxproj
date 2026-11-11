@@ -81,6 +81,7 @@
     <ClInclude Include="Utilities\IOStream.h" />
     <ClInclude Include="Utilities\Math.h" />
     <ClInclude Include="Utilities\MathSimd.h" />
+    <ClInclude Include="Core\Log.h" />
     <ClInclude Include="Utilities\MathTypes.h" />
     <ClInclude Include="Utilities\Threading.h" />
     <ClInclude Include="Utilities\Utilities.h" />
@@ -94,6 +95,7 @@
     <ClCompile Include="Content\ContentLoader.cpp" />
     <ClCompile Include="Content\ContentToEngine.cpp" />
     <ClCompile Include="Core\Engine.cpp" />
+    <ClCompile Include="Core\Log.cpp" />
     <ClCompile Include="Core\MainWin32.cpp" />
     <ClCompile Include="Graphics\Direct3D12\D3D12Camera.cpp" />
     <ClCompile Include="Graphics\Direct3D12\D3D12Content.cpp" />

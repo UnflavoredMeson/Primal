@@ -22,6 +22,7 @@
     <ClInclude Include="Graphics\Renderer.h" />
     <ClInclude Include="Utilities\Math.h" />
     <ClInclude Include="Utilities\MathSimd.h" />
+    <ClInclude Include="Core\Log.h" />
     <ClInclude Include="Graphics\GraphicsPlatformInterface.h" />
     <ClInclude Include="Graphics\Direct3D12\D3D12Interface.h" />
     <ClInclude Include="Graphics\Direct3D12\D3D12Core.h" />
@@ -73,6 +74,7 @@
     <ClCompile Include="Components\Script.cpp" />
     <ClCompile Include="Core\MainWin32.cpp" />
     <ClCompile Include="Core\Engine.cpp" />
+    <ClCompile Include="Core\Log.cpp" />
     <ClCompile Include="Content\ContentLoader.cpp" />
     <ClCompile Include="Platform\PlatformWin32.cpp" />
     <ClCompile Include="Graphics\Renderer.cpp" />

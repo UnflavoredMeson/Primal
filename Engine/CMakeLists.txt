@@ -12,6 +12,7 @@ target_sources(Engine PRIVATE
     Content/ContentLoader.cpp
     Content/ContentToEngine.cpp
     Core/Engine.cpp
+    Core/Log.cpp
     Graphics/Renderer.cpp
     Input/Input.cpp
 )

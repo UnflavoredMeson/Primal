@@ -14,6 +14,7 @@ add_executable(UnitTests
     IdTests.cpp
     InputTests.cpp
     IOStreamTests.cpp
+    LogTests.cpp
     MathTests.cpp
     ShaderBlobTests.cpp
     VectorTests.cpp
