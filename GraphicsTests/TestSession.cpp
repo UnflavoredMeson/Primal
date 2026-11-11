@@ -148,9 +148,7 @@ auto create_entity(
     script::detail::script_creator script_creator) -> game_entity::Entity
 {
     transform::InitInfo transform_info{};
-    const DirectX::XMVECTOR quat{DirectX::XMQuaternionRotationRollPitchYawFromVector(DirectX::XMLoadFloat3(&rotation))};
-    math::v4 rot_quat{};
-    DirectX::XMStoreFloat4(&rot_quat, quat);
+    const math::v4 rot_quat{math::quat_from_euler(rotation)};
     std::memcpy(&transform_info.rotation[0], &rot_quat.x, sizeof(transform_info.rotation));
     std::memcpy(&transform_info.position[0], &position.x, sizeof(transform_info.position));
 

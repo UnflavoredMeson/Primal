@@ -350,7 +350,7 @@ class LightSet
         assert(index < _cullable_lights.size());
 
         umbra = math::clamp(umbra, 0.f, math::pi - math::epsilon);
-        _cullable_lights[index].CosUmbra = DirectX::XMScalarCos(umbra * 0.5f);
+        _cullable_lights[index].CosUmbra = math::cos(umbra * 0.5f);
         make_dirty(index);
 
         if (penumbra(id) < umbra)
@@ -368,7 +368,7 @@ class LightSet
         assert(index < _cullable_lights.size());
 
         penumbra = math::clamp(penumbra, umbra(id), math::pi);
-        _cullable_lights[index].CosPenumbra = DirectX::XMScalarCos(penumbra * 0.5f);
+        _cullable_lights[index].CosPenumbra = math::cos(penumbra * 0.5f);
         calculate_cone_bounding_sphere(_cullable_lights[index], _bounding_spheres[index]);
 
         _culling_info[index].CosPenumbra = _cullable_lights[index].CosPenumbra;
@@ -437,7 +437,7 @@ class LightSet
         assert(_owners[_cullable_owners[index]].data_index == index);
         assert(owner.type == graphics::Light::spot);
         assert(index < _cullable_lights.size());
-        return DirectX::XMScalarACos(_cullable_lights[index].CosUmbra) * 2.f;
+        return math::acos(_cullable_lights[index].CosUmbra) * 2.f;
     }
 
     auto penumbra(LightId id) const -> f32
@@ -447,7 +447,7 @@ class LightSet
         assert(_owners[_cullable_owners[index]].data_index == index);
         assert(owner.type == graphics::Light::spot);
         assert(index < _cullable_lights.size());
-        return DirectX::XMScalarACos(_cullable_lights[index].CosPenumbra) * 2.f;
+        return math::acos(_cullable_lights[index].CosPenumbra) * 2.f;
     }
 
     constexpr auto type(LightId id) const -> graphics::Light::Type
@@ -524,21 +524,19 @@ class LightSet
   private:
     auto calculate_cone_bounding_sphere(const hlsl::LightParameters &params, hlsl::Sphere &sphere) -> void
     {
-        using namespace DirectX;
-
-        const XMVECTOR tip{XMLoadFloat3(&params.Position)};
-        const XMVECTOR direction{XMLoadFloat3(&params.Direction)};
+        const math::vec tip{math::load(params.Position)};
+        const math::vec direction{math::load(params.Direction)};
         const f32 cone_cos{params.CosPenumbra};
         assert(cone_cos > -0.001f); // use a small negative value, so cos(180) wouldn't trigger the assertion.
 
         if (cone_cos >= 0.707107f)
         {
             sphere.Radius = params.Range / (2.f * cone_cos);
-            XMStoreFloat3(&sphere.Center, tip + sphere.Radius * direction);
+            math::store(sphere.Center, tip + sphere.Radius * direction);
         }
         else
         {
-            XMStoreFloat3(&sphere.Center, tip + cone_cos * params.Range * direction);
+            math::store(sphere.Center, tip + cone_cos * params.Range * direction);
             const f32 cone_sin{std::sqrt(1.f - cone_cos * cone_cos)};
             sphere.Radius = cone_sin * params.Range;
         }
@@ -583,8 +581,8 @@ class LightSet
             const SpotLightParams &p{info.spot_params};
             params.Attenuation = p.attenuation;
             params.Range = p.range;
-            params.CosUmbra = DirectX::XMScalarCos(p.umbra * 0.5f);
-            params.CosPenumbra = DirectX::XMScalarCos(p.penumbra * 0.5f);
+            params.CosUmbra = math::cos(p.umbra * 0.5f);
+            params.CosPenumbra = math::cos(p.penumbra * 0.5f);
         }
     }
 

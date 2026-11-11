@@ -21,6 +21,7 @@
     <ClInclude Include="Platform\PlatformTypes.h" />
     <ClInclude Include="Graphics\Renderer.h" />
     <ClInclude Include="Utilities\Math.h" />
+    <ClInclude Include="Utilities\MathSimd.h" />
     <ClInclude Include="Graphics\GraphicsPlatformInterface.h" />
     <ClInclude Include="Graphics\Direct3D12\D3D12Interface.h" />
     <ClInclude Include="Graphics\Direct3D12\D3D12Core.h" />

@@ -34,4 +34,9 @@ using m3x3 = DirectX::XMFLOAT3X3; // NOTE: DirectXMath doesn't have aligned 3x3 
 using m4x4 = DirectX::XMFLOAT4X4;
 using m4x4a = DirectX::XMFLOAT4X4A;
 
+// SIMD register types, for calculations (MathSimd.h has the functions). Not for storage: load from and store to
+// the types above.
+using vec = DirectX::XMVECTOR;
+using mat = DirectX::XMMATRIX;
+
 }

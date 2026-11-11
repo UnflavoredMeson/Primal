@@ -118,18 +118,17 @@ auto write_submesh_data(ByteWriter &writer, const Submesh &mesh) -> void
 
 auto add_quad(Submesh &mesh, math::v3 center, math::v3 normal, math::v3 tangent, f32 half_u, f32 half_v) -> void
 {
-    using namespace DirectX;
-    const XMVECTOR n{XMLoadFloat3(&normal)};
-    const XMVECTOR t{XMLoadFloat3(&tangent)};
-    const XMVECTOR b{XMVector3Cross(n, t)};
-    const XMVECTOR c{XMLoadFloat3(&center)};
+    const math::vec n{math::load(normal)};
+    const math::vec t{math::load(tangent)};
+    const math::vec b{math::cross3(n, t)};
+    const math::vec c{math::load(center)};
 
     const u16 first{static_cast<u16>(mesh.positions.size())};
     constexpr f32 corners[4][2]{{-1.f, -1.f}, {-1.f, 1.f}, {1.f, 1.f}, {1.f, -1.f}};
     for (const auto &corner : corners)
     {
         math::v3 position{};
-        XMStoreFloat3(&position, c + t * (corner[0] * half_u) + b * (corner[1] * half_v));
+        math::store(position, c + t * (corner[0] * half_u) + b * (corner[1] * half_v));
         mesh.positions.push_back(position);
         mesh.normals.push_back(normal);
         mesh.tangents.push_back(tangent);

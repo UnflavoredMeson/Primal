@@ -44,9 +44,7 @@ class SpinScript : public script::EntityScript
     {
         _angle += dt * math::two_pi;
         const math::v3 rotation{0.f, _angle, 0.f};
-        math::v4 quaternion{};
-        DirectX::XMStoreFloat4(
-            &quaternion, DirectX::XMQuaternionRotationRollPitchYawFromVector(DirectX::XMLoadFloat3(&rotation)));
+        const math::v4 quaternion{math::quat_from_euler(rotation)};
         set_rotation(quaternion);
     }
 

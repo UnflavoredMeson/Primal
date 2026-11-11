@@ -9,7 +9,6 @@ namespace primal::tools
 namespace
 {
 
-using namespace DirectX;
 using primitive_mesh_creator = void (*)(Scene &, const PrimitiveInitInfo &info);
 
 auto create_plane(Scene &scene, const PrimitiveInitInfo &info) -> void;
@@ -225,9 +224,9 @@ auto create_uv_sphere(const PrimitiveInitInfo &info) -> Mesh
         {
             const f32 phi{i * phi_step};
             m.positions[c++] = {
-                info.size.x * XMScalarSin(theta) * XMScalarCos(phi),
-                info.size.y * XMScalarCos(theta),
-                -info.size.z * XMScalarSin(theta) * XMScalarSin(phi)};
+                info.size.x * math::sin(theta) * math::cos(phi),
+                info.size.y * math::cos(theta),
+                -info.size.z * math::sin(theta) * math::sin(phi)};
         }
     }
 

@@ -48,10 +48,10 @@ auto get_sample_direction_equirectangular(u32 face, f32 u, f32 v) -> math::v3
         {-1.f, -u, -v}, // Z- Back
     };
 
-    XMVECTOR dir{XMLoadFloat3(&directions[face])};
-    dir = XMVector3Normalize(dir);
+    math::vec dir{math::load(directions[face])};
+    dir = math::normalize3(dir);
     math::v3 normalized_dir;
-    XMStoreFloat3(&normalized_dir, dir);
+    math::store(normalized_dir, dir);
 
     return normalized_dir;
 }
@@ -59,7 +59,7 @@ auto get_sample_direction_equirectangular(u32 face, f32 u, f32 v) -> math::v3
 auto direction_to_equirectangular(const math::v3 &dir) -> math::v2
 {
     const f32 phi{std::atan2f(dir.y, dir.x)};
-    const f32 theta{XMScalarACos(dir.z)};
+    const f32 theta{math::acos(dir.z)};
     const f32 s{phi * math::inv_two_pi + 0.5f};
     const f32 t{theta * math::inv_pi};
 
