@@ -14,7 +14,8 @@ module;
 //     }
 //
 // frame::run() runs
-//     2. the sync point: entity commands queued since the last frame (game_entity::queue_create/queue_remove);
+//     2. the sync point: entity commands queued since the last frame (game_entity::queue_create/queue_remove),
+//        then begin_play() of every script created since the last frame;
 //     3. the game update: every script's update(dt), which writes transform changes into per-worker caches;
 //     4. the transform update: the caches are applied and the changed world matrices computed (job system);
 //     5-6. render: the function passed in (render preparation, recording, submit).

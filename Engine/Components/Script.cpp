@@ -19,6 +19,10 @@ utl::vector<id::id_type> id_mapping;
 
 utl::vector<id::generation_type> generations;
 utl::deque<ScriptId> free_ids;
+// Per script id slot: 1 once begin_play() was called (end_play() is called only then).
+utl::vector<u8> has_begun_play;
+// Scripts created since the last begin_play_new_scripts().
+utl::vector<ScriptId> new_scripts;
 
 // One cache per job system thread (jobs::worker_index()), so that scripts can later run in parallel without
 // locking. They run one after another for now.
@@ -47,6 +51,18 @@ auto script_names() -> utl::vector<std::string> &
     return names;
 }
 #endif
+
+// The script of this id hasn't been removed (Release too, unlike exists()).
+auto is_alive(ScriptId id) -> bool
+{
+    const id::id_type index{id::index(id)};
+    return index < generations.size() && generations[index] == id::generation(id) && id::is_valid(id_mapping[index]);
+}
+
+auto script_of(ScriptId id) -> EntityScript &
+{
+    return *entity_scripts[id_mapping[id::index(id)]];
+}
 
 #if _DEBUG
 auto exists(ScriptId id) -> bool
@@ -171,13 +187,16 @@ auto create(InitInfo info, game_entity::Entity entity) -> Component
         id = ScriptId{static_cast<id::id_type>(id_mapping.size())};
         id_mapping.emplace_back();
         generations.push_back(0);
+        has_begun_play.push_back(0);
     }
+    has_begun_play[id::index(id)] = 0;
 
     assert(id::is_valid(id));
     const id::id_type index{static_cast<id::id_type>(entity_scripts.size())};
     entity_scripts.emplace_back(info.script_creator(entity));
     assert(entity_scripts.back()->get_id() == entity.get_id());
     id_mapping[id::index(id)] = index;
+    new_scripts.push_back(id);
     return Component{id};
 }
 
@@ -185,6 +204,12 @@ auto remove(Component c) -> void
 {
     assert(c.is_valid() && exists(c.get_id()));
     const ScriptId id{c.get_id()};
+    if (has_begun_play[id::index(id)])
+    {
+        has_begun_play[id::index(id)] = 0;
+        // NOTE: before the index is read: end_play() may create or remove other scripts, which moves them.
+        script_of(id).end_play();
+    }
     const id::id_type index{id_mapping[id::index(id)]};
     const ScriptId last_id{entity_scripts.back()->script().get_id()};
     utl::erase_unordered(entity_scripts, index);
@@ -195,6 +220,22 @@ auto remove(Component c) -> void
     {
         free_ids.push_back(id);
     }
+}
+
+auto begin_play_new_scripts() -> void
+{
+    // By index: a begin_play() may create scripts, which are added to the list and begin play here too.
+    for (u32 i{0}; i < new_scripts.size(); ++i)
+    {
+        const ScriptId id{new_scripts[i]};
+        // Removed again before it could begin play: skipped (and no end_play()).
+        if (is_alive(id) && !has_begun_play[id::index(id)])
+        {
+            has_begun_play[id::index(id)] = 1;
+            script_of(id).begin_play();
+        }
+    }
+    new_scripts.clear();
 }
 
 auto update_scripts(f32 dt) -> void
@@ -228,6 +269,7 @@ auto apply_transform_changes() -> void
 
 auto update(f32 dt) -> void
 {
+    begin_play_new_scripts();
     update_scripts(dt);
     apply_transform_changes();
 }

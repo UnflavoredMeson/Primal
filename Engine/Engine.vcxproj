@@ -83,7 +83,6 @@
     <ClInclude Include="Utilities\MathSimd.h" />
     <ClInclude Include="Core\Log.h" />
     <ClInclude Include="Utilities\MathTypes.h" />
-    <ClInclude Include="Utilities\Threading.h" />
     <ClInclude Include="Utilities\Utilities.h" />
     <ClInclude Include="Utilities\Vector.h" />
   </ItemGroup>

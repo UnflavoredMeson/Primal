@@ -34,6 +34,11 @@ auto {0}::update([[maybe_unused]] float dt) -> void
 
 }}
 
+auto {0}::end_play() -> void
+{{
+
+}}
+
 }} // namespace {1}";
 
     private static readonly string _hCode = @"#pragma once
@@ -47,6 +52,7 @@ public:
 
     auto begin_play() -> void override;
     auto update(float dt) -> void override;
+    auto end_play() -> void override;
 private:
 }};
 

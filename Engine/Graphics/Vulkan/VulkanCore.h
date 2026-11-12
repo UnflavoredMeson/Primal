@@ -149,6 +149,17 @@ auto submit_to_graphics_queue(const VkSubmitInfo2 &submit) -> void;
 [[nodiscard]] auto current_frame_index() -> u32;
 auto set_deferred_releases_flag(u32 frame_idx) -> void;
 
+// Secondary command buffers for recording in jobs. Each thread records into its own
+// command pool per frame; a pool is reset when its frame starts again.
+// - prepare_thread_command_pools(): called by the recording thread before it starts the jobs; creates the pools
+//   the job system's threads need (jobs::worker_count() + one for a thread outside the pool).
+// - begin_secondary(): from a job; returns a begun secondary command buffer of the calling thread's pool for the
+//   current frame. The caller ends it.
+auto prepare_thread_command_pools() -> void;
+[[nodiscard]] auto begin_secondary(const VkCommandBufferInheritanceInfo &inheritance) -> VkCommandBuffer;
+// PRIMAL_VULKAN_PARALLEL_RECORDING=0 turns parallel recording off (for measurements).
+[[nodiscard]] auto parallel_recording_enabled() -> bool;
+
 [[nodiscard]] auto vsync_enabled() -> bool;
 // Names an object for validation messages and RenderDoc (no-op without VK_EXT_debug_utils).
 auto set_object_name(u64 handle, VkObjectType type, const char *name) -> void;

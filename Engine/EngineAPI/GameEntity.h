@@ -75,10 +75,21 @@ class EntityScript : public game_entity::Entity
 {
   public:
     virtual ~EntityScript() = default;
+    // Lifetime, in order (all on the frame thread, except update() later, when scripts run in parallel):
+    // - the constructor: when the entity is created; other entities created with it may not exist yet;
+    // - begin_play(): at the next sync point of a frame (frame::run()), before the first update(); every entity
+    //   created before that sync point exists;
+    // - update(dt): once per frame;
+    // - end_play(): when the entity or the script is removed (also when the game unloads), only if begin_play()
+    //   was called; the entity still exists. Entities to remove from here: game_entity::queue_remove();
+    // - the destructor.
     virtual auto begin_play() -> void
     {
     }
     virtual auto update(f32) -> void
+    {
+    }
+    virtual auto end_play() -> void
     {
     }
 

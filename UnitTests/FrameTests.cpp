@@ -8,6 +8,8 @@
 #include <doctest.h>
 
 #include <algorithm>
+#include <array>
+#include <string_view>
 #include <vector>
 
 import primal.frame;
@@ -107,6 +109,96 @@ class SpawningScript : public script::EntityScript
     bool _has_spawned{false};
 };
 REGISTER_SCRIPT(SpawningScript);
+
+// A short log that can't throw (the destructor writes to it).
+class EventLog
+{
+  public:
+    auto add(char event) noexcept -> void
+    {
+        if (_count < _events.size())
+        {
+            _events[_count++] = event;
+        }
+    }
+    auto clear() noexcept -> void
+    {
+        _count = 0;
+    }
+    [[nodiscard]] auto empty() const noexcept -> bool
+    {
+        return _count == 0;
+    }
+    [[nodiscard]] auto operator==(std::string_view other) const noexcept -> bool
+    {
+        return std::string_view{_events.data(), _count} == other;
+    }
+
+  private:
+    std::array<char, 64> _events{};
+    size_t _count{0};
+};
+
+// Logs its lifetime hooks: 'b' begin_play, 'u' update, 'e' end_play, 'd' destructor.
+class LifetimeScript : public script::EntityScript
+{
+  public:
+    static inline EventLog events;
+    static inline frame::Phase begin_play_phase{frame::Phase::between_frames};
+
+    explicit LifetimeScript(game_entity::Entity entity)
+        : script::EntityScript{entity}
+    {
+    }
+    DISABLE_COPY_AND_MOVE(LifetimeScript);
+    ~LifetimeScript() override
+    {
+        events.add('d');
+    }
+
+    auto begin_play() -> void override
+    {
+        events.add('b');
+        begin_play_phase = frame::phase();
+    }
+    auto update(f32) -> void override
+    {
+        events.add('u');
+    }
+    auto end_play() -> void override
+    {
+        // The entity still exists.
+        events.add(game_entity::is_alive(get_id()) ? 'e' : '!');
+    }
+};
+REGISTER_SCRIPT(LifetimeScript);
+
+// In begin_play(), creates an entity with a LifetimeScript, directly (allowed at the sync point).
+class CreatingScript : public script::EntityScript
+{
+  public:
+    static inline game_entity::Entity created{};
+
+    explicit CreatingScript(game_entity::Entity entity)
+        : script::EntityScript{entity}
+    {
+    }
+
+    auto begin_play() -> void override
+    {
+        transform::InitInfo info{transform_info()};
+        script::InitInfo script_info{&script::detail::create_script<LifetimeScript>};
+        created = game_entity::create({.transform = &info, .script = &script_info});
+    }
+};
+REGISTER_SCRIPT(CreatingScript);
+
+auto create_with_script(script::detail::script_creator creator) -> game_entity::Entity
+{
+    transform::InitInfo info{transform_info()};
+    script::InitInfo script_info{creator};
+    return game_entity::create({.transform = &info, .script = &script_info});
+}
 
 auto collect(game_entity::Entity entity, void *user_data) -> void
 {
@@ -277,6 +369,84 @@ TEST_CASE("jobs on several threads can queue entity commands")
 
     jobs::shutdown();
     log::set_level(level);
+}
+
+TEST_CASE("begin_play() runs once, at the next sync point, before the first update()")
+{
+    LifetimeScript::events.clear();
+    const game_entity::Entity entity{create_with_script(&script::detail::create_script<LifetimeScript>)};
+    CHECK(LifetimeScript::events.empty());
+
+    run_frame();
+    CHECK(LifetimeScript::events == "bu");
+    CHECK(LifetimeScript::begin_play_phase == frame::Phase::sync);
+    run_frame();
+    CHECK(LifetimeScript::events == "buu");
+
+    // Removed between frames: end_play() while the entity still exists, then the destructor.
+    game_entity::remove(entity.get_id());
+    CHECK(LifetimeScript::events == "buued");
+}
+
+TEST_CASE("a queued removal calls end_play() at the sync point")
+{
+    LifetimeScript::events.clear();
+    const game_entity::Entity entity{create_with_script(&script::detail::create_script<LifetimeScript>)};
+    run_frame();
+    game_entity::queue_remove(entity.get_id());
+    run_frame();
+    // Frame 2: the sync point removes the entity before the scripts update.
+    CHECK(LifetimeScript::events == "bued");
+    CHECK_FALSE(game_entity::is_alive(entity.get_id()));
+}
+
+TEST_CASE("a script removed before it began play gets neither begin_play() nor end_play()")
+{
+    LifetimeScript::events.clear();
+    const game_entity::Entity entity{create_with_script(&script::detail::create_script<LifetimeScript>)};
+    game_entity::remove(entity.get_id());
+    run_frame();
+    CHECK(LifetimeScript::events == "d");
+}
+
+TEST_CASE("replacing a script component ends the old script's play")
+{
+    LifetimeScript::events.clear();
+    const game_entity::Entity entity{create_with_script(&script::detail::create_script<LifetimeScript>)};
+    run_frame();
+    REQUIRE(LifetimeScript::events == "bu");
+
+    script::InitInfo script_info{&script::detail::create_script<LifetimeScript>};
+    CHECK(game_entity::update_component(entity.get_id(), {.script = &script_info}, ComponentType::script));
+    CHECK(LifetimeScript::events == "bued");
+    run_frame();
+    // The new script begins play at the next sync point.
+    CHECK(LifetimeScript::events == "buedbu");
+
+    game_entity::remove(entity.get_id());
+}
+
+TEST_CASE("a script created by a begin_play() begins play at the same sync point")
+{
+    LifetimeScript::events.clear();
+    CreatingScript::created = {};
+    const game_entity::Entity creator{create_with_script(&script::detail::create_script<CreatingScript>)};
+    run_frame();
+    REQUIRE(CreatingScript::created.is_valid());
+    CHECK(LifetimeScript::events == "bu");
+
+    game_entity::remove(CreatingScript::created.get_id());
+    game_entity::remove(creator.get_id());
+}
+
+TEST_CASE("script::update() without frames begins play first")
+{
+    LifetimeScript::events.clear();
+    const game_entity::Entity entity{create_with_script(&script::detail::create_script<LifetimeScript>)};
+    script::update(0.1f);
+    script::update(0.1f);
+    CHECK(LifetimeScript::events == "buu");
+    game_entity::remove(entity.get_id());
 }
 
 TEST_SUITE_END();

@@ -51,7 +51,6 @@
     <ClInclude Include="Graphics\Direct3D12\D3D12LightCulling.h" />
     <ClInclude Include="Components\Geometry.h" />
     <ClInclude Include="EngineAPI\GeometryComponent.h" />
-    <ClInclude Include="Utilities\Threading.h" />
     <ClInclude Include="Graphics\Vulkan\VulkanCommonHeaders.h" />
     <ClInclude Include="Graphics\Vulkan\VulkanCamera.h" />
     <ClInclude Include="Graphics\Vulkan\VulkanContent.h" />

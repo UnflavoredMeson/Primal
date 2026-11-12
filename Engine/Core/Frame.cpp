@@ -51,6 +51,7 @@ auto run_update_phases(f32 dt) -> void
 
     enter(Phase::sync);
     game_entity::process_queued_commands();
+    script::begin_play_new_scripts();
 
     enter(Phase::game_update);
     script::update_scripts(dt);

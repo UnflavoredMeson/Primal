@@ -16,8 +16,12 @@
 #include "VulkanUpload.h"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cstdlib>
+#include <memory>
+
+import primal.jobs;
 
 namespace primal::graphics::vulkan::core
 {
@@ -284,6 +288,19 @@ VkDebugUtilsMessengerEXT debug_messenger{VK_NULL_HANDLE};
 VkPhysicalDevice main_physical_device{VK_NULL_HANDLE};
 VkDevice main_device{VK_NULL_HANDLE};
 VulkanCommand gfx_command;
+
+// One per thread that records secondary command buffers: a pool per frame, and the buffers allocated from it
+// (reused after the pool is reset). Slot jobs::worker_index(), or the last slot for a thread outside the pool.
+struct ThreadCommandPools
+{
+    std::array<VkCommandPool, frame_buffer_count> pools{};
+    std::array<utl::vector<VkCommandBuffer>, frame_buffer_count> buffers{};
+    std::array<u32, frame_buffer_count> used{};
+};
+// unique_ptr: the vector grows on the recording thread while no job records; a job keeps a reference meanwhile.
+utl::vector<std::unique_ptr<ThreadCommandPools>> thread_command_pools;
+bool parallel_recording{true};
+
 surface_collection surfaces;
 VmaAllocator vma_allocator{VK_NULL_HANDLE};
 VulkanBuffer zero_buffer_object{};
@@ -1024,6 +1041,74 @@ auto deferred_release(VkObjectType type, u64 handle, VmaAllocation allocation) -
 }
 }
 
+namespace
+{
+
+// PRIMAL_VULKAN_PARALLEL_RECORDING=0 records every draw on the rendering thread.
+auto parallel_recording_from_environment() -> bool
+{
+    constexpr const char *name{"PRIMAL_VULKAN_PARALLEL_RECORDING"};
+#ifdef _MSC_VER
+    // std::getenv is deprecated by MSVC (C4996).
+    char *env{nullptr};
+    size_t size{0};
+    if (_dupenv_s(&env, &size, name) != 0 || !env)
+    {
+        return true;
+    }
+    const bool enabled{env[0] != '0'};
+    std::free(env);
+    return enabled;
+#else
+    const char *const env{std::getenv(name)};
+    return !env || env[0] != '0';
+#endif
+}
+
+auto create_thread_command_pools() -> std::unique_ptr<ThreadCommandPools>
+{
+    auto pools{std::make_unique<ThreadCommandPools>()};
+    VkCommandPoolCreateInfo pool_info{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
+    pool_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+    pool_info.queueFamilyIndex = graphics_queue_family();
+    for (VkCommandPool &pool : pools->pools)
+    {
+        VkCall(::vkCreateCommandPool(main_device, &pool_info, nullptr, &pool));
+    }
+    return pools;
+}
+
+// After the frame's fence was waited for: its secondary command buffers aren't in use anymore.
+auto reset_thread_command_pools(u32 frame_idx) -> void
+{
+    for (const std::unique_ptr<ThreadCommandPools> &pools : thread_command_pools)
+    {
+        if (pools->used[frame_idx])
+        {
+            VkCall(::vkResetCommandPool(main_device, pools->pools[frame_idx], 0));
+            pools->used[frame_idx] = 0;
+        }
+    }
+}
+
+// After the GPU is idle (gfx_command.release()). Destroying a pool frees its command buffers.
+auto release_thread_command_pools() -> void
+{
+    for (const std::unique_ptr<ThreadCommandPools> &pools : thread_command_pools)
+    {
+        for (const VkCommandPool pool : pools->pools)
+        {
+            if (pool)
+            {
+                ::vkDestroyCommandPool(main_device, pool, nullptr);
+            }
+        }
+    }
+    thread_command_pools.clear();
+}
+
+}
+
 auto initialize() -> bool
 {
     if (main_device)
@@ -1035,6 +1120,7 @@ auto initialize() -> bool
     validation_error_count = 0;
     validation_warning_count = 0;
     validation_enabled = false;
+    parallel_recording = parallel_recording_from_environment();
 
     if (!create_instance())
     {
@@ -1080,6 +1166,7 @@ auto initialize() -> bool
 auto shutdown() -> void
 {
     gfx_command.release();
+    release_thread_command_pools();
 
     for (u32 i{0}; i < frame_buffer_count; ++i)
     {
@@ -1281,6 +1368,48 @@ auto static_sampler(vkx::StaticSampler::Type type) -> VkSampler
     return static_samplers[type];
 }
 
+auto prepare_thread_command_pools() -> void
+{
+    const u32 slots{jobs::worker_count() + 1};
+    while (thread_command_pools.size() < slots)
+    {
+        thread_command_pools.emplace_back(create_thread_command_pools());
+    }
+}
+
+auto begin_secondary(const VkCommandBufferInheritanceInfo &inheritance) -> VkCommandBuffer
+{
+    const u32 worker{jobs::worker_index()};
+    const u32 slot{worker == u32_invalid_id ? jobs::worker_count() : worker};
+    assert(slot < thread_command_pools.size() && "Call prepare_thread_command_pools() before recording in jobs.");
+    ThreadCommandPools &pools{*thread_command_pools[slot]};
+    const u32 frame_idx{current_frame_index()};
+
+    utl::vector<VkCommandBuffer> &buffers{pools.buffers[frame_idx]};
+    const u32 index{pools.used[frame_idx]++};
+    if (index == buffers.size())
+    {
+        VkCommandBufferAllocateInfo alloc_info{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
+        alloc_info.commandPool = pools.pools[frame_idx];
+        alloc_info.level = VK_COMMAND_BUFFER_LEVEL_SECONDARY;
+        alloc_info.commandBufferCount = 1;
+        VkCommandBuffer cmd{VK_NULL_HANDLE};
+        VkCall(::vkAllocateCommandBuffers(main_device, &alloc_info, &cmd));
+        buffers.push_back(cmd);
+    }
+
+    VkCommandBufferBeginInfo begin_info{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+    begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT | VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT;
+    begin_info.pInheritanceInfo = &inheritance;
+    VkCall(::vkBeginCommandBuffer(buffers[index], &begin_info));
+    return buffers[index];
+}
+
+auto parallel_recording_enabled() -> bool
+{
+    return parallel_recording;
+}
+
 auto current_frame_index() -> u32
 {
     return gfx_command.frame_index();
@@ -1364,6 +1493,7 @@ auto render_surface(SurfaceId id, FrameInfo info) -> void
     // Wait for the GPU to finish with this frame's command buffer and reset it.
     const VkCommandBuffer cmd{gfx_command.begin_frame()};
     const u32 frame_idx{current_frame_index()};
+    reset_thread_command_pools(frame_idx);
 
     if (deferred_releases_flag[frame_idx])
     {

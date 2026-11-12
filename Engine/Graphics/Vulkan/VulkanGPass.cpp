@@ -76,6 +76,8 @@ struct GpassCache
     // fill_per_object_data(): one entry per entity (not per render item).
     utl::vector<id::id_type> object_entity_ids;
     utl::vector<u32> item_objects; // per render item: its entity's index in object_entity_ids
+    // record_pass(): the secondary command buffers of the pass being recorded, in draw order.
+    utl::vector<VkCommandBuffer> secondaries;
 
     [[nodiscard]] auto items_cache() -> content::render_item::ItemsCache
     {
@@ -139,7 +141,21 @@ struct GpassCache
         per_object_data.resize(count);
         material_data.resize(count);
     }
-} frame_cache;
+};
+
+// One cache per surface (indexed by the surface id), so that surfaces could later be prepared and recorded at the
+// same time (issue #3). Grown by prepare_render_frame() on the rendering thread.
+std::vector<GpassCache> frame_caches;
+
+auto surface_cache(const VulkanFrameInfo &vulkan_info) -> GpassCache &
+{
+    const u32 index{id::index(vulkan_info.surface_id)};
+    if (index >= frame_caches.size())
+    {
+        frame_caches.resize(index + 1);
+    }
+    return frame_caches[index];
+}
 
 auto create_buffers(math::u32v2 size) -> bool
 {
@@ -181,7 +197,7 @@ auto create_buffers(math::u32v2 size) -> bool
 // entities are listed first; their data is computed in parallel (job system) straight into the constant buffer.
 auto fill_per_object_data(const VulkanFrameInfo &vulkan_info) -> void
 {
-    GpassCache &cache{frame_cache};
+    GpassCache &cache{surface_cache(vulkan_info)};
     const u32 render_items_count{cache.size()};
 
     cache.object_entity_ids.clear();
@@ -208,14 +224,14 @@ auto fill_per_object_data(const VulkanFrameInfo &vulkan_info) -> void
     jobs::parallel_for(
         object_count,
         batch_size,
-        [&vulkan_info, objects](u32 begin, u32 end)
+        [&cache, &vulkan_info, objects](u32 begin, u32 end)
         {
             const math::mat vp{vulkan_info.camera->view_projection()};
             for (u32 i{begin}; i < end; ++i)
             {
                 hlsl::PerObjectData data{};
                 transform::get_transform_matrices(
-                    game_entity::EntityId{frame_cache.object_entity_ids[i]}, data.World, data.InvWorld);
+                    game_entity::EntityId{cache.object_entity_ids[i]}, data.World, data.InvWorld);
                 const math::mat world{math::load(data.World)};
                 math::store(data.WorldViewProjection, math::mul(world, vp));
                 std::memcpy(objects + static_cast<size_t>(i) * stride, &data, sizeof(hlsl::PerObjectData));
@@ -233,7 +249,7 @@ auto prepare_render_frame(const VulkanFrameInfo &vulkan_info) -> void
 {
     assert(vulkan_info.info);
 
-    GpassCache &cache{frame_cache};
+    GpassCache &cache{surface_cache(vulkan_info)};
     cache.clear();
     // No camera (e.g. the SURFACES test) or nothing to draw.
     if (!vulkan_info.camera || !vulkan_info.info->render_item_ids || !vulkan_info.info->render_item_count)
@@ -291,9 +307,8 @@ auto prepare_render_frame(const VulkanFrameInfo &vulkan_info) -> void
 }
 
 // Root CBVs/SRVs that change per render item (D3D12: set_root_parameters()).
-auto add_per_item_root_parameters(vkx::RootDescriptors &root, u32 cache_index) -> void
+auto add_per_item_root_parameters(vkx::RootDescriptors &root, const GpassCache &cache, u32 cache_index) -> void
 {
-    const GpassCache &cache{frame_cache};
     assert(cache_index < cache.size());
 
     switch (cache.material_types[cache_index])
@@ -313,12 +328,150 @@ auto add_per_item_root_parameters(vkx::RootDescriptors &root, u32 cache_index) -
     }
 }
 
-auto draw_item(VkCommandBuffer cmd, u32 cache_index) -> void
+auto draw_item(VkCommandBuffer cmd, const GpassCache &cache, u32 cache_index) -> void
 {
-    const content::submesh::IndexBufferView &ibv{frame_cache.index_buffer_views[cache_index]};
+    const content::submesh::IndexBufferView &ibv{cache.index_buffer_views[cache_index]};
     const u32 index_count{ibv.size_in_bytes >> (ibv.index_type == VK_INDEX_TYPE_UINT16 ? 1 : 2)};
     ::vkCmdBindIndexBuffer(cmd, ibv.buffer, ibv.offset, ibv.index_type);
     ::vkCmdDrawIndexed(cmd, index_count, 1, 0, 0, 0);
+}
+
+// Records the depth prepass draws of items [begin, end). The first item binds the resource heap and the global
+// root parameters, so a range can start a command buffer of its own.
+auto record_depth_items(
+    VkCommandBuffer cmd,
+    const VulkanFrameInfo &vulkan_info,
+    const GpassCache &cache,
+    u32 begin,
+    u32 end) -> void
+{
+    VkPipelineLayout current_layout{VK_NULL_HANDLE};
+    VkPipeline current_pipeline{VK_NULL_HANDLE};
+
+    for (u32 i{begin}; i < end; ++i)
+    {
+        vkx::RootDescriptors root{};
+        const vkx::RootSignature &signature{cache.root_signatures[i]};
+        if (current_layout != signature.layout)
+        {
+            current_layout = signature.layout;
+            root.cbv(OpaqueRegister::global_shader_data, vulkan_info.global_shader_data);
+            vkx::bind_resource_heap(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, signature);
+        }
+
+        if (current_pipeline != cache.depth_pipelines[i])
+        {
+            current_pipeline = cache.depth_pipelines[i];
+            ::vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, current_pipeline);
+        }
+
+        add_per_item_root_parameters(root, cache, i);
+        root.push(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, signature);
+        draw_item(cmd, cache, i);
+    }
+}
+
+// Records the gpass draws of items [begin, end), like record_depth_items().
+auto record_gpass_items(
+    VkCommandBuffer cmd,
+    const VulkanFrameInfo &vulkan_info,
+    const GpassCache &cache,
+    u32 begin,
+    u32 end) -> void
+{
+    VkPipelineLayout current_layout{VK_NULL_HANDLE};
+    VkPipeline current_pipeline{VK_NULL_HANDLE};
+    const u32 frame_index{vulkan_info.frame_index};
+    const id::id_type light_culling_id{vulkan_info.light_culling_id};
+
+    for (u32 i{begin}; i < end; ++i)
+    {
+        vkx::RootDescriptors root{};
+        const vkx::RootSignature &signature{cache.root_signatures[i]};
+        if (current_layout != signature.layout)
+        {
+            using reg = OpaqueRegister;
+            current_layout = signature.layout;
+            root.cbv(reg::global_shader_data, vulkan_info.global_shader_data);
+            root.srv(reg::directional_lights, light::non_cullable_light_buffer(frame_index));
+            root.srv(reg::cullable_lights, light::cullable_light_buffer(frame_index));
+            root.srv(reg::light_grid, delight::light_grid_opaque(light_culling_id, frame_index));
+            root.srv(reg::light_index_list, delight::light_index_list_opaque(light_culling_id, frame_index));
+            vkx::bind_resource_heap(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, signature);
+        }
+
+        if (current_pipeline != cache.gpass_pipelines[i])
+        {
+            current_pipeline = cache.gpass_pipelines[i];
+            ::vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, current_pipeline);
+        }
+
+        add_per_item_root_parameters(root, cache, i);
+        root.push(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, signature);
+        draw_item(cmd, cache, i);
+    }
+}
+
+using record_function = auto (*)(VkCommandBuffer, const VulkanFrameInfo &, const GpassCache &, u32, u32) -> void;
+
+// Records one rendering pass over every item: into the primary command buffer, or, with many items, into secondary
+// command buffers that jobs record in batches and the primary executes in order (issue #1 step 7, a prototype).
+auto record_pass(
+    VkCommandBuffer cmd,
+    VkRenderingInfo rendering,
+    VkFormat color_format,
+    const VulkanFrameInfo &vulkan_info,
+    GpassCache &cache,
+    record_function record) -> void
+{
+    const u32 items_count{cache.size()};
+    // 512 items per secondary command buffer (clang Release, RADV, 2026-11-12): 6,400 items took 3.2-3.4 ms a frame
+    // recorded serially, 2.23-2.27 ms with batches of 512; 64 per batch was hardly faster than serial (3.2 ms), 256
+    // and 1024 a little slower than 512. Up to 512 items are recorded serially.
+    constexpr u32 batch_size{512};
+    if (!core::parallel_recording_enabled() || items_count <= batch_size)
+    {
+        ::vkCmdBeginRendering(cmd, &rendering);
+        record(cmd, vulkan_info, cache, 0, items_count);
+        ::vkCmdEndRendering(cmd);
+        return;
+    }
+
+    const u32 batch_count{(items_count + batch_size - 1) / batch_size};
+    cache.secondaries.resize(batch_count);
+    core::prepare_thread_command_pools();
+
+    // A secondary command buffer recorded for a render pass instance of vkCmdBeginRendering() states its formats.
+    VkCommandBufferInheritanceRenderingInfo inheritance_rendering{
+        VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_RENDERING_INFO};
+    inheritance_rendering.colorAttachmentCount = color_format == VK_FORMAT_UNDEFINED ? 0 : 1;
+    inheritance_rendering.pColorAttachmentFormats = &color_format;
+    inheritance_rendering.depthAttachmentFormat = depth_buffer_format;
+    inheritance_rendering.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    VkCommandBufferInheritanceInfo inheritance{VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO};
+    inheritance.pNext = &inheritance_rendering;
+
+    jobs::parallel_for(
+        batch_count,
+        1,
+        [&](u32 first, u32 last)
+        {
+            for (u32 batch{first}; batch < last; ++batch)
+            {
+                // Viewport and scissor are dynamic state, which a secondary command buffer doesn't inherit.
+                const VkCommandBuffer secondary{core::begin_secondary(inheritance)};
+                vkx::set_viewport(secondary, vulkan_info.surface_width, vulkan_info.surface_height);
+                const u32 begin{batch * batch_size};
+                record(secondary, vulkan_info, cache, begin, std::min(begin + batch_size, items_count));
+                VkCall(::vkEndCommandBuffer(secondary));
+                cache.secondaries[batch] = secondary;
+            }
+        });
+
+    rendering.flags = VK_RENDERING_CONTENTS_SECONDARY_COMMAND_BUFFERS_BIT;
+    ::vkCmdBeginRendering(cmd, &rendering);
+    ::vkCmdExecuteCommands(cmd, batch_count, cache.secondaries.data());
+    ::vkCmdEndRendering(cmd);
 }
 
 }
@@ -374,37 +527,8 @@ auto depth_prepass(VkCommandBuffer cmd, const VulkanFrameInfo &vulkan_info) -> v
     rendering.renderArea = {{0, 0}, {vulkan_info.surface_width, vulkan_info.surface_height}};
     rendering.layerCount = 1;
     rendering.pDepthAttachment = &depth_attachment;
-    ::vkCmdBeginRendering(cmd, &rendering);
 
-    const GpassCache &cache{frame_cache};
-    const u32 items_count{cache.size()};
-
-    VkPipelineLayout current_layout{VK_NULL_HANDLE};
-    VkPipeline current_pipeline{VK_NULL_HANDLE};
-
-    for (u32 i{0}; i < items_count; ++i)
-    {
-        vkx::RootDescriptors root{};
-        const vkx::RootSignature &signature{cache.root_signatures[i]};
-        if (current_layout != signature.layout)
-        {
-            current_layout = signature.layout;
-            root.cbv(OpaqueRegister::global_shader_data, vulkan_info.global_shader_data);
-            vkx::bind_resource_heap(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, signature);
-        }
-
-        if (current_pipeline != cache.depth_pipelines[i])
-        {
-            current_pipeline = cache.depth_pipelines[i];
-            ::vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, current_pipeline);
-        }
-
-        add_per_item_root_parameters(root, i);
-        root.push(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, signature);
-        draw_item(cmd, i);
-    }
-
-    ::vkCmdEndRendering(cmd);
+    record_pass(cmd, rendering, VK_FORMAT_UNDEFINED, vulkan_info, surface_cache(vulkan_info), &record_depth_items);
 }
 
 auto render(VkCommandBuffer cmd, const VulkanFrameInfo &vulkan_info) -> void
@@ -429,44 +553,8 @@ auto render(VkCommandBuffer cmd, const VulkanFrameInfo &vulkan_info) -> void
     rendering.colorAttachmentCount = 1;
     rendering.pColorAttachments = &color_attachment;
     rendering.pDepthAttachment = &depth_attachment;
-    ::vkCmdBeginRendering(cmd, &rendering);
 
-    const GpassCache &cache{frame_cache};
-    const u32 items_count{cache.size()};
-
-    VkPipelineLayout current_layout{VK_NULL_HANDLE};
-    VkPipeline current_pipeline{VK_NULL_HANDLE};
-    const u32 frame_index{vulkan_info.frame_index};
-    const id::id_type light_culling_id{vulkan_info.light_culling_id};
-
-    for (u32 i{0}; i < items_count; ++i)
-    {
-        vkx::RootDescriptors root{};
-        const vkx::RootSignature &signature{cache.root_signatures[i]};
-        if (current_layout != signature.layout)
-        {
-            using reg = OpaqueRegister;
-            current_layout = signature.layout;
-            root.cbv(reg::global_shader_data, vulkan_info.global_shader_data);
-            root.srv(reg::directional_lights, light::non_cullable_light_buffer(frame_index));
-            root.srv(reg::cullable_lights, light::cullable_light_buffer(frame_index));
-            root.srv(reg::light_grid, delight::light_grid_opaque(light_culling_id, frame_index));
-            root.srv(reg::light_index_list, delight::light_index_list_opaque(light_culling_id, frame_index));
-            vkx::bind_resource_heap(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, signature);
-        }
-
-        if (current_pipeline != cache.gpass_pipelines[i])
-        {
-            current_pipeline = cache.gpass_pipelines[i];
-            ::vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, current_pipeline);
-        }
-
-        add_per_item_root_parameters(root, i);
-        root.push(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, signature);
-        draw_item(cmd, i);
-    }
-
-    ::vkCmdEndRendering(cmd);
+    record_pass(cmd, rendering, main_buffer_format, vulkan_info, surface_cache(vulkan_info), &record_gpass_items);
 }
 
 auto add_transitions_for_depth_prepass(vkx::VulkanBarrier &barriers) -> void
