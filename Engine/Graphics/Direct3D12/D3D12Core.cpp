@@ -317,14 +317,13 @@ auto get_d3d12_frame_info(const FrameInfo &info, ConstantBuffer &cbuffer, const 
     camera.update();
     hlsl::GlobalShaderData data{};
 
-    using namespace DirectX;
-    XMStoreFloat4x4(&data.View, camera.view());
-    XMStoreFloat4x4(&data.Projection, camera.projection());
-    XMStoreFloat4x4(&data.InvProjection, camera.inverse_projection());
-    XMStoreFloat4x4(&data.ViewProjection, camera.view_projection());
-    XMStoreFloat4x4(&data.InvViewProjection, camera.inverse_view_projection());
-    XMStoreFloat3(&data.CameraPosition, camera.position());
-    XMStoreFloat3(&data.CameraDirection, camera.direction());
+    math::store(data.View, camera.view());
+    math::store(data.Projection, camera.projection());
+    math::store(data.InvProjection, camera.inverse_projection());
+    math::store(data.ViewProjection, camera.view_projection());
+    math::store(data.InvViewProjection, camera.inverse_view_projection());
+    math::store(data.CameraPosition, camera.position());
+    math::store(data.CameraDirection, camera.direction());
     data.ViewWidth = surface.viewport().Width;
     data.ViewHeight = surface.viewport().Height;
     data.NumDirectionalLights = light::non_cullable_light_count(info.light_set_key);

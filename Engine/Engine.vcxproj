@@ -80,6 +80,7 @@
     <ClInclude Include="Utilities\FreeList.h" />
     <ClInclude Include="Utilities\IOStream.h" />
     <ClInclude Include="Utilities\Math.h" />
+    <ClInclude Include="Utilities\MathSimd.h" />
     <ClInclude Include="Utilities\MathTypes.h" />
     <ClInclude Include="Utilities\Threading.h" />
     <ClInclude Include="Utilities\Utilities.h" />

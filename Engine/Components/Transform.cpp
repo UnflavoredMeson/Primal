@@ -32,39 +32,36 @@ auto calculate_transform_matrices(id::id_type index) -> void
     assert(positions.size() > index);
     assert(scales.size() > index);
 
-    using namespace DirectX;
-    const XMVECTOR r{XMLoadFloat4(&rotations[index])};
-    const XMVECTOR t{XMLoadFloat3(&positions[index])};
-    const XMVECTOR s{XMLoadFloat3(&scales[index])};
+    const math::vec r{math::load(rotations[index])};
+    const math::vec t{math::load(positions[index])};
+    const math::vec s{math::load(scales[index])};
 
-    XMMATRIX world{XMMatrixAffineTransformation(s, XMQuaternionIdentity(), r, t)};
-    XMStoreFloat4x4(&to_world[index], world);
+    math::mat world{math::affine_transform(s, math::quat_identity(), r, t)};
+    math::store(to_world[index], world);
 
     // NOTE: (F. Luna) Intro to DirectX 12, section 8.2.2
-    world.r[3] = XMVectorSet(0.f, 0.f, 0.f, 1.f);
-    const XMMATRIX inverse_world{XMMatrixInverse(nullptr, world)};
-    XMStoreFloat4x4(&inv_world[index], inverse_world);
+    math::set_row(world, 3, math::vec_set(0.f, 0.f, 0.f, 1.f));
+    const math::mat inverse_world{math::inverse(world)};
+    math::store(inv_world[index], inverse_world);
 
     has_transform[index] = 1;
 }
 
 auto calculate_local_frame(const math::v4 &rotation, LocalFrame &result) -> void
 {
-    using namespace DirectX;
-
     const LocalFrame frame{};
 
-    XMVECTOR right{XMLoadFloat3(&frame.right)};
-    XMVECTOR up{XMLoadFloat3(&frame.up)};
-    const XMVECTOR rotation_quat{XMLoadFloat4(&rotation)};
+    math::vec right{math::load(frame.right)};
+    math::vec up{math::load(frame.up)};
+    const math::vec rotation_quat{math::load(rotation)};
 
-    right = XMVector3Normalize(XMVector3Rotate(right, rotation_quat));
-    up = XMVector3Normalize(XMVector3Rotate(up, rotation_quat));
-    const XMVECTOR front{XMVector3Normalize(XMVector3Cross(right, up))};
+    right = math::normalize3(math::rotate3(right, rotation_quat));
+    up = math::normalize3(math::rotate3(up, rotation_quat));
+    const math::vec front{math::normalize3(math::cross3(right, up))};
 
-    XMStoreFloat3(&result.right, right);
-    XMStoreFloat3(&result.up, up);
-    XMStoreFloat3(&result.front, front);
+    math::store(result.right, right);
+    math::store(result.up, up);
+    math::store(result.front, front);
 }
 
 auto set_rotation(TransformId id, const math::v4 &rotation_quaternion) -> void
@@ -247,39 +244,37 @@ auto Component::local_frame() const -> math::m3x3
         frame.front.z};
 }
 
-auto Component::calculate_local_position(math::v3 delta) const -> DirectX::XMVECTOR
+auto Component::calculate_local_position(math::v3 delta) const -> math::vec
 {
     assert(is_valid());
     const id::id_type index{id::index(_id)};
-    using namespace DirectX;
     const math::m3x3 frame_rows{local_frame()};
-    const XMMATRIX frame{XMLoadFloat3x3(&frame_rows)};
-    XMVECTOR l_pos{XMLoadFloat3(&delta)};
-    l_pos = XMVector3Transform(l_pos, frame);
-    const XMVECTOR w_pos{XMLoadFloat3(&positions[index])};
+    const math::mat frame{math::load(frame_rows)};
+    math::vec l_pos{math::load(delta)};
+    l_pos = math::transform3(l_pos, frame);
+    const math::vec w_pos{math::load(positions[index])};
 
     return w_pos + l_pos;
 }
 
-auto Component::calculate_absolute_rotation(math::v3 rotation) const -> DirectX::XMVECTOR
+auto Component::calculate_absolute_rotation(math::v3 rotation) const -> math::vec
 {
     assert(is_valid());
-    return DirectX::XMQuaternionRotationRollPitchYawFromVector(XMLoadFloat3(&rotation));
+    return math::quat_from_euler(math::load(rotation));
 }
 
-auto Component::calculate_local_rotation(math::v3 delta) const -> DirectX::XMVECTOR
+auto Component::calculate_local_rotation(math::v3 delta) const -> math::vec
 {
     assert(is_valid());
     const id::id_type index{id::index(_id)};
 
-    using namespace DirectX;
-    const XMVECTOR d{XMQuaternionRotationRollPitchYawFromVector(XMLoadFloat3(&delta))};
-    const XMVECTOR q{XMLoadFloat4(&rotations[index])};
+    const math::vec d{math::quat_from_euler(math::load(delta))};
+    const math::vec q{math::load(rotations[index])};
 
-    return XMQuaternionMultiply(d, q);
+    return math::quat_mul(d, q);
 }
 
-auto Component::calculate_world_rotation(math::v3 delta) const -> DirectX::XMVECTOR
+auto Component::calculate_world_rotation(math::v3 delta) const -> math::vec
 {
     assert(is_valid());
     math::v3 axis{1.f, 0.f, 0.f};
@@ -301,12 +296,11 @@ auto Component::calculate_world_rotation(math::v3 delta) const -> DirectX::XMVEC
 
     const id::id_type index{id::index(_id)};
 
-    using namespace DirectX;
-    const XMVECTOR a{XMLoadFloat3(&axis)};
-    const XMVECTOR d{XMQuaternionRotationNormal(a, angle)};
-    const XMVECTOR q{XMLoadFloat4(&rotations[index])};
+    const math::vec a{math::load(axis)};
+    const math::vec d{math::quat_from_axis_angle(a, angle)};
+    const math::vec q{math::load(rotations[index])};
 
-    return XMQuaternionMultiply(q, d);
+    return math::quat_mul(q, d);
 }
 
 }

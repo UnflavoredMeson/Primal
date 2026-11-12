@@ -67,6 +67,9 @@ job_checks() {
 
     section "Include cycles"
     python3 Tools/check_include_cycles.py .
+
+    section "DirectXMath only behind primal::math"
+    python3 Tools/check_math_usage.py .
 }
 
 job_build() {

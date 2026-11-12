@@ -3,9 +3,9 @@
 #pragma once
 
 #include "../Common/PrimitiveTypes.h"
+#include "MathSimd.h"
 #include "MathTypes.h"
 
-#include <DirectXMath.h>
 #include <immintrin.h> // _mm_crc32_u64 (SSE4.2)
 
 #include <bit>

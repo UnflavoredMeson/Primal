@@ -272,8 +272,7 @@ TEST_CASE("the local frame follows the rotation")
     SUBCASE("a quarter turn around +y: right is -z, up is +y, front is +x")
     {
         const f32 half_angle{math::half_pi * 0.5f};
-        transform::InitInfo info{
-            .rotation = {0.f, DirectX::XMScalarSin(half_angle), 0.f, DirectX::XMScalarCos(half_angle)}};
+        transform::InitInfo info{.rotation = {0.f, math::sin(half_angle), 0.f, math::cos(half_angle)}};
         const game_entity::Entity entity{game_entity::create({.transform = &info})};
         REQUIRE(entity.is_valid());
 

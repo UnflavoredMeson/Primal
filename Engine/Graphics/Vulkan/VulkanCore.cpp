@@ -987,19 +987,18 @@ auto get_vulkan_frame_info(
 {
     hlsl::GlobalShaderData data{};
 
-    using namespace DirectX;
     camera::VulkanCamera *camera{nullptr};
     if (id::is_valid(info.camera_id))
     {
         camera = &camera::get(info.camera_id);
         camera->update();
-        XMStoreFloat4x4A(&data.View, camera->view());
-        XMStoreFloat4x4A(&data.Projection, camera->projection());
-        XMStoreFloat4x4A(&data.InvProjection, camera->inverse_projection());
-        XMStoreFloat4x4A(&data.ViewProjection, camera->view_projection());
-        XMStoreFloat4x4A(&data.InvViewProjection, camera->inverse_view_projection());
-        XMStoreFloat3(&data.CameraPosition, camera->position());
-        XMStoreFloat3(&data.CameraDirection, camera->direction());
+        math::store(data.View, camera->view());
+        math::store(data.Projection, camera->projection());
+        math::store(data.InvProjection, camera->inverse_projection());
+        math::store(data.ViewProjection, camera->view_projection());
+        math::store(data.InvViewProjection, camera->inverse_view_projection());
+        math::store(data.CameraPosition, camera->position());
+        math::store(data.CameraDirection, camera->direction());
         // A scene (camera) needs a light set, like in D3D12 (light::* assert that it exists).
         data.NumDirectionalLights = light::non_cullable_light_count(info.light_set_key);
         data.AmbientLight = light::ambient_light(info.light_set_key);
@@ -1008,12 +1007,12 @@ auto get_vulkan_frame_info(
     {
         // No camera (the SURFACES test): identity matrices; nothing is drawn, post-processing shows the gpass clear
         // color.
-        const XMMATRIX identity{XMMatrixIdentity()};
-        XMStoreFloat4x4A(&data.View, identity);
-        XMStoreFloat4x4A(&data.Projection, identity);
-        XMStoreFloat4x4A(&data.InvProjection, identity);
-        XMStoreFloat4x4A(&data.ViewProjection, identity);
-        XMStoreFloat4x4A(&data.InvViewProjection, identity);
+        const math::mat identity{math::mat_identity()};
+        math::store(data.View, identity);
+        math::store(data.Projection, identity);
+        math::store(data.InvProjection, identity);
+        math::store(data.ViewProjection, identity);
+        math::store(data.InvViewProjection, identity);
         data.CameraDirection = {0.f, 0.f, -1.f};
         // No lights (NumDirectionalLights 0) and no ambient light (what light::ambient_light() returns without one).
         data.AmbientLight = {-1.f, u32_invalid_id, u32_invalid_id, u32_invalid_id};

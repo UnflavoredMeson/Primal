@@ -13,16 +13,12 @@ using namespace primal;
 
 auto to_quat(math::v3 angles, bool is_degrees) -> math::v4
 {
-    using namespace DirectX;
     if (is_degrees)
     {
         angles = math::to_radians(angles);
     }
 
-    math::v4 quat_result{};
-    const XMVECTOR quat{XMQuaternionRotationRollPitchYawFromVector(XMLoadFloat3(&angles))};
-    XMStoreFloat4(&quat_result, quat);
-    return quat_result;
+    return math::quat_from_euler(angles);
 }
 
 namespace
@@ -36,7 +32,6 @@ struct TransformComponent
 
     auto to_init_info() const -> transform::InitInfo
     {
-        using namespace DirectX;
         transform::InitInfo info{};
         std::memcpy(&info.position[0], &position[0], sizeof(position));
         std::memcpy(&info.scale[0], &scale[0], sizeof(scale));
@@ -118,40 +113,28 @@ auto get_euler_angles_from_local_frame(const math::m3x3 &m) -> math::v3
 auto get_local_pos(math::v3 pos, u32 id) -> math::v3
 {
     const transform::Component xform{transform::TransformId{id}};
-    const DirectX::XMVECTOR position{xform.calculate_local_position(pos)};
-    math::v3 result{};
-    DirectX::XMStoreFloat3(&result, position);
-    return result;
+    return math::to_v3(xform.calculate_local_position(pos));
 }
 
 auto get_world_quat(math::v3 w, u32 id) -> math::v4
 {
     w = math::to_radians(w);
     const transform::Component xform{transform::TransformId{id}};
-    const DirectX::XMVECTOR q{xform.calculate_world_rotation(w)};
-    math::v4 result{};
-    DirectX::XMStoreFloat4(&result, q);
-    return result;
+    return math::to_v4(xform.calculate_world_rotation(w));
 }
 
 auto get_local_quat(math::v3 w, u32 id) -> math::v4
 {
     w = math::to_radians(w);
     const transform::Component xform{transform::TransformId{id}};
-    const DirectX::XMVECTOR q{xform.calculate_local_rotation(w)};
-    math::v4 result{};
-    DirectX::XMStoreFloat4(&result, q);
-    return result;
+    return math::to_v4(xform.calculate_local_rotation(w));
 }
 
 auto get_absolute_quat(math::v3 w, u32 id) -> math::v4
 {
     w = math::to_radians(w);
     const transform::Component xform{transform::TransformId{id}};
-    const DirectX::XMVECTOR q{xform.calculate_absolute_rotation(w)};
-    math::v4 result{};
-    DirectX::XMStoreFloat4(&result, q);
-    return result;
+    return math::to_v4(xform.calculate_absolute_rotation(w));
 }
 }
 
@@ -233,8 +216,6 @@ EDITOR_INTERFACE auto GetRotation(id::id_type const *ids, f32 *x, f32 *y, f32 *z
 {
     assert(ids && count);
     const std::scoped_lock lock{mutex};
-    using namespace DirectX;
-
     for (u32 i{0}; i < count; ++i)
     {
         assert(

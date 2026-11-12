@@ -28,9 +28,7 @@ class RotatorScript : public script::EntityScript
             _angle -= math::two_pi;
         }
         const math::v3a rot{0.f, _angle, 0.f};
-        const DirectX::XMVECTOR quat{DirectX::XMQuaternionRotationRollPitchYawFromVector(DirectX::XMLoadFloat3A(&rot))};
-        math::v4 rot_quat{};
-        DirectX::XMStoreFloat4(&rot_quat, quat);
+        const math::v4 rot_quat{math::quat_from_euler(rot)};
         set_rotation(rot_quat);
     }
 
@@ -59,9 +57,7 @@ class FanScript : public script::EntityScript
             _angle += math::two_pi;
         }
         const math::v3a rot{_angle, 0.f, 0.f};
-        const DirectX::XMVECTOR quat{DirectX::XMQuaternionRotationRollPitchYawFromVector(DirectX::XMLoadFloat3A(&rot))};
-        math::v4 rot_quat{};
-        DirectX::XMStoreFloat4(&rot_quat, quat);
+        const math::v4 rot_quat{math::quat_from_euler(rot)};
         set_rotation(rot_quat);
     }
 
@@ -95,9 +91,7 @@ class WibblyWobblyScript : public script::EntityScript
         const f32 s2{0.05f * std::sin(x) * std::sin(std::sin(x / 1.62f) + std::sin(1.62f * x) + std::sin(3.24f * x))};
 
         const math::v3a rot{s1, 0.f, s2};
-        const DirectX::XMVECTOR quat{DirectX::XMQuaternionRotationRollPitchYawFromVector(DirectX::XMLoadFloat3A(&rot))};
-        math::v4 rot_quat{};
-        DirectX::XMStoreFloat4(&rot_quat, quat);
+        const math::v4 rot_quat{math::quat_from_euler(rot)};
         set_rotation(rot_quat);
         math::v3 pos{position()};
         pos.y = 1.3f + 0.2f * std::sin(x) * std::sin(std::sin(x / 1.62f) + std::sin(1.62f * x) + std::sin(3.24f * x));
@@ -122,13 +116,13 @@ class CameraScript : public script::EntityScript
         _input_system.add_handler(binding, this, &CameraScript::on_move);
 
         const math::v3 pos{position()};
-        _desired_position = _position = DirectX::XMLoadFloat3(&pos);
+        _desired_position = _position = math::load(pos);
 
         const math::v3 dir{front()};
-        const f32 theta{DirectX::XMScalarACos(dir.y)};
+        const f32 theta{math::acos(dir.y)};
         const f32 phi{std::atan2(-dir.z, dir.x)};
         const math::v3 rot{theta - math::half_pi, phi + math::half_pi, 0.f};
-        _desired_spherical = _spherical = DirectX::XMLoadFloat3(&rot);
+        _desired_spherical = _spherical = math::load(rot);
     }
 
     auto begin_play() -> void override
@@ -136,13 +130,11 @@ class CameraScript : public script::EntityScript
     }
     auto update(f32 dt) -> void override
     {
-        using namespace DirectX;
-
         if (_move_magnitude > math::epsilon)
         {
             const f32 fps_scale{dt / 0.016667f};
             const math::v4 rot{rotation()};
-            const XMVECTOR d{XMVector3Rotate(_move * 0.05f * fps_scale, XMLoadFloat4(&rot))};
+            const math::vec d{math::rotate3(_move * 0.05f * fps_scale, math::load(rot))};
             if (_position_acceleration < 1.f)
             {
                 _position_acceleration += (0.02f * fps_scale);
@@ -164,17 +156,13 @@ class CameraScript : public script::EntityScript
   private:
     auto on_move(u64 /*binding*/, const input::InputValue &value) -> void
     {
-        using namespace DirectX;
-
-        _move = XMLoadFloat3(&value.current);
-        _move_magnitude = XMVectorGetX(XMVector3LengthSq(_move));
+        _move = math::load(value.current);
+        _move_magnitude = math::get_x(math::length_sq3(_move));
     }
 
     auto mouse_move(input::InputSource::Type /*type*/, input::InputCode::Code code, const input::InputValue &mouse_pos)
         -> void
     {
-        using namespace DirectX;
-
         if (code == input::InputCode::mouse_position)
         {
             input::InputValue value;
@@ -189,24 +177,23 @@ class CameraScript : public script::EntityScript
             const f32 dy{(mouse_pos.current.y - mouse_pos.previous.y) * scale};
 
             math::v3 spherical;
-            DirectX::XMStoreFloat3(&spherical, _desired_spherical);
+            math::store(spherical, _desired_spherical);
             spherical.x += dy;
             spherical.y -= dx;
             spherical.x = math::clamp(spherical.x, 0.0001f - math::half_pi, math::half_pi - 0.0001f);
 
-            _desired_spherical = DirectX::XMLoadFloat3(&spherical);
+            _desired_spherical = math::load(spherical);
             _move_rotation = true;
         }
     }
 
     auto camera_seek(f32 dt) -> void
     {
-        using namespace DirectX;
-        const XMVECTOR p{_desired_position - _position};
-        const XMVECTOR o{_desired_spherical - _spherical};
+        const math::vec p{_desired_position - _position};
+        const math::vec o{_desired_spherical - _spherical};
 
-        _move_position = (XMVectorGetX(XMVector3LengthSq(p)) > math::epsilon);
-        _move_rotation = (XMVectorGetX(XMVector3LengthSq(o)) > math::epsilon);
+        _move_position = (math::get_x(math::length_sq3(p)) > math::epsilon);
+        _move_rotation = (math::get_x(math::length_sq3(o)) > math::epsilon);
 
         const f32 scale{0.2f * dt / 0.016667f};
 
@@ -214,7 +201,7 @@ class CameraScript : public script::EntityScript
         {
             _position += (p * scale);
             math::v3 new_pos;
-            XMStoreFloat3(&new_pos, _position);
+            math::store(new_pos, _position);
             set_position(new_pos);
         }
 
@@ -222,24 +209,24 @@ class CameraScript : public script::EntityScript
         {
             _spherical += (o * scale);
             math::v3 new_rot;
-            XMStoreFloat3(&new_rot, _spherical);
+            math::store(new_rot, _spherical);
             new_rot.x = math::clamp(new_rot.x, 0.0001f - math::half_pi, math::half_pi - 0.0001f);
-            _spherical = DirectX::XMLoadFloat3(&new_rot);
+            _spherical = math::load(new_rot);
 
-            const DirectX::XMVECTOR quat{DirectX::XMQuaternionRotationRollPitchYawFromVector(_spherical)};
+            const math::vec quat{math::quat_from_euler(_spherical)};
             math::v4 rot_quat;
-            DirectX::XMStoreFloat4(&rot_quat, quat);
+            math::store(rot_quat, quat);
             set_rotation(rot_quat);
         }
     }
 
     input::InputSystem<CameraScript> _input_system{};
 
-    DirectX::XMVECTOR _desired_position;
-    DirectX::XMVECTOR _desired_spherical;
-    DirectX::XMVECTOR _position;
-    DirectX::XMVECTOR _spherical;
-    DirectX::XMVECTOR _move{};
+    math::vec _desired_position;
+    math::vec _desired_spherical;
+    math::vec _position;
+    math::vec _spherical;
+    math::vec _move{};
     f32 _move_magnitude{0.f};
     f32 _position_acceleration{0.f};
     bool _move_position{false};

@@ -181,7 +181,6 @@ auto fill_per_object_data(const VulkanFrameInfo &vulkan_info) -> void
 
     ConstantBuffer &cbuffer{core::cbuffer()};
 
-    using namespace DirectX;
     for (u32 i{0}; i < render_items_count; ++i)
     {
         if (current_entity_id != cache.entity_ids[i])
@@ -189,9 +188,9 @@ auto fill_per_object_data(const VulkanFrameInfo &vulkan_info) -> void
             current_entity_id = cache.entity_ids[i];
             hlsl::PerObjectData data{};
             transform::get_transform_matrices(game_entity::EntityId{current_entity_id}, data.World, data.InvWorld);
-            const XMMATRIX world{XMLoadFloat4x4(&data.World)};
-            const XMMATRIX wvp{XMMatrixMultiply(world, vulkan_info.camera->view_projection())};
-            XMStoreFloat4x4(&data.WorldViewProjection, wvp);
+            const math::mat world{math::load(data.World)};
+            const math::mat wvp{math::mul(world, vulkan_info.camera->view_projection())};
+            math::store(data.WorldViewProjection, wvp);
 
             current_data_pointer = cbuffer.allocate<hlsl::PerObjectData>();
             std::memcpy(current_data_pointer, &data, sizeof(hlsl::PerObjectData));

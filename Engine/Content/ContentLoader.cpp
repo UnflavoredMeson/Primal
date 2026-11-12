@@ -33,7 +33,6 @@ auto read_u32(const u8 *&data) -> u32
 
 auto read_transform(const u8 *&data, game_entity::EntityInfo &info) -> bool
 {
-    using namespace DirectX;
     f32 rotation[3];
 
     assert(!info.transform);
@@ -44,10 +43,8 @@ auto read_transform(const u8 *&data, game_entity::EntityInfo &info) -> bool
     std::memcpy(&transform_info.scale[0], data, sizeof(transform_info.scale));
     data += sizeof(transform_info.scale);
 
-    const XMFLOAT3A rot{&rotation[0]};
-    const XMVECTOR quat{XMQuaternionRotationRollPitchYawFromVector(XMLoadFloat3A(&rot))};
-    XMFLOAT4A rot_quat{};
-    XMStoreFloat4A(&rot_quat, quat);
+    const math::v3a rot{&rotation[0]};
+    const math::v4 rot_quat{math::quat_from_euler(rot)};
     std::memcpy(&transform_info.rotation[0], &rot_quat.x, sizeof(transform_info.rotation));
 
     info.transform = &transform_info;

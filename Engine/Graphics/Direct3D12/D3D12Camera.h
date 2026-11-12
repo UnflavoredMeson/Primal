@@ -20,35 +20,35 @@ class D3D12Camera
     constexpr auto near_z(f32 near_z) -> void;
     constexpr auto far_z(f32 far_z) -> void;
 
-    [[nodiscard]] constexpr auto view() const -> DirectX::XMMATRIX
+    [[nodiscard]] constexpr auto view() const -> math::mat
     {
         return _view;
     }
-    [[nodiscard]] constexpr auto projection() const -> DirectX::XMMATRIX
+    [[nodiscard]] constexpr auto projection() const -> math::mat
     {
         return _projection;
     }
-    [[nodiscard]] constexpr auto inverse_projection() const -> DirectX::XMMATRIX
+    [[nodiscard]] constexpr auto inverse_projection() const -> math::mat
     {
         return _inverse_projection;
     }
-    [[nodiscard]] constexpr auto view_projection() const -> DirectX::XMMATRIX
+    [[nodiscard]] constexpr auto view_projection() const -> math::mat
     {
         return _view_projection;
     }
-    [[nodiscard]] constexpr auto inverse_view_projection() const -> DirectX::XMMATRIX
+    [[nodiscard]] constexpr auto inverse_view_projection() const -> math::mat
     {
         return _inverse_view_projection;
     }
-    [[nodiscard]] constexpr auto position() const -> DirectX::XMVECTOR
+    [[nodiscard]] constexpr auto position() const -> math::vec
     {
         return _position;
     }
-    [[nodiscard]] constexpr auto direction() const -> DirectX::XMVECTOR
+    [[nodiscard]] constexpr auto direction() const -> math::vec
     {
         return _direction;
     }
-    [[nodiscard]] constexpr auto up() const -> DirectX::XMVECTOR
+    [[nodiscard]] constexpr auto up() const -> math::vec
     {
         return _up;
     }
@@ -86,14 +86,14 @@ class D3D12Camera
     }
 
   private:
-    DirectX::XMMATRIX _view;
-    DirectX::XMMATRIX _projection;
-    DirectX::XMMATRIX _inverse_projection;
-    DirectX::XMMATRIX _view_projection;
-    DirectX::XMMATRIX _inverse_view_projection;
-    DirectX::XMVECTOR _position{};
-    DirectX::XMVECTOR _direction{};
-    DirectX::XMVECTOR _up;
+    math::mat _view;
+    math::mat _projection;
+    math::mat _inverse_projection;
+    math::mat _view_projection;
+    math::mat _inverse_view_projection;
+    math::vec _position{};
+    math::vec _direction{};
+    math::vec _up;
     f32 _near_z;
     f32 _far_z;
     union

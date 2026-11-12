@@ -48,10 +48,10 @@ class Component final
     auto front() const -> math::v3;
     auto local_frame() const -> math::m3x3;
 
-    auto calculate_local_position(math::v3 delta) const -> DirectX::XMVECTOR;
-    auto calculate_absolute_rotation(math::v3 rotation) const -> DirectX::XMVECTOR;
-    auto calculate_local_rotation(math::v3 delta) const -> DirectX::XMVECTOR;
-    auto calculate_world_rotation(math::v3 delta) const -> DirectX::XMVECTOR;
+    auto calculate_local_position(math::v3 delta) const -> math::vec;
+    auto calculate_absolute_rotation(math::v3 rotation) const -> math::vec;
+    auto calculate_local_rotation(math::v3 delta) const -> math::vec;
+    auto calculate_world_rotation(math::v3 delta) const -> math::vec;
 
   private:
     TransformId _id;

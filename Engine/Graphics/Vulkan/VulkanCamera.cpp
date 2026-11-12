@@ -69,42 +69,42 @@ auto get_view(const VulkanCamera &camera, void *const data, [[maybe_unused]] u32
 {
     math::m4x4 *const matrix{static_cast<math::m4x4 *>(data)};
     assert(sizeof(math::m4x4) == size);
-    DirectX::XMStoreFloat4x4(matrix, camera.view());
+    math::store(*matrix, camera.view());
 }
 
 auto get_projection(const VulkanCamera &camera, void *const data, [[maybe_unused]] u32 size) -> void
 {
     math::m4x4 *const matrix{static_cast<math::m4x4 *>(data)};
     assert(sizeof(math::m4x4) == size);
-    DirectX::XMStoreFloat4x4(matrix, camera.projection());
+    math::store(*matrix, camera.projection());
 }
 
 auto get_inverse_projection(const VulkanCamera &camera, void *const data, [[maybe_unused]] u32 size) -> void
 {
     math::m4x4 *const matrix{static_cast<math::m4x4 *>(data)};
     assert(sizeof(math::m4x4) == size);
-    DirectX::XMStoreFloat4x4(matrix, camera.inverse_projection());
+    math::store(*matrix, camera.inverse_projection());
 }
 
 auto get_view_projection(const VulkanCamera &camera, void *const data, [[maybe_unused]] u32 size) -> void
 {
     math::m4x4 *const matrix{static_cast<math::m4x4 *>(data)};
     assert(sizeof(math::m4x4) == size);
-    DirectX::XMStoreFloat4x4(matrix, camera.view_projection());
+    math::store(*matrix, camera.view_projection());
 }
 
 auto get_inverse_view_projection(const VulkanCamera &camera, void *const data, [[maybe_unused]] u32 size) -> void
 {
     math::m4x4 *const matrix{static_cast<math::m4x4 *>(data)};
     assert(sizeof(math::m4x4) == size);
-    DirectX::XMStoreFloat4x4(matrix, camera.inverse_view_projection());
+    math::store(*matrix, camera.inverse_view_projection());
 }
 
 auto get_up_vector(const VulkanCamera &camera, void *const data, [[maybe_unused]] u32 size) -> void
 {
     math::v3 *const up_vector{static_cast<math::v3 *>(data)};
     assert(sizeof(math::v3) == size);
-    DirectX::XMStoreFloat3(up_vector, camera.up());
+    math::store(*up_vector, camera.up());
 }
 
 constexpr auto get_field_of_view(const VulkanCamera &camera, void *const data, [[maybe_unused]] u32 size) -> void
@@ -214,7 +214,7 @@ static_assert(std::size(get_functions) == CameraParameter::count);
 }
 
 VulkanCamera::VulkanCamera(CameraInitInfo info)
-    : _up{DirectX::XMLoadFloat3(&info.up)}
+    : _up{math::load(info.up)}
     , _near_z{info.near_z}
     , _far_z{info.far_z}
     , _field_of_view{info.field_of_view}
@@ -229,32 +229,31 @@ VulkanCamera::VulkanCamera(CameraInitInfo info)
 auto VulkanCamera::update() -> void
 {
     const game_entity::Entity entity{game_entity::EntityId{_entity_id}};
-    using namespace DirectX;
     const math::v3 pos{entity.position()};
     const math::v3 dir{entity.front()};
     const math::v3 up{entity.up()};
-    _position = XMLoadFloat3(&pos);
-    _direction = XMLoadFloat3(&dir);
-    _up = XMLoadFloat3(&up);
-    _view = XMMatrixLookToRH(_position, _direction, _up);
+    _position = math::load(pos);
+    _direction = math::load(dir);
+    _up = math::load(up);
+    _view = math::look_to_rh(_position, _direction, _up);
 
     if (_is_dirty)
     {
         // NOTE: _near_z and _far_z are swapped because we use inverse depth (reversed Z, as in the d3d12 renderer).
         _projection = (_projection_type == graphics::Camera::perspective)
-                          ? XMMatrixPerspectiveFovRH(_field_of_view * XM_PI, _aspect_ratio, _far_z, _near_z)
-                          : XMMatrixOrthographicRH(_view_width, _view_height, _far_z, _near_z);
-        _inverse_projection = XMMatrixInverse(nullptr, _projection);
+                          ? math::perspective_fov_rh(_field_of_view * math::pi, _aspect_ratio, _far_z, _near_z)
+                          : math::orthographic_rh(_view_width, _view_height, _far_z, _near_z);
+        _inverse_projection = math::inverse(_projection);
         _is_dirty = false;
     }
 
-    _view_projection = XMMatrixMultiply(_view, _projection);
-    _inverse_view_projection = XMMatrixInverse(nullptr, _view_projection);
+    _view_projection = math::mul(_view, _projection);
+    _inverse_view_projection = math::inverse(_view_projection);
 }
 
 auto VulkanCamera::up(math::v3 up) -> void
 {
-    _up = DirectX::XMLoadFloat3(&up);
+    _up = math::load(up);
 }
 
 constexpr auto VulkanCamera::field_of_view(f32 fov) -> void

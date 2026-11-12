@@ -185,7 +185,7 @@ auto test_lights([[maybe_unused]] f32 dt) -> void
     t += 0.05f;
     for (u32 i{ 0 }; i < static_cast<u32>(lights.size()); ++i)
     {
-        f32 sine{ DirectX::XMScalarSin(t + lights[i].get_id()) };
+        f32 sine{ math::sin(t + lights[i].get_id()) };
         sine *= sine;
         lights[i].intensity(2.f * sine);
     }

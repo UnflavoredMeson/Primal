@@ -11,7 +11,6 @@ namespace
 {
 
 // using namespace math;
-using namespace DirectX;
 
 auto mikk_get_num_faces(const SMikkTSpaceContext *context) -> s32
 {
@@ -98,13 +97,13 @@ auto calculate_tangents(Mesh &m) -> void
     m.tangents.clear();
 
     const u32 num_indices{static_cast<u32>(m.raw_indices.size())};
-    utl::vector<XMVECTOR> tangents(num_indices, XMVectorZero());
-    utl::vector<XMVECTOR> bitangents(num_indices, XMVectorZero());
-    utl::vector<XMVECTOR> positions(num_indices);
+    utl::vector<math::vec> tangents(num_indices, math::vec_zero());
+    utl::vector<math::vec> bitangents(num_indices, math::vec_zero());
+    utl::vector<math::vec> positions(num_indices);
 
     for (u32 i{0}; i < num_indices; ++i)
     {
-        positions[i] = XMLoadFloat3(&m.vertices[m.indices[i]].position);
+        positions[i] = math::load(m.vertices[m.indices[i]].position);
     }
 
     for (u32 i{0}; i < num_indices; i += 3)
@@ -113,9 +112,9 @@ auto calculate_tangents(Mesh &m) -> void
         const u32 i1{i + 1};
         const u32 i2{i + 2};
 
-        const XMVECTOR &p0{positions[i0]};
-        const XMVECTOR &p1{positions[i1]};
-        const XMVECTOR &p2{positions[i2]};
+        const math::vec &p0{positions[i0]};
+        const math::vec &p1{positions[i1]};
+        const math::vec &p2{positions[i2]};
 
         const math::v2 &uv0{m.vertices[m.indices[i0]].uv};
         const math::v2 &uv1{m.vertices[m.indices[i1]].uv};
@@ -124,8 +123,8 @@ auto calculate_tangents(Mesh &m) -> void
         const math::v2 duv1{uv1.x - uv0.x, uv1.y - uv0.y};
         const math::v2 duv2{uv2.x - uv0.x, uv2.y - uv0.y};
 
-        const XMVECTOR dp1{p1 - p0};
-        const XMVECTOR dp2{p2 - p0};
+        const math::vec dp1{p1 - p0};
+        const math::vec dp2{p2 - p0};
 
         f32 det{duv1.x * duv2.y - duv1.y * duv2.x};
         if (std::abs(det) < math::epsilon)
@@ -134,8 +133,8 @@ auto calculate_tangents(Mesh &m) -> void
         }
 
         const f32 inv_det{1.f / det};
-        const XMVECTOR t{(dp1 * duv2.y - dp2 * duv1.y) * inv_det};
-        const XMVECTOR b{(dp2 * duv1.x - dp1 * duv2.x) * inv_det};
+        const math::vec t{(dp1 * duv2.y - dp2 * duv1.y) * inv_det};
+        const math::vec b{(dp2 * duv1.x - dp1 * duv2.x) * inv_det};
 
         tangents[i0] += t;
         tangents[i1] += t;
@@ -148,14 +147,14 @@ auto calculate_tangents(Mesh &m) -> void
     // Orthonormalize and calculate handedness
     for (u32 i{0}; i < num_indices; ++i)
     {
-        const XMVECTOR &t{tangents[i]};
-        const XMVECTOR &b{bitangents[i]};
-        const XMVECTOR &n{XMLoadFloat3(&m.vertices[m.indices[i]].normal)};
+        const math::vec &t{tangents[i]};
+        const math::vec &b{bitangents[i]};
+        const math::vec &n{math::load(m.vertices[m.indices[i]].normal)};
 
         math::v3 tangent;
-        XMStoreFloat3(&tangent, XMVector3Normalize(t - n * XMVector3Dot(n, t)));
+        math::store(tangent, math::normalize3(t - n * math::dot3(n, t)));
         f32 handedness;
-        XMStoreFloat(&handedness, XMVector3Dot(XMVector3Cross(t, b), n));
+        math::store(handedness, math::dot3(math::cross3(t, b), n));
 
         handedness = handedness > 0.f ? 1.f : -1.f;
 
@@ -174,15 +173,15 @@ auto recalculate_normals(Mesh &m) -> void
         const u32 i1{m.raw_indices[++i]};
         const u32 i2{m.raw_indices[++i]};
 
-        const XMVECTOR v0{XMLoadFloat3(&m.positions[i0])};
-        const XMVECTOR v1{XMLoadFloat3(&m.positions[i1])};
-        const XMVECTOR v2{XMLoadFloat3(&m.positions[i2])};
+        const math::vec v0{math::load(m.positions[i0])};
+        const math::vec v1{math::load(m.positions[i1])};
+        const math::vec v2{math::load(m.positions[i2])};
 
-        const XMVECTOR e0{v1 - v0};
-        const XMVECTOR e1{v2 - v0};
-        const XMVECTOR n{XMVector3Normalize(XMVector3Cross(e0, e1))};
+        const math::vec e0{v1 - v0};
+        const math::vec e1{v2 - v0};
+        const math::vec n{math::normalize3(math::cross3(e0, e1))};
 
-        XMStoreFloat3(&m.normals[i], n);
+        math::store(m.normals[i], n);
         m.normals[i - 1] = m.normals[i];
         m.normals[i - 2] = m.normals[i];
     }
@@ -190,9 +189,9 @@ auto recalculate_normals(Mesh &m) -> void
 
 auto process_normals(Mesh &m, f32 smoothing_angle) -> void
 {
-    const f32 cos_alpha{XMScalarCos(math::pi - smoothing_angle * math::pi / 180.f)};
-    const bool is_hard_edge{XMScalarNearEqual(smoothing_angle, 180.f, math::epsilon)};
-    const bool is_soft_edge{XMScalarNearEqual(smoothing_angle, 0.f, math::epsilon)};
+    const f32 cos_alpha{math::cos(math::pi - smoothing_angle * math::pi / 180.f)};
+    const bool is_hard_edge{math::is_equal(smoothing_angle, 180.f, math::epsilon)};
+    const bool is_soft_edge{math::is_equal(smoothing_angle, 0.f, math::epsilon)};
     const u32 num_indices{static_cast<u32>(m.raw_indices.size())};
     const u32 num_vertices{static_cast<u32>(m.positions.size())};
     assert(num_indices && num_vertices);
@@ -215,21 +214,21 @@ auto process_normals(Mesh &m, f32 smoothing_angle) -> void
             Vertex &v{m.vertices.emplace_back()};
             v.position = m.positions[m.raw_indices[refs[j]]];
 
-            XMVECTOR n1{XMLoadFloat3(&m.normals[refs[j]])};
+            math::vec n1{math::load(m.normals[refs[j]])};
             if (!is_hard_edge)
             {
                 for (u32 k{j + 1}; k < num_refs; ++k)
                 {
                     // this value represents the cosine of the angle between normals.
                     f32 cos_theta{0.f};
-                    const XMVECTOR n2{XMLoadFloat3(&m.normals[refs[k]])};
+                    const math::vec n2{math::load(m.normals[refs[k]])};
                     if (!is_soft_edge)
                     {
                         // NOTE: we're accounting for the length of n1 in this calculation because
                         //       it can possibly change in this loop iteration. We assume unit length
                         //       for n2.
                         //       cos(angle) = dot(n1, n2) / (||n1||*||n2||)
-                        XMStoreFloat(&cos_theta, XMVector3Dot(n1, n2) * XMVector3ReciprocalLength(n1));
+                        math::store(cos_theta, math::dot3(n1, n2) * math::reciprocal_length3(n1));
                     }
 
                     if (is_soft_edge || cos_theta >= cos_alpha)
@@ -243,7 +242,7 @@ auto process_normals(Mesh &m, f32 smoothing_angle) -> void
                     }
                 }
             }
-            XMStoreFloat3(&v.normal, XMVector3Normalize(n1));
+            math::store(v.normal, math::normalize3(n1));
         }
     }
 }
@@ -279,7 +278,7 @@ auto process_uvs(Mesh &m) -> void
             for (u32 k{j + 1}; k < num_refs; ++k)
             {
                 const math::v2 &uv1{m.uv_sets[0][refs[k]]};
-                if (XMScalarNearEqual(v.uv.x, uv1.x, math::epsilon) && XMScalarNearEqual(v.uv.y, uv1.y, math::epsilon))
+                if (math::is_equal(v.uv.x, uv1.x, math::epsilon) && math::is_equal(v.uv.y, uv1.y, math::epsilon))
                 {
                     m.indices[refs[k]] = m.indices[refs[j]];
                     refs.erase(refs.begin() + k);
@@ -326,12 +325,12 @@ auto process_tangents(Mesh &m) -> void
             m.indices[refs[j]] = static_cast<u32>(m.vertices.size());
             m.vertices.emplace_back(v);
 
-            const XMVECTOR xm_tj{XMLoadFloat4(&tj)};
-            const XMVECTOR xm_epsilon{XMVectorReplicate(math::epsilon)};
+            const math::vec xm_tj{math::load(tj)};
+            const math::vec xm_epsilon{math::vec_replicate(math::epsilon)};
             for (u32 k{j + 1}; k < num_refs; ++k)
             {
-                const XMVECTOR xm_tangent{XMLoadFloat4(&m.tangents[refs[k]])};
-                if (XMVector4NearEqual(xm_tj, xm_tangent, xm_epsilon))
+                const math::vec xm_tangent{math::load(m.tangents[refs[k]])};
+                if (math::near_equal4(xm_tj, xm_tangent, xm_epsilon))
                 {
                     m.indices[refs[k]] = m.indices[refs[j]];
                     refs.erase(refs.begin() + k);

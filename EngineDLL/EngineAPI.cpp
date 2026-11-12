@@ -95,17 +95,16 @@ auto calculate_thresholds(
 {
     const game_entity::Entity camera{game_entity::EntityId{surfaces[surface_id].camera.entity_id()}};
 
-    using namespace DirectX;
     math::v3 pos{camera.position()};
-    const XMVECTOR camera_pos{XMLoadFloat3(&pos)};
+    const math::vec camera_pos{math::load(pos)};
 
     for (u32 i{0}; i < count; ++i)
     {
         assert(id::is_valid(entity_ids[i]));
         pos = game_entity::Entity{entity_ids[i]}.position();
-        const XMVECTOR entity_pos{XMLoadFloat3(&pos)};
-        const XMVECTOR distance{XMVector3LengthEst(camera_pos - entity_pos)};
-        XMStoreFloat(&thresholds[i], distance);
+        const math::vec entity_pos{math::load(pos)};
+        const math::vec distance{math::length_est3(camera_pos - entity_pos)};
+        math::store(thresholds[i], distance);
     }
 }
 
@@ -117,9 +116,7 @@ auto create_one_game_entity(
     math::v3 scale = {1.f, 1.f, 1.f}) -> game_entity::Entity
 {
     transform::InitInfo transform_info{};
-    const DirectX::XMVECTOR quat{DirectX::XMQuaternionRotationRollPitchYawFromVector(DirectX::XMLoadFloat3(&rotation))};
-    math::v4a rot_quat{};
-    DirectX::XMStoreFloat4A(&rot_quat, quat);
+    const math::v4 rot_quat{math::quat_from_euler(rotation)};
     std::memcpy(&transform_info.rotation[0], &rot_quat.x, sizeof(transform_info.rotation));
     std::memcpy(&transform_info.position[0], &position.x, sizeof(transform_info.position));
     std::memcpy(&transform_info.scale[0], &scale.x, sizeof(transform_info.scale));
