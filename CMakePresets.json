@@ -1,6 +1,6 @@
 {
   "version": 6,
-  "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+  "cmakeMinimumRequired": { "major": 3, "minor": 28, "patch": 0 },
   "configurePresets": [
     {
       "name": "linux-base",
@@ -38,12 +38,20 @@
       "description": "Same x64/<Config>/ output folder as the clang presets: the last build wins.",
       "inherits": "linux-base",
       "cacheVariables": { "CMAKE_CXX_COMPILER": "g++", "CMAKE_BUILD_TYPE": "Release" }
+    },
+    {
+      "name": "linux-tsan",
+      "displayName": "Linux Debug with ThreadSanitizer (clang)",
+      "description": "Finds data races. Same x64/Debug/ output folder as the other Debug presets: the last build wins.",
+      "inherits": "linux-base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "PRIMAL_ENABLE_TSAN": "ON" }
     }
   ],
   "buildPresets": [
     { "name": "linux-debug", "configurePreset": "linux-debug" },
     { "name": "linux-release", "configurePreset": "linux-release" },
     { "name": "linux-gcc-debug", "configurePreset": "linux-gcc-debug" },
-    { "name": "linux-gcc-release", "configurePreset": "linux-gcc-release" }
+    { "name": "linux-gcc-release", "configurePreset": "linux-gcc-release" },
+    { "name": "linux-tsan", "configurePreset": "linux-tsan" }
   ]
 }

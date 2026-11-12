@@ -47,6 +47,15 @@ jobs:
       - uses: actions/checkout@v4
       - run: Tools/CI/ci.sh sanitizers
 
+  tsan:
+    name: ThreadSanitizer
+    runs-on: ubuntu-latest
+    container:
+      image: gitea.unflavoredmeson.com/unflavoredmeson/primal-ci:2026-11-09-b
+    steps:
+      - uses: actions/checkout@v4
+      - run: Tools/CI/ci.sh tsan
+
   tidy:
     name: clang-tidy
     runs-on: ubuntu-latest

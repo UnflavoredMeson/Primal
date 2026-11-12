@@ -3,7 +3,7 @@
 # Distributed under the MIT license. See the LICENSE file in the project root for more information.
 # Generates clang-cl compile databases for the Windows (.vcxproj) builds, so clang-tidy can process
 # Windows-only code on Linux. Usage: gen_windb.py <repo> <xwin dir> <out dir>
-import json, os, re, sys, xml.etree.ElementTree as ET
+import json, os, re, subprocess, sys, xml.etree.ElementTree as ET
 
 repo, xwin, out = (os.path.abspath(a) for a in sys.argv[1:4])
 ns = {"m": "http://schemas.microsoft.com/developer/msbuild/2003"}
@@ -13,13 +13,13 @@ vk_inc = f"{xwin}/vk-include"
 # doctest.h as downloaded by the Linux CMake configure (cmake/PrimalDependencies.cmake).
 doctest_inc = f"{repo}/build/linux-debug/_deps/doctest-src"
 
-def sources(vcxproj):
+def sources(vcxproj, extension=".cpp"):
     root = ET.parse(os.path.join(repo, vcxproj)).getroot()
     base = os.path.dirname(vcxproj)
     files = []
     for item in root.iterfind(".//m:ClCompile", ns):
         inc = item.get("Include")
-        if not inc or not inc.endswith(".cpp"):
+        if not inc or not inc.endswith(extension):
             continue
         files.append(resolve(os.path.normpath(os.path.join(base, inc.replace("\\", "/")))))
     return files
@@ -44,6 +44,9 @@ def command(file, defines, includes, directory):
     return {"directory": directory, "file": os.path.join(repo, file), "arguments": args}
 
 engine = sources("Engine/Engine.vcxproj")
+# The engine's named modules (module interface units). Every database gets them precompiled with its own defines
+# (see the end of this file), so that files that import them can be parsed.
+interfaces = sources("Engine/Engine.vcxproj", ".ixx")
 engine_inc = [f"{repo}/Engine", f"{repo}/Engine/Common", d3d12_inc, vk_inc, f"{repo}/Engine/ThirdParty/vma"]
 test_inc = [f"{repo}/Engine/Common", f"{repo}/Engine", f"{repo}/EngineDLL", dxc_inc, d3d12_inc, vk_inc,
             f"{repo}/Engine/ThirdParty/vma"]
@@ -92,8 +95,34 @@ for top in ["Engine", "EngineDLL", "EngineTest", "ContentTools"]:
             entry["file"] = entry["arguments"][-1] = tu
             dbs["headers"].append(entry)
 
+def module_name(file):
+    return re.search(r"^export\s+module\s+([\w.:]+)\s*;", open(os.path.join(repo, file)).read(), re.M).group(1)
+
+# Precompiles the module interfaces for one database and returns the arguments that tell clang where they are.
+# NOTE: in the order of the .vcxproj: an interface that imports another one has to come after it.
+def precompile_modules(name, entry):
+    args = [a for a in entry["arguments"][:-2]]  # without "/c <file>"
+    module_args = []
+    for file in interfaces:
+        pcm = f"{out}/{name}/bmi/{module_name(file)}.pcm"
+        os.makedirs(os.path.dirname(pcm), exist_ok=True)
+        subprocess.run(args + module_args + ["-x", "c++-module", "--precompile", f"/clang:-o{pcm}",
+                                             os.path.join(repo, file)], check=True, cwd=entry["directory"])
+        module_args.append(f"-fmodule-file={module_name(file)}={pcm}")
+    return module_args
+
 for name, entries in dbs.items():
     os.makedirs(f"{out}/{name}", exist_ok=True)
+    if interfaces and entries:
+        module_args = precompile_modules(name, entries[0])
+        for entry in entries:
+            entry["arguments"][-2:-2] = module_args
+        # The interfaces themselves are checked with the engine's databases.
+        if name.startswith("engine-"):
+            for file in interfaces:
+                entry = command(file, [], [], f"{repo}/Engine")
+                entry["arguments"] = entries[0]["arguments"][:-2] + ["-x", "c++-module", "/c", os.path.join(repo, file)]
+                entries.append(entry)
     with open(f"{out}/{name}/compile_commands.json", "w") as fp:
         json.dump(entries, fp, indent=1)
     print(name, len(entries))

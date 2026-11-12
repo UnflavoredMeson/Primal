@@ -170,13 +170,17 @@ auto DescriptorHeap::free(DescriptorHandle &handle) -> void
     {
         return;
     }
-    const std::scoped_lock lock{_mutex};
-    assert(_set && _size);
-    assert(handle._container == this);
-    assert(handle.index < _capacity);
-
     const u32 frame_idx{core::current_frame_index()};
-    _deferred_free_indices[frame_idx].push_back(handle.index);
+    {
+        const std::scoped_lock lock{_mutex};
+        assert(_set && _size);
+        assert(handle._container == this);
+        assert(handle.index < _capacity);
+
+        _deferred_free_indices[frame_idx].push_back(handle.index);
+    }
+    // Not under _mutex: process_deferred_releases() holds the deferred-release mutex while it takes _mutex, so taking
+    // them the other way round here could deadlock.
     core::set_deferred_releases_flag(frame_idx);
     handle = {};
 }
