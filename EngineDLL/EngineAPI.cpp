@@ -27,6 +27,8 @@
 #include <string_view>
 #include <vector>
 
+import primal.jobs;
+
 using namespace primal;
 
 namespace
@@ -186,6 +188,9 @@ EDITOR_INTERFACE auto GetEngineVersion(int *major, int *minor, int *revision) ->
 EDITOR_INTERFACE auto InitializeEngine() -> EngineInitError::ErrorCode
 {
     log::initialize();
+    // NOTE: the thread that calls InitializeEngine() is the frame thread: RenderFrame() and ShutdownEngine() must
+    //       be called by it too (the editor's UI thread).
+    jobs::initialize();
     const graphics::GraphicsPlatform platform{::selected_graphics_platform()};
     while (!::compile_shaders(platform))
     {
@@ -194,12 +199,14 @@ EDITOR_INTERFACE auto InitializeEngine() -> EngineInitError::ErrorCode
         if (::MessageBoxA(nullptr, "Failed to compile engine shaders.", "Shader Compilation Error", MB_RETRYCANCEL) !=
             IDRETRY)
         {
+            jobs::shutdown();
             return EngineInitError::shader_compilation;
         }
     }
 
     if (!graphics::initialize(platform))
     {
+        jobs::shutdown();
         return EngineInitError::graphics;
     }
 
@@ -213,8 +220,9 @@ EDITOR_INTERFACE auto ShutdownEngine() -> void
 {
     graphics::remove_light_set(0);
     graphics::shutdown();
-    // The logger thread must have ended before this DLL is unloaded: a thread can't be joined while the loader
-    // unloads a DLL. Messages logged from here on are written by their callers.
+    // The workers and the logger thread must have ended before this DLL is unloaded: a thread can't be joined while the
+    // loader unloads a DLL. Messages logged from here on are written by their callers.
+    jobs::shutdown();
     log::shutdown();
 }
 

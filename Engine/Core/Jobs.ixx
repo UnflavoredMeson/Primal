@@ -127,18 +127,23 @@ auto run(Counter &counter, F &&function, Lane lane = Lane::frame) -> void
 auto wait(Counter &counter) -> void;
 
 // Calls function(begin, end) for [0, count) in batches of batch_size (frame jobs), and returns when all are done.
+// The caller runs the last batch itself, so a count of at most batch_size never leaves the calling thread.
 template <typename F>
     requires std::invocable<F &, u32, u32>
 auto parallel_for(u32 count, u32 batch_size, F &&function) -> void
 {
+    if (count == 0)
+    {
+        return;
+    }
     batch_size = std::max(batch_size, 1u);
     Counter counter;
-    for (u32 begin{0}; begin < count;)
+    u32 begin{0};
+    for (; count - begin > batch_size; begin += batch_size)
     {
-        const u32 end{count - begin <= batch_size ? count : begin + batch_size};
-        run(counter, [&function, begin, end] { function(begin, end); });
-        begin = end;
+        run(counter, [&function, begin, end = begin + batch_size] { function(begin, end); });
     }
+    function(begin, count);
     wait(counter);
 }
 

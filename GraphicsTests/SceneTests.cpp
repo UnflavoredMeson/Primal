@@ -13,8 +13,11 @@
 #include <doctest.h>
 
 #include <array>
+#include <chrono>
 #include <string>
 #include <vector>
+
+import primal.jobs;
 
 using namespace primal;
 
@@ -656,6 +659,58 @@ TEST_CASE("the renderer is restarted with a scene")
         }
         session.shutdown_and_check();
     }
+}
+
+TEST_CASE("a scene with 1100 objects is prepared on several threads")
+{
+    // More objects than one batch of fill_per_object_data() and transform::update_matrices() (1024 each), so the job
+    // system's workers take part (when it has any).
+    graphics_test::Session session{};
+    add_two_views(session);
+    {
+        Scene scene{};
+        constexpr u32 columns{40};
+        for (u32 i{0}; i < 1100; ++i)
+        {
+            const u32 row{i / columns};
+            const u32 column{i % columns};
+            scene.add_box_entity({static_cast<f32>(column) - 20.f, 0.5f, static_cast<f32>(row) - 14.f});
+        }
+        CHECK(scene.render_item_count() == 1105);
+        scene.render_frames(session, 10);
+    }
+    session.shutdown_and_check();
+}
+
+// Not a test: render preparation in parallel. Run it with
+//     x64/Release/GraphicsTests -tc="benchmark*" --no-skip
+// and compare PRIMAL_JOBS=0 (one thread) with the default. A frame's CPU time includes waiting for the GPU, so
+// keep the window small; the constant buffer (1 MB a frame) limits the scene to about 2,000 objects.
+TEST_CASE("benchmark: a frame with 1500 objects" * doctest::skip())
+{
+    graphics_test::Session session{};
+    session.add_view("Benchmark", 320, 240, true);
+    {
+        Scene scene{};
+        constexpr u32 side{39}; // 39 x 39 = 1,521 boxes
+        for (u32 x{0}; x < side; ++x)
+        {
+            for (u32 z{0}; z < side; ++z)
+            {
+                scene.add_box_entity({static_cast<f32>(x) - 20.f, 0.5f, static_cast<f32>(z) - 20.f});
+            }
+        }
+        scene.render_frames(session, 30);
+
+        constexpr u32 frames{300};
+        const auto start{std::chrono::steady_clock::now()};
+        scene.render_frames(session, frames);
+        const std::chrono::duration<double, std::milli> total{std::chrono::steady_clock::now() - start};
+        MESSAGE(
+            "threads: " << jobs::worker_count() << ", render items: " << scene.render_item_count()
+                        << ", per frame: " << total.count() / frames << " ms");
+    }
+    session.shutdown_and_check();
 }
 
 TEST_SUITE_END();

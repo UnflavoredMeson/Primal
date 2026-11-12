@@ -6,6 +6,8 @@
 #include "Platform/Platform.h"
 #include "Platform/PlatformTypes.h"
 
+import primal.jobs;
+
 // Linux counterpart of MainWin32.cpp: entry point of a game executable linked with the engine.
 // NOTE: an executable that defines its own main() (e.g. EngineTest) doesn't pull this in,
 //       because the linker only uses archive members that resolve undefined symbols.
@@ -24,6 +26,7 @@ auto main() -> int
     primal::platform::set_current_directory_to_executable_path();
     primal::log::initialize();
     primal::log::open_file("primal.log");
+    primal::jobs::initialize();
 
     if (::engine_initialize())
     {
@@ -33,6 +36,7 @@ auto main() -> int
         }
     }
     ::engine_shutdown();
+    primal::jobs::shutdown();
     primal::log::shutdown();
     primal::log::close_file();
     return 0;

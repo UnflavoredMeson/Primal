@@ -2,6 +2,8 @@
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "Transform.h"
 
+import primal.jobs;
+
 namespace primal::transform
 {
 namespace
@@ -23,6 +25,9 @@ utl::vector<LocalFrame> local_frames;
 utl::vector<math::v3> positions;
 utl::vector<math::v3> scales;
 utl::vector<u8> has_transform;
+// The transforms whose matrices update_matrices() computes, each once: is_queued says which are in the list.
+utl::vector<id::id_type> queued_indices;
+utl::vector<u8> is_queued;
 utl::vector<u8> changes_from_previous_frame;
 u8 read_write_flag;
 
@@ -47,6 +52,16 @@ auto calculate_transform_matrices(id::id_type index) -> void
     has_transform[index] = 1;
 }
 
+auto queue_matrix_update(id::id_type index) -> void
+{
+    has_transform[index] = 0;
+    if (!is_queued[index])
+    {
+        is_queued[index] = 1;
+        queued_indices.push_back(index);
+    }
+}
+
 auto calculate_local_frame(const math::v4 &rotation, LocalFrame &result) -> void
 {
     const LocalFrame frame{};
@@ -69,7 +84,7 @@ auto set_rotation(TransformId id, const math::v4 &rotation_quaternion) -> void
     const u32 index{id::index(id)};
     rotations[index] = rotation_quaternion;
     calculate_local_frame(rotation_quaternion, local_frames[index]);
-    has_transform[index] = 0;
+    queue_matrix_update(index);
     changes_from_previous_frame[index] |= ComponentFlags::rotation;
 }
 
@@ -77,7 +92,7 @@ auto set_position(TransformId id, const math::v3 &position) -> void
 {
     const u32 index{id::index(id)};
     positions[index] = position;
-    has_transform[index] = 0;
+    queue_matrix_update(index);
     changes_from_previous_frame[index] |= ComponentFlags::position;
 }
 
@@ -85,7 +100,7 @@ auto set_scale(TransformId id, const math::v3 &scale) -> void
 {
     const u32 index{id::index(id)};
     scales[index] = scale;
-    has_transform[index] = 0;
+    queue_matrix_update(index);
     changes_from_previous_frame[index] |= ComponentFlags::scale;
 }
 
@@ -103,7 +118,6 @@ auto create(InitInfo info, game_entity::Entity entity) -> Component
         calculate_local_frame(rotation, local_frames[entity_index]);
         positions[entity_index] = math::v3{info.position};
         scales[entity_index] = math::v3{info.scale};
-        has_transform[entity_index] = 0;
         changes_from_previous_frame[entity_index] = static_cast<u8>(ComponentFlags::all);
     }
     else
@@ -117,8 +131,10 @@ auto create(InitInfo info, game_entity::Entity entity) -> Component
         positions.emplace_back(info.position);
         scales.emplace_back(info.scale);
         has_transform.emplace_back(static_cast<u8>(0));
+        is_queued.emplace_back(static_cast<u8>(0));
         changes_from_previous_frame.emplace_back(static_cast<u8>(ComponentFlags::all));
     }
+    queue_matrix_update(entity_index);
 
     // NOTE: each entity has a transform component. Therefor, id's for transform components
     //       are exactly the same as entity ids.
@@ -135,6 +151,8 @@ auto get_transform_matrices(const game_entity::EntityId id, math::m4x4 &world, m
     assert(game_entity::Entity{id}.is_valid());
 
     const id::id_type entity_index{id::index(id)};
+    // NOTE: update_matrices() has run since the transform changed (before rendering). Computing it here is the
+    //       fallback for other callers; render preparation runs in parallel and must not get here.
     if (!has_transform[entity_index])
     {
         calculate_transform_matrices(entity_index);
@@ -189,6 +207,32 @@ auto update(const ComponentCache *const cache, u32 count) -> void
             set_scale(c.id, c.scale);
         }
     }
+}
+
+auto update_matrices() -> void
+{
+    // About 16 ns per transform: 1024 per job. Smaller batches were slower; with
+    // 100,000 transforms it stops scaling at about 8 threads (memory bound).
+    constexpr u32 batch_size{1024};
+    jobs::parallel_for(
+        static_cast<u32>(queued_indices.size()),
+        batch_size,
+        [](u32 begin, u32 end)
+        {
+            for (u32 i{begin}; i < end; ++i)
+            {
+                const id::id_type index{queued_indices[i]};
+                if (!has_transform[index])
+                {
+                    calculate_transform_matrices(index);
+                }
+            }
+        });
+    for (const id::id_type index : queued_indices)
+    {
+        is_queued[index] = 0;
+    }
+    queued_indices.clear();
 }
 
 auto Component::rotation() const -> math::v4

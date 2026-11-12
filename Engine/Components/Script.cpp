@@ -7,6 +7,8 @@
 
 #define USE_TRANSFORM_CACHE_MAP 0
 
+import primal.jobs;
+
 namespace primal::script
 {
 namespace
@@ -18,7 +20,9 @@ utl::vector<id::id_type> id_mapping;
 utl::vector<id::generation_type> generations;
 utl::deque<ScriptId> free_ids;
 
-utl::vector<transform::ComponentCache> transform_cache;
+// One cache per job system thread (jobs::worker_index()), so that scripts can later run in parallel without
+// locking. They run one after another for now.
+utl::vector<utl::vector<transform::ComponentCache>> transform_caches;
 #if USE_TRANSFORM_CACHE_MAP
 std::unordered_map<id::id_type, u32> cache_map;
 #endif
@@ -57,11 +61,26 @@ auto exists(ScriptId id) -> bool
 }
 #endif
 
+// The cache of the calling thread. Only threads of the job system have one.
+auto this_thread_cache() -> utl::vector<transform::ComponentCache> &
+{
+    const u32 worker{jobs::worker_index()};
+    assert(worker != u32_invalid_id && "Scripts may only change transforms on a thread of the job system.");
+    if (worker >= transform_caches.size())
+    {
+        // NOTE: only the frame thread gets here (scripts run on it): script::update() sizes the caches for every
+        //       thread before scripts could run on others.
+        transform_caches.resize(worker + 1);
+    }
+    return transform_caches[worker];
+}
+
 #if USE_TRANSFORM_CACHE_MAP
 auto get_cache_ptr(const game_entity::Entity *const entity) -> transform::ComponentCache *
 {
     assert(game_entity::is_alive((*entity).get_id()));
     const transform::TransformId id{(*entity).transform().get_id()};
+    utl::vector<transform::ComponentCache> &transform_cache{this_thread_cache()};
 
     u32 index{u32_invalid_id};
     auto pair = cache_map.try_emplace(id, id::invalid_id);
@@ -87,6 +106,7 @@ auto get_cache_ptr(const game_entity::Entity *const entity) -> transform::Compon
 {
     assert(game_entity::is_alive((*entity).get_id()));
     const transform::TransformId id{(*entity).transform().get_id()};
+    utl::vector<transform::ComponentCache> &transform_cache{this_thread_cache()};
 
     for (auto &cache : transform_cache)
     {
@@ -179,20 +199,29 @@ auto remove(Component c) -> void
 
 auto update(f32 dt) -> void
 {
+    if (transform_caches.size() < jobs::worker_count())
+    {
+        transform_caches.resize(jobs::worker_count());
+    }
+
     for (const auto &ptr : entity_scripts)
     {
         ptr->update(dt);
     }
 
-    if (!transform_cache.empty())
+    // The transform phase: apply what the scripts wrote, then compute the changed matrices.
+    for (utl::vector<transform::ComponentCache> &transform_cache : transform_caches)
     {
-        transform::update(transform_cache.data(), static_cast<u32>(transform_cache.size()));
-        transform_cache.clear();
-
-#if USE_TRANSFORM_CACHE_MAP
-        cache_map.clear();
-#endif
+        if (!transform_cache.empty())
+        {
+            transform::update(transform_cache.data(), static_cast<u32>(transform_cache.size()));
+            transform_cache.clear();
+        }
     }
+#if USE_TRANSFORM_CACHE_MAP
+    cache_map.clear();
+#endif
+    transform::update_matrices();
 }
 
 auto EntityScript::set_rotation(const game_entity::Entity *const entity, math::v4 rotation_quaternion) -> void

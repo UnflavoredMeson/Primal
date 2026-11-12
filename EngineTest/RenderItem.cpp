@@ -11,6 +11,8 @@
 #include <filesystem>
 #include <iterator>
 
+import primal.jobs;
+
 #if TEST_RENDERER
 
 using namespace primal;
@@ -229,31 +231,32 @@ auto create_render_items() -> void
 
     std::memset(&texture_ids[0], 0xff, sizeof(id::id_type) * std::size(texture_ids));
 
-    std::thread threads[]{
-        std::thread{
-            [] { texture_ids[TextureUsage::ambient_occlusion] = load_texture("../../x64/ambient_occlusion.texture"); }},
-        std::thread{[] { texture_ids[TextureUsage::base_color] = load_texture("../../x64/base_color.texture"); }},
-        std::thread{[] { texture_ids[TextureUsage::emissive] = load_texture("../../x64/emissive.texture"); }},
-        std::thread{[] { texture_ids[TextureUsage::metal_rough] = load_texture("../../x64/metal_rough.texture"); }},
-        std::thread{[] { texture_ids[TextureUsage::normal] = load_texture("../../x64/normal.texture"); }},
+    // Background jobs: loading reads files and creates GPU resources (the old version had a thread per asset).
+    const TimeIt::clock::time_point load_start{TimeIt::clock::now()};
+    jobs::Counter loads;
+    const auto load{[&loads](auto function) { jobs::run(loads, function, jobs::Lane::background); }};
+    load([] { texture_ids[TextureUsage::ambient_occlusion] = load_texture("../../x64/ambient_occlusion.texture"); });
+    load([] { texture_ids[TextureUsage::base_color] = load_texture("../../x64/base_color.texture"); });
+    load([] { texture_ids[TextureUsage::emissive] = load_texture("../../x64/emissive.texture"); });
+    load([] { texture_ids[TextureUsage::metal_rough] = load_texture("../../x64/metal_rough.texture"); });
+    load([] { texture_ids[TextureUsage::normal] = load_texture("../../x64/normal.texture"); });
 
-        std::thread{[] { ibl_brdf_lut_id = load_texture("../../x64/IBL/brdf_lut.texture"); }},
+    load([] { ibl_brdf_lut_id = load_texture("../../x64/IBL/brdf_lut.texture"); });
 
-        std::thread{[] { ibl_diffuse_id = load_texture("../../x64/IBL/Set4/diffuse.texture"); }},
-        std::thread{[] { ibl_specular_id = load_texture("../../x64/IBL/Set4/specular.texture"); }},
+    load([] { ibl_diffuse_id = load_texture("../../x64/IBL/Set4/diffuse.texture"); });
+    load([] { ibl_specular_id = load_texture("../../x64/IBL/Set4/specular.texture"); });
 
-        std::thread{[] { lab_model_id = load_model("../../x64/lab_model.model"); }},
-        std::thread{[] { fan_model_id = load_model("../../x64/fan_model.model"); }},
-        std::thread{[] { int_model_id = load_model("../../x64/int_model.model"); }},
-        std::thread{[] { fembot_model_id = load_model("../../x64/fembot_model.model"); }},
-        std::thread{[] { sphere_model_id = load_model("../../x64/sphere_model.model"); }},
-        std::thread{[] { load_shaders(); }},
-    };
+    load([] { lab_model_id = load_model("../../x64/lab_model.model"); });
+    load([] { fan_model_id = load_model("../../x64/fan_model.model"); });
+    load([] { int_model_id = load_model("../../x64/int_model.model"); });
+    load([] { fembot_model_id = load_model("../../x64/fembot_model.model"); });
+    load([] { sphere_model_id = load_model("../../x64/sphere_model.model"); });
+    load([] { load_shaders(); });
+    jobs::wait(loads);
 
-    for (auto &t : threads)
-    {
-        t.join();
-    }
+    const auto load_time{std::chrono::duration<f32, std::milli>(TimeIt::clock::now() - load_start)};
+    log::info(
+        log::Category::test, "Test content loaded in {:.1f} ms ({} threads)", load_time.count(), jobs::worker_count());
 
     create_ibl_light();
 

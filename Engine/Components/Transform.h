@@ -40,4 +40,9 @@ auto remove(Component c) -> void;
 auto get_transform_matrices(const game_entity::EntityId id, math::m4x4 &world, math::m4x4 &inverse_world) -> void;
 auto get_updated_components_flags(const game_entity::EntityId *const ids, u32 count, u8 *const flags) -> void;
 auto update(const ComponentCache *const cache, u32 count) -> void;
+
+// Computes the world matrices of every transform that changed since the last call, in parallel (job system). Called
+// at the end of the transform update (script::update()) and before rendering. After it, get_transform_matrices()
+// only reads, so render preparation may call it from several threads.
+auto update_matrices() -> void;
 }

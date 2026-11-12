@@ -12,6 +12,8 @@
 #include <Windows.h>
 #include <crtdbg.h>
 
+import primal.jobs;
+
 #ifndef USE_WITH_EDITOR
 
 extern auto engine_initialize() -> bool;
@@ -28,6 +30,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
     primal::platform::set_current_directory_to_executable_path();
     primal::log::initialize();
     primal::log::open_file("primal.log");
+    primal::jobs::initialize();
 
     if (::engine_initialize())
     {
@@ -37,6 +40,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
         }
     }
     ::engine_shutdown();
+    primal::jobs::shutdown();
     primal::log::shutdown();
     primal::log::close_file();
     return 0;

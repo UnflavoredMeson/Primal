@@ -2,6 +2,7 @@
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "Renderer.h"
 
+#include "Components/Transform.h"
 #include "GraphicsPlatformInterface.h"
 #if PRIMAL_GRAPHICS_D3D12
 #include "Direct3D12/D3D12Interface.h"
@@ -109,6 +110,9 @@ auto Surface::height() const -> u32
 auto Surface::render(FrameInfo info) const -> void
 {
     assert(is_valid());
+    // Render preparation reads the world matrices from several threads: compute the ones that are out of date
+    // first (transforms changed outside script::update(), e.g. by the editor). Nothing to do after the first surface.
+    transform::update_matrices();
     gfx.surface.render(_id, info);
 }
 
