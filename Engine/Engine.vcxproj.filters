@@ -75,6 +75,8 @@
     <ClCompile Include="Core\MainWin32.cpp" />
     <ClCompile Include="Core\Engine.cpp" />
     <ClCompile Include="Core\Log.cpp" />
+    <ClCompile Include="Core\Jobs.cpp" />
+    <ClCompile Include="Core\Jobs.ixx" />
     <ClCompile Include="Content\ContentLoader.cpp" />
     <ClCompile Include="Platform\PlatformWin32.cpp" />
     <ClCompile Include="Graphics\Renderer.cpp" />

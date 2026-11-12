@@ -95,6 +95,8 @@
     <ClCompile Include="Content\ContentLoader.cpp" />
     <ClCompile Include="Content\ContentToEngine.cpp" />
     <ClCompile Include="Core\Engine.cpp" />
+    <ClCompile Include="Core\Jobs.cpp" />
+    <ClCompile Include="Core\Jobs.ixx" />
     <ClCompile Include="Core\Log.cpp" />
     <ClCompile Include="Core\MainWin32.cpp" />
     <ClCompile Include="Graphics\Direct3D12\D3D12Camera.cpp" />
