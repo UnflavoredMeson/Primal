@@ -7,7 +7,6 @@
 #include "Test.h"
 
 #include <ctime>
-#include <iostream>
 
 using namespace primal;
 
@@ -87,8 +86,10 @@ class EngineTest : public Test
 
     auto print_results() const -> void
     {
-        std::cout << "Entities created: " << _added << "\n";
-        std::cout << "Entities deleted: " << _removed << "\n";
+        log::info(log::Category::test, "Entities created: {}", _added);
+        log::info(log::Category::test, "Entities deleted: {}", _removed);
+        // The console loop prints its prompt next.
+        log::flush();
     }
 
     utl::vector<game_entity::Entity> _entities;

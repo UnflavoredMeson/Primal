@@ -2,6 +2,7 @@
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "CommonHeaders.h"
 #if PRIMAL_PLATFORM_WINDOWS
+#include "Core/Log.h"
 #include "Platform/Platform.h"
 #include "Platform/PlatformTypes.h"
 
@@ -25,6 +26,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 #endif
 
     primal::platform::set_current_directory_to_executable_path();
+    primal::log::initialize();
+    primal::log::open_file("primal.log");
 
     if (::engine_initialize())
     {
@@ -34,6 +37,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
         }
     }
     ::engine_shutdown();
+    primal::log::shutdown();
+    primal::log::close_file();
     return 0;
 }
 

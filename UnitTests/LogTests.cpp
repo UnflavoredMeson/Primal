@@ -7,6 +7,9 @@
 #include <array>
 #include <atomic>
 #include <charconv>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <mutex>
 #include <ostream>
 #include <string>
@@ -224,7 +227,49 @@ TEST_CASE("level and category names")
     CHECK(log::to_string(log::Level::error) == "error");
     CHECK(log::to_string(log::Category::core) == "core");
     CHECK(log::to_string(log::Category::tools) == "tools");
+    CHECK(log::to_string(log::Category::test) == "test");
     CHECK(log::to_string(log::Category::count) == "?");
+}
+
+TEST_CASE("the file sink writes every message and keeps the previous file")
+{
+    const LogTest test{false};
+    const std::filesystem::path folder{std::filesystem::temp_directory_path() / "primal_log_test"};
+    std::filesystem::remove_all(folder);
+    std::filesystem::create_directories(folder);
+    const std::filesystem::path path{folder / "test.log"};
+    const std::filesystem::path previous{folder / "test.1.log"};
+
+    const auto read{
+        [](const std::filesystem::path &file) -> std::string
+        {
+            std::ifstream stream{file, std::ios::binary};
+            return {std::istreambuf_iterator<char>{stream}, std::istreambuf_iterator<char>{}};
+        }};
+
+    REQUIRE(log::open_file(path.string().c_str()));
+    log::info(log::Category::content, "first run");
+    log::warning(log::Category::content, "with a location");
+    log::close_file();
+    log::info(log::Category::content, "not in the file");
+
+    const std::string first{read(path)};
+    CHECK(first.find("[info   ] [content] first run\n") != std::string::npos);
+    CHECK(first.find("[warning] [content] with a location (LogTests.cpp:") != std::string::npos);
+    CHECK(first.find("not in the file") == std::string::npos);
+    CHECK_FALSE(std::filesystem::exists(previous));
+
+    REQUIRE(log::open_file(path.string().c_str()));
+    log::info(log::Category::content, "second run");
+    log::close_file();
+
+    CHECK(read(previous) == first);
+    const std::string second{read(path)};
+    CHECK(second.find("second run") != std::string::npos);
+    CHECK(second.find("first run") == std::string::npos);
+
+    CHECK_FALSE(log::open_file((folder / "no_such_folder" / "test.log").string().c_str()));
+    std::filesystem::remove_all(folder);
 }
 
 TEST_CASE("with the logger thread: flush() and error() wait for the sinks")

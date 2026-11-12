@@ -8,6 +8,7 @@
 #include "Components/Script.h"
 #include "Components/Transform.h"
 #include "Content/ContentToEngine.h"
+#include "Core/Log.h"
 #include "Graphics/Renderer.h"
 #include "Platform/Platform.h"
 #include "Platform/PlatformTypes.h"
@@ -20,6 +21,11 @@
 #endif
 
 #include <Windows.h>
+
+#include <cstring>
+#include <mutex>
+#include <string_view>
+#include <vector>
 
 using namespace primal;
 
@@ -50,6 +56,20 @@ struct EngineInitError
         graphics,
     };
 };
+
+// What DrainLog() writes in front of every message. The editor reads it field by field (EngineAPI.cs).
+struct LogMessageHeader
+{
+    u64 sequence;
+    u64 time_ns;
+    u32 line;
+    u32 thread;
+    u32 level;    // log::Level
+    u32 category; // log::Category
+    u32 text_size;
+    u32 file_size;
+};
+static_assert(sizeof(LogMessageHeader) == 40);
 
 struct ShaderData
 {
@@ -165,9 +185,11 @@ EDITOR_INTERFACE auto GetEngineVersion(int *major, int *minor, int *revision) ->
 
 EDITOR_INTERFACE auto InitializeEngine() -> EngineInitError::ErrorCode
 {
+    log::initialize();
     const graphics::GraphicsPlatform platform{::selected_graphics_platform()};
     while (!::compile_shaders(platform))
     {
+        log::error(log::Category::tools, "Failed to compile the engine shaders.");
         // Pop up a message box allowing the user to retry compilation.
         if (::MessageBoxA(nullptr, "Failed to compile engine shaders.", "Shader Compilation Error", MB_RETRYCANCEL) !=
             IDRETRY)
@@ -191,6 +213,68 @@ EDITOR_INTERFACE auto ShutdownEngine() -> void
 {
     graphics::remove_light_set(0);
     graphics::shutdown();
+    // The logger thread must have ended before this DLL is unloaded: a thread can't be joined while the loader
+    // unloads a DLL. Messages logged from here on are written by their callers.
+    log::shutdown();
+}
+
+// Copies the log messages that are newer than *cursor into 'buffer', oldest first, and sets *cursor to the last
+// one copied: pass the same variable to the next call (start with 0). Returns the number of bytes written; 0 when
+// there is nothing new. Each message is a LogMessageHeader followed by its text and its source file name (UTF-8,
+// not terminated). A message that doesn't fit stays for the next call, so the buffer must hold at least one
+// (sizeof(LogMessageHeader) + log::max_message_length + 260 bytes).
+EDITOR_INTERFACE auto DrainLog(u8 *buffer, u32 buffer_size, u64 *cursor) -> u32
+{
+    assert(buffer && cursor);
+    static std::vector<log::StoredMessage> messages;
+    static std::mutex drain_mutex;
+    const std::scoped_lock lock{drain_mutex};
+
+    messages.clear();
+    log::read_recent(*cursor, messages);
+
+    u32 written{0};
+    for (const log::StoredMessage &message : messages)
+    {
+        // The file name without its folders (they are the build machine's).
+        std::string_view file{message.file ? message.file : ""};
+        if (const size_t separator{file.find_last_of("/\\")}; separator != std::string_view::npos)
+        {
+            file.remove_prefix(separator + 1);
+        }
+        file = file.substr(0, 260);
+
+        const LogMessageHeader header{
+            .sequence = message.sequence,
+            .time_ns = message.time_ns,
+            .line = message.line,
+            .thread = message.thread,
+            .level = static_cast<u32>(message.level),
+            .category = static_cast<u32>(message.category),
+            .text_size = static_cast<u32>(message.text.size()),
+            .file_size = static_cast<u32>(file.size()),
+        };
+
+        const u64 size{sizeof(header) + message.text.size() + file.size()};
+        if (size > buffer_size - written)
+        {
+            break;
+        }
+
+        u8 *at{buffer + written};
+        std::memcpy(at, &header, sizeof(header));
+        at += sizeof(header);
+        // NOLINTBEGIN(bugprone-not-null-terminated-result): no terminators are wanted, the sizes are in the header.
+        std::memcpy(at, message.text.data(), message.text.size());
+        at += message.text.size();
+        std::memcpy(at, file.data(), file.size());
+        // NOLINTEND(bugprone-not-null-terminated-result)
+
+        written += static_cast<u32>(size);
+        *cursor = message.sequence;
+    }
+
+    return written;
 }
 
 EDITOR_INTERFACE auto LoadGameCodeDll(const char *dll_path) -> u32

@@ -17,44 +17,7 @@
 
 #include <algorithm>
 #include <atomic>
-#include <cstdarg>
 #include <cstdlib>
-
-namespace primal::graphics::vulkan
-{
-
-auto log_message(const char *format, ...) -> void // NOLINT(modernize-avoid-variadic-functions): printf wrapper
-{
-    char buffer[1024];
-    std::va_list args;
-    va_start(args, format);
-    std::va_list args_copy;
-    va_copy(args_copy, args);
-    const int length{std::vsnprintf(buffer, sizeof(buffer), format, args)};
-    va_end(args);
-
-    const char *message{buffer};
-    std::unique_ptr<char[]> long_message;
-    if (length >= static_cast<int>(sizeof(buffer)))
-    {
-        // Validation messages can be longer than the stack buffer.
-        long_message = std::make_unique<char[]>(static_cast<size_t>(length) + 1);
-        std::vsnprintf(long_message.get(), static_cast<size_t>(length) + 1, format, args_copy);
-        message = long_message.get();
-    }
-    va_end(args_copy);
-    if (length < 0)
-    {
-        return;
-    }
-
-    std::fputs(message, stderr);
-#if PRIMAL_PLATFORM_WINDOWS
-    ::OutputDebugStringA(message);
-#endif
-}
-
-}
 
 namespace primal::graphics::vulkan::core
 {
@@ -368,18 +331,21 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(
     const VkDebugUtilsMessengerCallbackDataEXT *data,
     void *)
 {
-    const char *label{"info"};
+    const char *const message{data && data->pMessage ? data->pMessage : ""};
     if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
     {
-        label = "ERROR";
         ++validation_error_count;
+        log::error(log::Category::vulkan, "Validation: {}", message);
     }
     else if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
     {
-        label = "warning";
         ++validation_warning_count;
+        log::warning(log::Category::vulkan, "Validation: {}", message);
     }
-    log_message("::Vulkan %s: %s\n", label, data && data->pMessage ? data->pMessage : "");
+    else
+    {
+        log::debug(log::Category::vulkan, "Validation: {}", message);
+    }
     return VK_FALSE;
 }
 
@@ -439,7 +405,7 @@ auto create_instance() -> bool
     // Load it here first: calling into a missing delay-loaded DLL raises an SEH exception.
     if (!::LoadLibraryW(L"vulkan-1.dll"))
     {
-        log_message("Vulkan: vulkan-1.dll (the Vulkan loader) wasn't found.\n");
+        log::error(log::Category::vulkan, "vulkan-1.dll (the Vulkan loader) wasn't found.");
         return false;
     }
 #endif
@@ -448,8 +414,9 @@ auto create_instance() -> bool
     VkCall(::vkEnumerateInstanceVersion(&api_version));
     if (api_version < minimum_api_version)
     {
-        log_message(
-            "Vulkan: the loader supports Vulkan %u.%u, 1.3 is required.\n",
+        log::error(
+            log::Category::vulkan,
+            "The loader supports Vulkan {}.{}, 1.3 is required.",
             VK_API_VERSION_MAJOR(api_version),
             VK_API_VERSION_MINOR(api_version));
         return false;
@@ -485,7 +452,7 @@ auto create_instance() -> bool
     }
     if (!window_system_count)
     {
-        log_message("Vulkan: no supported window system surface extension.\n");
+        log::error(log::Category::vulkan, "No supported window system surface extension.");
         return false;
     }
     // Extra swapchain color spaces (FP16 scRGB like the D3D12 back buffer). Optional.
@@ -523,7 +490,7 @@ auto create_instance() -> bool
     }
     if (use_validation() && !validation)
     {
-        log_message("Warning: Vulkan validation layer is not available. Install vulkan-validation-layers.\n");
+        log::warning(log::Category::vulkan, "The validation layer is not available. Install vulkan-validation-layers.");
     }
 #endif
     if (layer_settings)
@@ -582,7 +549,10 @@ auto create_instance() -> bool
     validation_enabled = validation && debug_utils;
     if (validation)
     {
-        log_message("::Vulkan validation layer enabled%s\n", layer_settings ? " (+ synchronization validation)" : "");
+        log::info(
+            log::Category::vulkan,
+            "Validation layer enabled{}",
+            layer_settings ? " (+ synchronization validation)" : "");
     }
 
 #ifdef _DEBUG
@@ -633,7 +603,7 @@ auto get_required_features(const DeviceFeatures &supported, DeviceFeatures &enab
         {
             if (log_missing)
             {
-                log_message("Vulkan: missing device feature %s\n", name);
+                log::error(log::Category::vulkan, "Missing device feature {}", name);
             }
             ok = false;
         }
@@ -709,8 +679,9 @@ auto is_device_suitable(VkPhysicalDevice physical_device, bool log_missing) -> b
     {
         if (log_missing)
         {
-            log_message(
-                "Vulkan: %s supports Vulkan %u.%u, 1.3 is required.\n",
+            log::error(
+                log::Category::vulkan,
+                "{} supports Vulkan {}.{}, 1.3 is required.",
                 properties.deviceName,
                 VK_API_VERSION_MAJOR(properties.apiVersion),
                 VK_API_VERSION_MINOR(properties.apiVersion));
@@ -729,7 +700,7 @@ auto is_device_suitable(VkPhysicalDevice physical_device, bool log_missing) -> b
         {
             if (log_missing)
             {
-                log_message("Vulkan: %s doesn't support %s\n", properties.deviceName, name);
+                log::error(log::Category::vulkan, "{} doesn't support {}", properties.deviceName, name);
             }
             ok = false;
         }
@@ -804,14 +775,15 @@ auto create_device() -> bool
     main_physical_device = determine_main_physical_device();
     if (!main_physical_device)
     {
-        log_message("Vulkan: no suitable GPU found.\n");
+        log::error(log::Category::vulkan, "No suitable GPU found.");
         return false;
     }
 
     VkPhysicalDeviceProperties properties{};
     ::vkGetPhysicalDeviceProperties(main_physical_device, &properties);
-    log_message(
-        "::Vulkan device: %s (Vulkan %u.%u.%u)\n",
+    log::info(
+        log::Category::vulkan,
+        "Device: {} (Vulkan {}.{}.{})",
         properties.deviceName,
         VK_API_VERSION_MAJOR(properties.apiVersion),
         VK_API_VERSION_MINOR(properties.apiVersion),
@@ -1178,7 +1150,7 @@ auto shutdown() -> void
 
     if (const u32 error_count{validation_error_count})
     {
-        log_message("::Vulkan: %u validation error(s) were reported.\n", error_count);
+        log::error(log::Category::vulkan, "{} validation error(s) were reported.", error_count);
     }
 }
 

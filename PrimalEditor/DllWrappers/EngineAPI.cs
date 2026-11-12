@@ -163,6 +163,63 @@ namespace PrimalEditor.DllWrappers
         [LibraryImport(_engineDll)]
         public static partial void ShutdownEngine();
 
+        [LibraryImport(_engineDll)]
+        private static unsafe partial uint DrainLog(byte* buffer, uint bufferSize, ref ulong cursor);
+
+        // Same order as primal::log::Category (Engine/Core/Log.h).
+        private static readonly string[] _logCategories =
+            ["core", "graphics", "vulkan", "d3d12", "content", "input", "script", "tools", "test"];
+        // LogMessageHeader in EngineDLL/EngineAPI.cpp.
+        private const int _logHeaderSize = 40;
+        private static readonly byte[] _logBuffer = new byte[64 * 1024];
+        private static ulong _logCursor;
+
+        /// <summary>
+        /// Moves the engine's new log messages to the editor's log. Call it from the UI thread (a timer).
+        /// </summary>
+        public static void DrainEngineLog()
+        {
+            while (true)
+            {
+                uint size;
+                unsafe
+                {
+                    fixed (byte* buffer = _logBuffer)
+                    {
+                        size = DrainLog(buffer, (uint)_logBuffer.Length, ref _logCursor);
+                    }
+                }
+
+                if (size == 0) break;
+
+                var data = new ReadOnlySpan<byte>(_logBuffer, 0, (int)size);
+                while (data.Length >= _logHeaderSize)
+                {
+                    // u64 sequence, u64 time_ns, u32 line, u32 thread, u32 level, u32 category, u32 text_size, u32 file_size
+                    var line = BitConverter.ToUInt32(data[16..]);
+                    var level = BitConverter.ToUInt32(data[24..]);
+                    var category = BitConverter.ToUInt32(data[28..]);
+                    var textSize = (int)BitConverter.ToUInt32(data[32..]);
+                    var fileSize = (int)BitConverter.ToUInt32(data[36..]);
+                    if (data.Length < _logHeaderSize + textSize + fileSize) break;
+
+                    var text = Encoding.UTF8.GetString(data.Slice(_logHeaderSize, textSize));
+                    var file = Encoding.UTF8.GetString(data.Slice(_logHeaderSize + textSize, fileSize));
+                    data = data[(_logHeaderSize + textSize + fileSize)..];
+
+                    // primal::log::Level: debug, info, warning, error.
+                    var type = level switch
+                    {
+                        2 => MessageType.Warning,
+                        3 => MessageType.Error,
+                        _ => MessageType.Info,
+                    };
+                    var name = category < _logCategories.Length ? _logCategories[category] : "?";
+                    Logger.Log(type, $"[{name}] {text}", file, "engine", (int)line);
+                }
+            }
+        }
+
         [LibraryImport(_engineDll, StringMarshalling = StringMarshalling.Custom, StringMarshallingCustomType = typeof(System.Runtime.InteropServices.Marshalling.AnsiStringMarshaller))]
         public static partial int LoadGameCodeDll(string dllPath);
 

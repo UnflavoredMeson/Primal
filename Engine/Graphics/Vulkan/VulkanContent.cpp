@@ -456,8 +456,10 @@ auto create_resource_from_texture_data(const u8 *const data) -> VulkanTexture
     const vkx::FormatInfo format{vkx::dxgi_format_info(dxgi_format)};
     if (!format.is_valid())
     {
-        log_message(
-            "Vulkan: texture format DXGI_FORMAT %u isn't supported yet (vkx::dxgi_format_info).\n", dxgi_format);
+        log::error(
+            log::Category::vulkan,
+            "Texture format DXGI_FORMAT {} isn't supported yet (vkx::dxgi_format_info).",
+            dxgi_format);
         assert(false);
         return {};
     }
@@ -474,8 +476,9 @@ auto create_resource_from_texture_data(const u8 *const data) -> VulkanTexture
             VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT | VK_FORMAT_FEATURE_TRANSFER_DST_BIT};
         if ((features & required) != required)
         {
-            log_message(
-                "Vulkan: texture format DXGI_FORMAT %u (VkFormat %d) can't be sampled on this device.\n",
+            log::error(
+                log::Category::vulkan,
+                "Texture format DXGI_FORMAT {} (VkFormat {}) can't be sampled on this device.",
                 dxgi_format,
                 static_cast<s32>(format.format));
             assert(false);
@@ -483,9 +486,10 @@ auto create_resource_from_texture_data(const u8 *const data) -> VulkanTexture
         }
         if (!(features & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT))
         {
-            log_message(
-                "Warning: texture format DXGI_FORMAT %u (VkFormat %d) can't be filtered linearly on this device; "
-                "linear/anisotropic sampling of it is undefined.\n",
+            log::warning(
+                log::Category::vulkan,
+                "Texture format DXGI_FORMAT {} (VkFormat {}) can't be filtered linearly on this device; "
+                "linear/anisotropic sampling of it is undefined.",
                 dxgi_format,
                 static_cast<s32>(format.format));
         }

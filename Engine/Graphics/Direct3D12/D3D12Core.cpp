@@ -403,9 +403,10 @@ auto initialize() -> bool
         }
         else
         {
-            ::OutputDebugStringA(
-                "Warning: D3D12 Debug interface is not available. Verify that Graphics Tools optional feature is "
-                "installed on this system.\n");
+            log::warning(
+                log::Category::d3d12,
+                "The debug interface is not available. Verify that the Graphics Tools optional feature is installed "
+                "on this system.");
         }
 
         dxgi_factory_flags |= DXGI_CREATE_FACTORY_DEBUG;

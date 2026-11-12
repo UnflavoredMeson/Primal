@@ -70,6 +70,9 @@ job_checks() {
 
     section "DirectXMath only behind primal::math"
     python3 Tools/check_math_usage.py .
+
+    section "Output only through primal::log"
+    python3 Tools/check_log_usage.py .
 }
 
 job_build() {

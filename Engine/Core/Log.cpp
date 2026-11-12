@@ -27,9 +27,12 @@
 #include <cstring>
 #include <deque>
 #include <exception>
+#include <filesystem>
 #include <iterator>
 #include <memory>
 #include <mutex>
+#include <span>
+#include <system_error>
 #include <thread>
 
 namespace primal::log
@@ -101,25 +104,29 @@ struct State
     u32 next_sink_id{1};
     bool console_enabled{true};
     bool console_is_terminal{false};
+    ConsoleStyle console_style{ConsoleStyle::full};
+    std::FILE *file{nullptr};
 
     std::atomic<Level> level{compiled_level};
     std::atomic<u32> thread_count{0};
     std::chrono::steady_clock::time_point start_time{std::chrono::steady_clock::now()};
+
+    State();
+    ~State();
+    State(const State &) = delete;
+    auto operator=(const State &) -> State & = delete;
+    State(State &&) = delete;
+    auto operator=(State &&) -> State & = delete;
 };
 
-// Never destroyed: messages may still be logged while static objects are destroyed.
+// Set when the State is destroyed, as the process ends. Static objects that are destroyed later may still log:
+// their messages go straight to stderr.
+std::atomic<bool> state_destroyed{false};
+
 auto state() -> State &
 {
-    static State *const instance{
-        []
-        {
-            auto *const new_state{new State{}}; // NOLINT(cppcoreguidelines-owning-memory): lives until the process ends
-#if PRIMAL_PLATFORM_LINUX
-            new_state->console_is_terminal = ::isatty(STDERR_FILENO) != 0 && std::getenv("NO_COLOR") == nullptr;
-#endif
-            return new_state;
-        }()};
-    return *instance;
+    static State instance;
+    return instance;
 }
 
 // Set while this thread is inside a sink, to catch a sink that logs.
@@ -212,35 +219,62 @@ auto short_file_name(const char *file) -> std::string_view
     return separator == std::string_view::npos ? path : path.substr(separator + 1);
 }
 
-auto write_to_console(const State &current, const Message &message) -> void
+// Writes "[time] [level] [category] text (file:line)" and a line end into 'line'. Returns the text written.
+auto format_line(std::span<char> line, const Message &message, bool colored, ConsoleStyle style) -> std::string_view
 {
-    // The whole line goes out in one write, so that other writers to stderr don't end up inside it.
-    std::array<char, max_message_length + 512> line;
+    const std::string_view color_on{colored ? color_of(message.level) : std::string_view{}};
+    const std::string_view color_off{colored ? std::string_view{"\x1b[0m"} : std::string_view{}};
+    // One character is left for a terminator.
+    const auto size{static_cast<std::ptrdiff_t>(line.size() - 1)};
+
+    if (style == ConsoleStyle::plain)
+    {
+        const auto result{std::format_to_n(line.data(), size, "{}{}{}\n", color_on, message.text, color_off)};
+        return {line.data(), static_cast<size_t>(result.out - line.data())};
+    }
+
     const double seconds{static_cast<double>(message.time_ns) * 1e-9};
     const bool has_location{message.level >= Level::warning && message.file};
-    const bool colored{current.console_is_terminal && message.level != Level::info};
     const std::string location{
         has_location ? std::format(" ({}:{})", short_file_name(message.file), message.line) : std::string{}};
 
     const auto result{std::format_to_n(
         line.data(),
-        static_cast<std::ptrdiff_t>(line.size() - 1),
+        size,
         "{}[{:10.4f}] [{:<7}] [{}] {}{}{}\n",
-        colored ? color_of(message.level) : std::string_view{},
+        color_on,
         seconds,
         to_string(message.level),
         to_string(message.category),
         message.text,
         location,
-        colored ? std::string_view{"\x1b[0m"} : std::string_view{})};
+        color_off)};
+    return {line.data(), static_cast<size_t>(result.out - line.data())};
+}
 
-    const std::string_view text{line.data(), static_cast<size_t>(result.out - line.data())};
+auto write_to_console(const State &current, const Message &message) -> void
+{
+    // The whole line goes out in one write, so that other writers to stderr don't end up inside it.
+    std::array<char, max_message_length + 512> line;
+    const bool colored{current.console_is_terminal && message.level != Level::info};
+    const std::string_view text{format_line(line, message, colored, current.console_style)};
     std::fwrite(text.data(), 1, text.size(), stderr);
 #if PRIMAL_PLATFORM_WINDOWS
     // Visible in a debugger's output window. (No colors on Windows: console_is_terminal is never set.)
     line[text.size()] = '\0';
     ::OutputDebugStringA(line.data());
 #endif
+}
+
+auto write_to_file(const State &current, const Message &message) -> void
+{
+    std::array<char, max_message_length + 512> line;
+    const std::string_view text{format_line(line, message, false, ConsoleStyle::full)};
+    std::fwrite(text.data(), 1, text.size(), current.file);
+    if (message.level >= Level::warning)
+    {
+        std::fflush(current.file);
+    }
 }
 
 // Gives one message to the ring buffer and to every sink.
@@ -269,11 +303,52 @@ auto deliver(State &current, const Record &record) -> void
     {
         write_to_console(current, message);
     }
+    if (current.file)
+    {
+        write_to_file(current, message);
+    }
     for (const Sink &sink : current.sinks)
     {
         sink.function(message, sink.user_data);
     }
     in_sink = false;
+}
+
+auto flush_outputs(State &current) -> void
+{
+    std::fflush(stderr);
+    const std::scoped_lock lock{current.sink_mutex};
+    if (current.file)
+    {
+        std::fflush(current.file);
+    }
+}
+
+// Lets the logger thread write what is queued, and waits until it has ended.
+auto stop_logger_thread(State &current) -> void
+{
+    std::thread thread;
+    {
+        const std::scoped_lock lock{current.queue_mutex};
+        if (!current.thread_running || current.stop_requested)
+        {
+            return;
+        }
+        // From here on, callers write their messages themselves. They wait in write() until the queue is empty,
+        // so the order of the messages is kept.
+        current.stop_requested = true;
+        thread = std::move(current.thread);
+    }
+
+    current.not_empty.notify_all();
+    thread.join();
+
+    {
+        const std::scoped_lock lock{current.queue_mutex};
+        current.thread_running = false;
+    }
+    current.delivered_changed.notify_all();
+    flush_outputs(current);
 }
 
 auto logger_thread() -> void
@@ -306,10 +381,33 @@ auto logger_thread() -> void
     }
 }
 
+State::State()
+{
+#if PRIMAL_PLATFORM_LINUX
+    console_is_terminal = ::isatty(STDERR_FILENO) != 0 && std::getenv("NO_COLOR") == nullptr;
+#endif
+}
+
+State::~State()
+{
+    // The process is ending without log::shutdown(): write what is queued.
+    stop_logger_thread(*this);
+    if (file)
+    {
+        std::fclose(file);
+    }
+    state_destroyed.store(true);
+}
+
 }
 
 auto initialize() -> void
 {
+    if (state_destroyed.load())
+    {
+        return;
+    }
+
     State &current{state()};
     const std::scoped_lock lock{current.queue_mutex};
     if (current.thread_running)
@@ -324,54 +422,55 @@ auto initialize() -> void
 
 auto shutdown() -> void
 {
-    State &current{state()};
-    std::thread thread;
+    if (!state_destroyed.load())
     {
-        const std::scoped_lock lock{current.queue_mutex};
-        if (!current.thread_running || current.stop_requested)
-        {
-            return;
-        }
-        // From here on, callers write their messages themselves. They wait in write() until the queue is empty,
-        // so the order of the messages is kept.
-        current.stop_requested = true;
-        thread = std::move(current.thread);
+        stop_logger_thread(state());
     }
-
-    current.not_empty.notify_all();
-    thread.join();
-
-    {
-        const std::scoped_lock lock{current.queue_mutex};
-        current.thread_running = false;
-    }
-    current.delivered_changed.notify_all();
-    std::fflush(stderr);
 }
 
 auto flush() -> void
 {
+    if (state_destroyed.load())
+    {
+        return;
+    }
+
     State &current{state()};
     {
         std::unique_lock lock{current.queue_mutex};
         const u64 target{current.last_sequence};
         current.delivered_changed.wait(lock, [&current, target] { return current.delivered_sequence >= target; });
     }
-    std::fflush(stderr);
+    flush_outputs(current);
 }
 
 auto set_level(Level level) -> void
 {
+    if (state_destroyed.load())
+    {
+        return;
+    }
+
     state().level.store(level, std::memory_order_relaxed);
 }
 
 auto level() -> Level
 {
+    if (state_destroyed.load())
+    {
+        return compiled_level;
+    }
+
     return state().level.load(std::memory_order_relaxed);
 }
 
 auto add_sink(sink_function function, void *user_data) -> u32
 {
+    if (state_destroyed.load())
+    {
+        return 0;
+    }
+
     State &current{state()};
     const std::scoped_lock lock{current.sink_mutex};
     const u32 id{current.next_sink_id++};
@@ -381,6 +480,11 @@ auto add_sink(sink_function function, void *user_data) -> u32
 
 auto remove_sink(u32 sink_id) -> void
 {
+    if (state_destroyed.load())
+    {
+        return;
+    }
+
     State &current{state()};
     const std::scoped_lock lock{current.sink_mutex};
     std::erase_if(current.sinks, [sink_id](const Sink &sink) { return sink.id == sink_id; });
@@ -388,13 +492,96 @@ auto remove_sink(u32 sink_id) -> void
 
 auto enable_console(bool enabled) -> void
 {
+    if (state_destroyed.load())
+    {
+        return;
+    }
+
     State &current{state()};
     const std::scoped_lock lock{current.sink_mutex};
     current.console_enabled = enabled;
 }
 
+auto set_console_style(ConsoleStyle style) -> void
+{
+    if (state_destroyed.load())
+    {
+        return;
+    }
+
+    State &current{state()};
+    const std::scoped_lock lock{current.sink_mutex};
+    current.console_style = style;
+}
+
+auto open_file(const char *utf8_path) -> bool
+{
+    if (state_destroyed.load())
+    {
+        return false;
+    }
+
+    close_file();
+
+    // The path is UTF-8 on every platform (a char path would be the ANSI code page on Windows).
+    const std::string_view utf8{utf8_path};
+    const std::filesystem::path path{std::u8string{utf8.begin(), utf8.end()}};
+    std::error_code error;
+    if (std::filesystem::exists(path, error))
+    {
+        std::filesystem::path previous{path};
+        previous.replace_extension();
+        previous += ".1";
+        previous += path.extension();
+        std::filesystem::rename(path, previous, error);
+    }
+
+#if PRIMAL_PLATFORM_WINDOWS
+    std::FILE *file{nullptr};
+    if (::_wfopen_s(&file, path.c_str(), L"wb") != 0)
+    {
+        file = nullptr;
+    }
+#else
+    std::FILE *const file{std::fopen(path.c_str(), "wb")};
+#endif
+    if (!file)
+    {
+        return false;
+    }
+
+    State &current{state()};
+    const std::scoped_lock lock{current.sink_mutex};
+    current.file = file;
+    return true;
+}
+
+auto close_file() -> void
+{
+    if (state_destroyed.load())
+    {
+        return;
+    }
+
+    // What was logged so far belongs in the file.
+    flush();
+
+    State &current{state()};
+    const std::scoped_lock lock{current.sink_mutex};
+    if (current.file)
+    {
+        std::fclose(current.file);
+        current.file = nullptr;
+    }
+}
+
 auto read_recent(u64 after_sequence, std::vector<StoredMessage> &messages) -> u64
 {
+    if (state_destroyed.load())
+    {
+        return after_sequence;
+    }
+
     State &current{state()};
     const std::scoped_lock lock{current.sink_mutex};
     for (const StoredMessage &message : current.ring)
@@ -422,7 +609,7 @@ auto to_string(Level level) -> std::string_view
 auto to_string(Category category) -> std::string_view
 {
     constexpr std::array<std::string_view, static_cast<size_t>(Category::count)> names{
-        "core", "graphics", "vulkan", "d3d12", "content", "input", "script", "tools"};
+        "core", "graphics", "vulkan", "d3d12", "content", "input", "script", "tools", "test"};
     const auto index{static_cast<size_t>(category)};
     return index < names.size() ? names[index] : "?";
 }
@@ -437,6 +624,21 @@ auto write(
     std::string_view format,
     std::format_args args) -> void
 {
+    if (state_destroyed.load())
+    {
+        Record record;
+        format_text(record, format, args);
+        const std::string_view name{to_string(level)};
+        std::fprintf(
+            stderr,
+            "[%.*s] %.*s\n",
+            static_cast<int>(name.size()),
+            name.data(),
+            static_cast<int>(record.length),
+            record.text.data());
+        return;
+    }
+
     State &current{state()};
     if (level < current.level.load(std::memory_order_relaxed))
     {
@@ -480,7 +682,7 @@ auto write(
             current.delivered_changed.wait(
                 lock, [&current, sequence] { return current.delivered_sequence >= sequence; });
             lock.unlock();
-            std::fflush(stderr);
+            flush_outputs(current);
         }
         return;
     }

@@ -2,6 +2,7 @@
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "CommonHeaders.h"
 #if PRIMAL_PLATFORM_LINUX
+#include "Core/Log.h"
 #include "Platform/Platform.h"
 #include "Platform/PlatformTypes.h"
 
@@ -21,6 +22,8 @@ auto main() -> int
 {
     // NOTE: for leak checking, configure with -DPRIMAL_ENABLE_SANITIZERS=ON.
     primal::platform::set_current_directory_to_executable_path();
+    primal::log::initialize();
+    primal::log::open_file("primal.log");
 
     if (::engine_initialize())
     {
@@ -30,6 +33,8 @@ auto main() -> int
         }
     }
     ::engine_shutdown();
+    primal::log::shutdown();
+    primal::log::close_file();
     return 0;
 }
 

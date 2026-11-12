@@ -2,7 +2,7 @@
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #pragma once
 
-// Logging for the engine, the tools and game scripts (Docs/Multithreading.md, section 6).
+// Logging for the engine, the tools and game scripts.
 //
 //     log::info(log::Category::content, "Loaded {} entities", count);
 //     log::error(log::Category::vulkan, "vkCreateDevice failed: {}", result);
@@ -42,6 +42,7 @@ enum class Category : u8
     input,
     script,
     tools,
+    test,
 
     count
 };
@@ -89,7 +90,8 @@ using sink_function = void (*)(const Message &message, void *user_data);
 
 // Starts the logger thread. Without it everything still works, but each message is written by its caller.
 auto initialize() -> void;
-// Writes what is queued and stops the logger thread. Call it before the process ends.
+// Writes what is queued and stops the logger thread. Call it before a DLL that holds the engine is unloaded; a
+// program that just ends without it still gets its queued messages written.
 auto shutdown() -> void;
 // Returns when every message logged before the call has reached the sinks.
 auto flush() -> void;
@@ -102,6 +104,20 @@ auto set_level(Level level) -> void;
 auto remove_sink(u32 sink_id) -> void;
 // The built-in sink that writes to stderr (and to the debugger on Windows). On by default.
 auto enable_console(bool enabled) -> void;
+
+enum class ConsoleStyle : u8
+{
+    // "[    1.2345] [warning] [vulkan] text (File.cpp:12)"
+    full,
+    // The text alone. For command-line tools whose output a build system reads (compiler error lines).
+    plain,
+};
+auto set_console_style(ConsoleStyle style) -> void;
+
+// Also writes every message to a file (UTF-8, the full console style without colors). A file that is already there
+// is kept as "<name>.1<extension>" (primal.log -> primal.1.log). Returns false if the file can't be created.
+auto open_file(const char *utf8_path) -> bool;
+auto close_file() -> void;
 
 // The ring buffer keeps the most recent messages. Appends those with a sequence greater than 'after_sequence' to
 // 'messages' (oldest first) and returns the sequence of the newest message there is: pass it to the next call.

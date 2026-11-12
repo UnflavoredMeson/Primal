@@ -65,7 +65,7 @@ auto DescriptorHeap::initialize(u32 capacity) -> bool
     ::vkGetDescriptorSetLayoutSupport(device, &layout_info, &support);
     if (!support.supported)
     {
-        log_message("Vulkan: a resource heap with %u mutable descriptors isn't supported.\n", capacity);
+        log::error(log::Category::vulkan, "A resource heap with {} mutable descriptors isn't supported.", capacity);
         return false;
     }
 

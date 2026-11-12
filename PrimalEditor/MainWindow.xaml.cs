@@ -8,6 +8,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
+using System.Windows.Threading;
 
 namespace PrimalEditor;
 
@@ -18,6 +19,8 @@ partial class MainWindow : Window
 {
     private static readonly Version _editorVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
     public static string PrimalPath { get; private set; }
+    // Shows the engine's log messages in the editor's log.
+    private readonly DispatcherTimer _engineLogTimer = new() { Interval = TimeSpan.FromMilliseconds(250) };
 
     private static bool VersionsAreEqual(int[] engineVersion, Version editorVersion) =>
         engineVersion[0] == editorVersion.Major &&
@@ -34,6 +37,8 @@ partial class MainWindow : Window
         {
             EngineAPI.GetEngineVersion(out var major, out var minor, out var revision);
             Debug.Assert(VersionsAreEqual([major, minor, revision], _editorVersion));
+            _engineLogTimer.Tick += (_, _) => EngineAPI.DrainEngineLog();
+            _engineLogTimer.Start();
             OpenProjectBrowserDialog();
         }
         else
@@ -80,6 +85,7 @@ partial class MainWindow : Window
         DataContext = null;
         Project.Current?.Unload();
         ContentToolsAPI.ShutDownContentTools();
+        _engineLogTimer.Stop();
         EngineAPI.ShutdownEngine();
     }
 

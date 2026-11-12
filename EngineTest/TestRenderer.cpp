@@ -13,7 +13,6 @@
 #include "Platform/Platform.h"
 #include "Platform/PlatformTypes.h"
 
-#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -267,6 +266,7 @@ auto test_initialize() -> bool
     const graphics::GraphicsPlatform platform{::selected_graphics_platform()};
     while (!::compile_shaders(platform))
     {
+        log::error(log::Category::test, "Failed to compile the engine shaders.");
 #if PRIMAL_PLATFORM_WINDOWS
         // Pop up a message box allowing the user to retry compilation.
         if (::MessageBox(nullptr, L"Failed to compile engine shaders.", L"Shader Compilation Error", MB_RETRYCANCEL) !=
@@ -275,7 +275,6 @@ auto test_initialize() -> bool
             return false;
         }
 #else
-        std::fprintf(stderr, "Failed to compile the engine shaders.\n");
         return false;
 #endif
     }

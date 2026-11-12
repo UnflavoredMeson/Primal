@@ -5,7 +5,6 @@
 #include "../Platform/PlatformTypes.h"
 #include "Test.h"
 
-#include <cstdio>
 #include <iterator>
 
 using namespace primal;
@@ -36,8 +35,12 @@ auto on_window_event(const platform::WindowEvent &event) -> void
         case WindowEvent::resized:
         {
             const platform::Window win{event.window};
-            std::fprintf(
-                stderr, "window %u resized: %u x %u\n", static_cast<u32>(event.window), win.width(), win.height());
+            log::info(
+                log::Category::test,
+                "window {} resized: {} x {}",
+                static_cast<u32>(event.window),
+                win.width(),
+                win.height());
         }
         break;
         case WindowEvent::key_down:

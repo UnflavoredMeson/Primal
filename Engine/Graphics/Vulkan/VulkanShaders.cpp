@@ -24,17 +24,19 @@ auto load_engine_shaders() -> bool
     const bool loaded{content::load_engine_shaders(engine_shaders_blob, size)};
     if (!loaded || !engine_shaders_blob || !size)
     {
-        log_message(
-            "Vulkan: couldn't load the engine shaders (shaders/vulkan/shaders.bin). Compile them with "
-            "compile_shaders(GraphicsPlatform::vulkan).\n");
+        log::error(
+            log::Category::vulkan,
+            "Couldn't load the engine shaders (shaders/vulkan/shaders.bin). Compile them with "
+            "compile_shaders(GraphicsPlatform::vulkan).");
         engine_shaders_blob.reset();
         return false;
     }
 
     if (!content::get_engine_shaders(engine_shaders_blob.get(), size, &engine_shaders[0], EngineShader::count))
     {
-        log_message(
-            "Vulkan: shaders/vulkan/shaders.bin is corrupt or from another version (delete it to recompile).\n");
+        log::error(
+            log::Category::vulkan,
+            "shaders/vulkan/shaders.bin is corrupt or from another version (delete it to recompile).");
         engine_shaders_blob.reset();
         for (auto &shader : engine_shaders)
         {

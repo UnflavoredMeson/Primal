@@ -2,6 +2,7 @@
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #pragma once
 #include "../Engine/Common/PlatformDetection.h"
+#include "../Engine/Core/Log.h"
 
 #include <chrono>
 #include <string>
@@ -35,7 +36,6 @@ class Test
 #endif
 #include <Windows.h>
 #else
-#include <cstdio>
 #endif
 class TimeIt
 {
@@ -64,13 +64,8 @@ class TimeIt
 
         if (std::chrono::duration_cast<std::chrono::seconds>(clock::now() - _seconds).count() >= 1)
         {
-            const std::string msg{
-                "Avg. frame (ms): " + std::to_string(_us_avg * 0.001f) + " " + std::to_string(_counter) + " fps\n"};
-#if PRIMAL_PLATFORM_WINDOWS
-            ::OutputDebugStringA(msg.c_str());
-#else
-            std::fputs(msg.c_str(), stderr);
-#endif
+            primal::log::info(
+                primal::log::Category::test, "Avg. frame (ms): {:.6f} {} fps", _us_avg * 0.001f, _counter);
             _us_avg = 0.f;
             _counter = 1;
             _seconds = clock::now();

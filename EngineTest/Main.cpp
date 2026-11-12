@@ -18,12 +18,15 @@
 #error One of the tests need to be enabled
 #endif
 
+#include "../Engine/Core/Log.h"
 #include "../Engine/Platform/Platform.h"
 #include "../Engine/Platform/PlatformTypes.h"
 
 auto run_test() -> int
 {
     primal::platform::set_current_directory_to_executable_path();
+    primal::log::initialize();
+    primal::log::open_file("EngineTest.log");
     EngineTest test{};
     const bool initialized{test.initialize()};
     if (initialized)
@@ -38,6 +41,8 @@ auto run_test() -> int
 #endif
     }
     test.shutdown();
+    primal::log::shutdown();
+    primal::log::close_file();
     return initialized ? 0 : 1;
 }
 
