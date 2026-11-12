@@ -9,6 +9,8 @@
 
 #include <thread>
 
+import primal.frame;
+
 using namespace primal;
 namespace
 {
@@ -49,7 +51,8 @@ auto engine_initialize() -> bool
 
 auto engine_update() -> void
 {
-    script::update(10.f);
+    // Nothing renders yet: the game window has no graphics surface.
+    frame::run(10.f, [] {});
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
 }
 

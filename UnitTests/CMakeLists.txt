@@ -10,6 +10,7 @@ add_executable(UnitTests
     Main.cpp
     ContentLoaderTests.cpp
     EntityTests.cpp
+    FrameTests.cpp
     FreeListTests.cpp
     IdTests.cpp
     InputTests.cpp

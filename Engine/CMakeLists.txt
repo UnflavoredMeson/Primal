@@ -12,6 +12,7 @@ target_sources(Engine PRIVATE
     Content/ContentLoader.cpp
     Content/ContentToEngine.cpp
     Core/Engine.cpp
+    Core/Frame.cpp
     Core/Jobs.cpp
     Core/Log.cpp
     Graphics/Renderer.cpp
@@ -20,6 +21,7 @@ target_sources(Engine PRIVATE
 
 # Named modules (import primal.jobs;). A new module's interface unit goes here; its .cpp goes above.
 target_sources(Engine PUBLIC FILE_SET CXX_MODULES BASE_DIRS ${CMAKE_CURRENT_SOURCE_DIR} FILES
+    Core/Frame.ixx
     Core/Jobs.ixx
 )
 

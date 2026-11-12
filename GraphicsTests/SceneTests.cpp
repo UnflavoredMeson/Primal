@@ -17,6 +17,7 @@
 #include <string>
 #include <vector>
 
+import primal.frame;
 import primal.jobs;
 
 using namespace primal;
@@ -148,38 +149,41 @@ class Scene
         return _lights[index];
     }
 
-    // Updates the scripts and renders one frame on every view, alternating the light sets between the views.
-    // lod_threshold picks the LOD of every geometry that has more than one.
+    // Runs one frame (frame::run(): the scripts, the transforms, then rendering on every view), alternating the light
+    // sets between the views. lod_threshold picks the LOD of every geometry that has more than one.
     auto render_frame(graphics_test::Session &session, f32 lod_threshold = 0.f) -> void
     {
         graphics_test::pump_events();
-        script::update(frame_time);
-
-        const u32 item_count{render_item_count()};
-        _render_item_ids.resize(item_count);
-        _thresholds.assign(item_count, lod_threshold);
-        if (item_count)
-        {
-            geometry::get_render_item_ids(_render_item_ids.data(), item_count);
-        }
-
-        for (u32 i{0}; i < graphics_test::max_views; ++i)
-        {
-            const graphics_test::View &view{session.view(i)};
-            if (!view.is_valid())
+        frame::run(
+            frame_time,
+            [this, &session, lod_threshold]
             {
-                continue;
-            }
-            graphics::FrameInfo info{};
-            info.render_item_ids = _render_item_ids.data();
-            info.render_item_count = item_count;
-            info.thresholds = _thresholds.data();
-            info.light_set_key = (i % 2) == 0 ? first_light_set : second_light_set;
-            info.last_frame_time = frame_time * 1000.f;
-            info.average_frame_time = frame_time * 1000.f;
-            info.camera_id = view.camera.get_id();
-            view.surface.render(info);
-        }
+                const u32 item_count{render_item_count()};
+                _render_item_ids.resize(item_count);
+                _thresholds.assign(item_count, lod_threshold);
+                if (item_count)
+                {
+                    geometry::get_render_item_ids(_render_item_ids.data(), item_count);
+                }
+
+                for (u32 i{0}; i < graphics_test::max_views; ++i)
+                {
+                    const graphics_test::View &view{session.view(i)};
+                    if (!view.is_valid())
+                    {
+                        continue;
+                    }
+                    graphics::FrameInfo info{};
+                    info.render_item_ids = _render_item_ids.data();
+                    info.render_item_count = item_count;
+                    info.thresholds = _thresholds.data();
+                    info.light_set_key = (i % 2) == 0 ? first_light_set : second_light_set;
+                    info.last_frame_time = frame_time * 1000.f;
+                    info.average_frame_time = frame_time * 1000.f;
+                    info.camera_id = view.camera.get_id();
+                    view.surface.render(info);
+                }
+            });
     }
 
     auto render_frames(graphics_test::Session &session, u32 count, f32 lod_threshold = 0.f) -> void

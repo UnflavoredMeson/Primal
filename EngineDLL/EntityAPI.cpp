@@ -7,7 +7,8 @@
 #include "Components/Script.h"
 #include "Components/Transform.h"
 #include "Id.h"
-#include "Utilities/Threading.h"
+
+#include <mutex>
 
 using namespace primal;
 
@@ -138,7 +139,9 @@ auto get_absolute_quat(math::v3 w, u32 id) -> math::v4
 }
 }
 
-utl::TicketMutex mutex{};
+// Every export takes it: the editor calls in from its UI thread and its render thread (RenderFrame()). A
+// std::mutex, not a spin lock: RenderFrame() holds it for a whole frame, and the other thread should sleep meanwhile.
+std::mutex mutex;
 
 EDITOR_INTERFACE auto CreateGameEntity(GameEntityDescriptor *e) -> id::id_type
 {

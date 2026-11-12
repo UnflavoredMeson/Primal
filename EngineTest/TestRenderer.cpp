@@ -16,6 +16,9 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+
+import primal.frame;
+
 #if TEST_RENDERER
 
 using namespace primal;
@@ -377,26 +380,30 @@ auto EngineTest::run() -> void
 
     timer.begin();
     const f32 dt{timer.dt_avg()};
-    script::update(dt);
     // test_lights(dt);
-    for (u32 i{0}; i < std::size(surfaces); ++i)
-    {
-        if (surfaces[i].surface.surface.is_valid())
+    frame::run(
+        dt,
+        [dt]
         {
-            f32 thresholds[4 + 12]{};
+            for (u32 i{0}; i < std::size(surfaces); ++i)
+            {
+                if (surfaces[i].surface.surface.is_valid())
+                {
+                    f32 thresholds[4 + 12]{};
 
-            graphics::FrameInfo info{};
-            info.render_item_ids = render_item_id_cache.data() + 0;
-            info.render_item_count = 4 + 12 - 0;
-            info.thresholds = &thresholds[0];
-            info.light_set_key = light_set_key;
-            info.average_frame_time = dt;
-            info.camera_id = surfaces[i].camera.get_id();
+                    graphics::FrameInfo info{};
+                    info.render_item_ids = render_item_id_cache.data() + 0;
+                    info.render_item_count = 4 + 12 - 0;
+                    info.thresholds = &thresholds[0];
+                    info.light_set_key = light_set_key;
+                    info.average_frame_time = dt;
+                    info.camera_id = surfaces[i].camera.get_id();
 
-            assert(std::size(thresholds) >= info.render_item_count);
-            surfaces[i].surface.surface.render(info);
-        }
-    }
+                    assert(std::size(thresholds) >= info.render_item_count);
+                    surfaces[i].surface.surface.render(info);
+                }
+            }
+        });
     timer.end();
 }
 

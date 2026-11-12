@@ -14,7 +14,6 @@
 #include "Platform/PlatformTypes.h"
 #include "ShaderCompilation.h"
 #include "Utilities/IOStream.h"
-#include "Utilities/Threading.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -175,7 +174,9 @@ auto remove_camera(graphics::Camera &camera) -> void
 
 }
 
-extern utl::TicketMutex mutex;
+// The editor calls in from its UI thread and its render thread (RenderFrame()); this lock (EntityAPI.cpp) keeps
+// them apart.
+extern std::mutex mutex;
 auto to_quat(math::v3 euler_angles, bool is_degrees) -> math::v4;
 
 EDITOR_INTERFACE auto GetEngineVersion(int *major, int *minor, int *revision) -> void
@@ -188,8 +189,9 @@ EDITOR_INTERFACE auto GetEngineVersion(int *major, int *minor, int *revision) ->
 EDITOR_INTERFACE auto InitializeEngine() -> EngineInitError::ErrorCode
 {
     log::initialize();
-    // NOTE: the thread that calls InitializeEngine() is the frame thread: RenderFrame() and ShutdownEngine() must
-    //       be called by it too (the editor's UI thread).
+    // NOTE: the thread that calls InitializeEngine() (the editor's UI thread) becomes the pool's frame thread and
+    //       must call ShutdownEngine(). RenderFrame() runs on the editor's render thread, outside the pool: its
+    //       parallel_for jobs run on the workers, and it waits without helping. The editor doesn't use frame::run().
     jobs::initialize();
     const graphics::GraphicsPlatform platform{::selected_graphics_platform()};
     while (!::compile_shaders(platform))

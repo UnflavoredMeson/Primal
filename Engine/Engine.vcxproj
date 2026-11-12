@@ -95,6 +95,8 @@
     <ClCompile Include="Content\ContentLoader.cpp" />
     <ClCompile Include="Content\ContentToEngine.cpp" />
     <ClCompile Include="Core\Engine.cpp" />
+    <ClCompile Include="Core\Frame.cpp" />
+    <ClCompile Include="Core\Frame.ixx" />
     <ClCompile Include="Core\Jobs.cpp" />
     <ClCompile Include="Core\Jobs.ixx" />
     <ClCompile Include="Core\Log.cpp" />

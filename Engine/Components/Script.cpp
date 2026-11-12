@@ -197,7 +197,7 @@ auto remove(Component c) -> void
     }
 }
 
-auto update(f32 dt) -> void
+auto update_scripts(f32 dt) -> void
 {
     if (transform_caches.size() < jobs::worker_count())
     {
@@ -208,8 +208,10 @@ auto update(f32 dt) -> void
     {
         ptr->update(dt);
     }
+}
 
-    // The transform phase: apply what the scripts wrote, then compute the changed matrices.
+auto apply_transform_changes() -> void
+{
     for (utl::vector<transform::ComponentCache> &transform_cache : transform_caches)
     {
         if (!transform_cache.empty())
@@ -222,6 +224,12 @@ auto update(f32 dt) -> void
     cache_map.clear();
 #endif
     transform::update_matrices();
+}
+
+auto update(f32 dt) -> void
+{
+    update_scripts(dt);
+    apply_transform_changes();
 }
 
 auto EntityScript::set_rotation(const game_entity::Entity *const entity, math::v4 rotation_quaternion) -> void

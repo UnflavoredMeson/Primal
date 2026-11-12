@@ -6,6 +6,11 @@
 #include "Script.h"
 #include "Transform.h"
 
+#include <mutex>
+#include <vector>
+
+import primal.frame;
+
 namespace primal::game_entity
 {
 namespace
@@ -18,10 +23,56 @@ utl::vector<geometry::Component> geometries;
 utl::vector<id::generation_type> generations;
 utl::deque<EntityId> free_ids;
 
+// A queued create or remove, with copies of everything the caller pointed to.
+struct Command
+{
+    EntityId remove_id{id::invalid_id}; // valid for a removal
+    transform::InitInfo transform{};
+    script::InitInfo script{};
+    geometry::InitInfo geometry{};
+    bool has_geometry{false};
+    std::vector<id::id_type> material_ids;
+    created_callback on_created{nullptr};
+    void *user_data{nullptr};
+};
+
+std::mutex command_mutex;
+std::vector<Command> queued_commands;
+// The batch process_queued_commands() runs; kept to reuse its memory.
+std::vector<Command> running_commands;
+
+auto run_command(Command &command) -> void
+{
+    if (id::is_valid(command.remove_id))
+    {
+        if (is_alive(command.remove_id))
+        {
+            remove(command.remove_id);
+        }
+        return;
+    }
+
+    if (command.has_geometry)
+    {
+        command.geometry.material_ids = command.material_ids.empty() ? nullptr : command.material_ids.data();
+    }
+    const EntityInfo info{
+        .transform = &command.transform,
+        .script = command.script.script_creator ? &command.script : nullptr,
+        .geometry = command.has_geometry ? &command.geometry : nullptr,
+    };
+    const Entity entity{create(info)};
+    if (command.on_created)
+    {
+        command.on_created(entity, command.user_data);
+    }
+}
+
 }
 
 auto create(EntityInfo info) -> Entity
 {
+    assert(frame::structural_changes_allowed() && "Inside a frame, use game_entity::queue_create().");
     assert(info.transform); // All game entities must have a transform component
     if (!info.transform)
     {
@@ -83,6 +134,7 @@ auto create(EntityInfo info) -> Entity
 
 auto remove(EntityId id) -> void
 {
+    assert(frame::structural_changes_allowed() && "Inside a frame, use game_entity::queue_remove().");
     const id::id_type index{id::index(id)};
     assert(is_alive(id));
 
@@ -109,6 +161,7 @@ auto remove(EntityId id) -> void
 
 auto update_component(EntityId id, EntityInfo info, ComponentType::Type type) -> bool
 {
+    assert(frame::structural_changes_allowed() && "Components can't be replaced inside a frame.");
     assert(is_alive(id) && type != ComponentType::transform);
     if (type == ComponentType::transform)
     {
@@ -159,6 +212,57 @@ auto update_component(EntityId id, EntityInfo info, ComponentType::Type type) ->
     }
 
     return false;
+}
+
+auto queue_create(EntityInfo info, created_callback on_created, void *user_data) -> void
+{
+    assert(info.transform); // All game entities must have a transform component
+    if (!info.transform)
+    {
+        return;
+    }
+
+    Command command{
+        .transform = *info.transform,
+        .script = info.script ? *info.script : script::InitInfo{},
+        .on_created = on_created,
+        .user_data = user_data,
+    };
+    if (info.geometry)
+    {
+        command.geometry = *info.geometry;
+        command.has_geometry = true;
+        if (info.geometry->material_ids && info.geometry->material_count)
+        {
+            command.material_ids.assign(
+                info.geometry->material_ids, info.geometry->material_ids + info.geometry->material_count);
+        }
+    }
+
+    const std::scoped_lock lock{command_mutex};
+    queued_commands.push_back(std::move(command));
+}
+
+auto queue_remove(EntityId id) -> void
+{
+    assert(id::is_valid(id));
+    const std::scoped_lock lock{command_mutex};
+    queued_commands.push_back({.remove_id = id});
+}
+
+auto process_queued_commands() -> void
+{
+    assert(frame::structural_changes_allowed());
+    assert(running_commands.empty() && "process_queued_commands() was called from a command.");
+    {
+        const std::scoped_lock lock{command_mutex};
+        running_commands.swap(queued_commands);
+    }
+    for (Command &command : running_commands)
+    {
+        run_command(command);
+    }
+    running_commands.clear();
 }
 
 auto is_alive(EntityId id) -> bool
