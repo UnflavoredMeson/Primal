@@ -618,9 +618,9 @@ auto initialize() -> bool
     log::info(
         log::Category::d3d12,
         "Draws: {}",
-        draw_indirect          ? "ExecuteIndirect (PRIMAL_D3D12_DRAW_INDIRECT=1)"
+        draw_indirect        ? "ExecuteIndirect (PRIMAL_D3D12_DRAW_INDIRECT=1)"
         : parallel_recording ? "direct, recorded in parallel above 512 items"
-                               : "direct, recorded serially (PRIMAL_D3D12_PARALLEL_RECORDING=0)");
+                             : "direct, recorded serially (PRIMAL_D3D12_PARALLEL_RECORDING=0)");
 
 #if 1
     DXCall(dxgi_factory->CheckFeatureSupport(
@@ -1032,8 +1032,11 @@ auto prepare_thread_command_lists() -> void
         auto lists{std::make_unique<ThreadCommandLists>()};
         for (u32 i{0}; i < frame_buffer_count; ++i)
         {
-            DXCall(main_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&lists->allocators[i])));
-            NAME_D3D12_OBJECT_INDEXED(lists->allocators[i], thread_command_lists.size() * frame_buffer_count + i,
+            DXCall(main_device->CreateCommandAllocator(
+                D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&lists->allocators[i])));
+            NAME_D3D12_OBJECT_INDEXED(
+                lists->allocators[i],
+                thread_command_lists.size() * frame_buffer_count + i,
                 L"Thread Command Allocator");
         }
         thread_command_lists.emplace_back(std::move(lists));
@@ -1055,8 +1058,8 @@ auto begin_thread_command_list() -> id3d12_graphics_command_list *
     {
         // A new list is created recording.
         id3d12_graphics_command_list *list{nullptr};
-        DXCall(main_device->CreateCommandList(
-            0, D3D12_COMMAND_LIST_TYPE_DIRECT, allocator, nullptr, IID_PPV_ARGS(&list)));
+        DXCall(
+            main_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, allocator, nullptr, IID_PPV_ARGS(&list)));
         NAME_D3D12_OBJECT_INDEXED(list, slot, L"Thread Command List");
         frame_lists.push_back(list);
     }

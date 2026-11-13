@@ -760,8 +760,7 @@ auto set_forward(forward_function function) -> void
     forward.store(function, std::memory_order_release);
 }
 
-auto write_forwarded(Level level, Category category, const char *file, u32 line, const char *text, u32 length)
-    -> void
+auto write_forwarded(Level level, Category category, const char *file, u32 line, const char *text, u32 length) -> void
 {
     Record record;
     record.line = line;

@@ -162,8 +162,7 @@ using forward_function =
 // nullptr writes locally again.
 auto set_forward(forward_function function) -> void;
 // Writes a message that another copy of the log has formatted. Keeps its own copy of 'file'.
-auto write_forwarded(Level level, Category category, const char *file, u32 line, const char *text, u32 length)
-    -> void;
+auto write_forwarded(Level level, Category category, const char *file, u32 line, const char *text, u32 length) -> void;
 
 }
 

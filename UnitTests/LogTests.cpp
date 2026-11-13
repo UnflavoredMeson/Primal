@@ -83,7 +83,8 @@ class LogTest
     LogTest(LogTest &&) = delete;
     auto operator=(LogTest &&) -> LogTest & = delete;
 
-    Collector collector;
+    // mutable: the sink writes to it through the pointer taken in the constructor, also when a test is const.
+    mutable Collector collector;
 
   private:
     u32 _sink_id;
@@ -149,7 +150,7 @@ auto keep_forwarded(log::Level level, log::Category category, const char *file, 
 
 TEST_CASE("with a forward function, a message is formatted and handed on instead of written")
 {
-    LogTest test{false};
+    const LogTest test{false};
     forwarded.clear();
 
     log::detail::set_forward(&keep_forwarded);

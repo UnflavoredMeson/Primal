@@ -363,7 +363,7 @@ auto prepare_render_frame(const D3D12FrameInfo &d3d12_info) -> void
 {
     assert(d3d12_info.info && d3d12_info.camera);
 
-    GpassCache &cache{frame_cache};
+    const GpassCache &cache{frame_cache};
     const u32 items_count{cache.size()};
     if (!items_count)
     {
@@ -650,11 +650,8 @@ namespace
 {
 
 // Items [begin, end) of the depth prepass, with the state each needs (a batch starts with none set).
-auto record_depth_items(
-    id3d12_graphics_command_list *cmd_list,
-    const D3D12FrameInfo &d3d12_info,
-    u32 begin,
-    u32 end) -> void
+auto record_depth_items(id3d12_graphics_command_list *cmd_list, const D3D12FrameInfo &d3d12_info, u32 begin, u32 end)
+    -> void
 {
     const GpassCache &cache{frame_cache};
 
@@ -689,11 +686,8 @@ auto record_depth_items(
 }
 
 // Items [begin, end) of the geometry pass, with the state each needs (a batch starts with none set).
-auto record_gpass_items(
-    id3d12_graphics_command_list *cmd_list,
-    const D3D12FrameInfo &d3d12_info,
-    u32 begin,
-    u32 end) -> void
+auto record_gpass_items(id3d12_graphics_command_list *cmd_list, const D3D12FrameInfo &d3d12_info, u32 begin, u32 end)
+    -> void
 {
     const GpassCache &cache{frame_cache};
     const u32 frame_index{d3d12_info.frame_index};

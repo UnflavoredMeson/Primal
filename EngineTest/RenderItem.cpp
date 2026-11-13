@@ -314,8 +314,10 @@ auto create_render_items() -> void
         {
             id::id_type sphere_mtls[]{pbr_mtl_ids[i % std::size(pbr_mtl_ids)]};
             geometry_info.material_ids = &sphere_mtls[0];
-            const f32 x{(static_cast<f32>(i % side) - static_cast<f32>(side) * 0.5f) * 1.5f};
-            const f32 z{(static_cast<f32>(i / side) - static_cast<f32>(side) * 0.5f) * 1.5f};
+            const u32 column{i % side};
+            const u32 row{i / side};
+            const f32 x{(static_cast<f32>(column) - static_cast<f32>(side) * 0.5f) * 1.5f};
+            const f32 z{(static_cast<f32>(row) - static_cast<f32>(side) * 0.5f) * 1.5f};
             extra_sphere_entity_ids[i] = ::create_one_game_entity({x, 12.f, z}, {}, &geometry_info, nullptr).get_id();
         }
         log::info(log::Category::test, "{} extra spheres (PRIMAL_TEST_EXTRA_SPHERES)", extra_count);
