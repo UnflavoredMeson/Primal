@@ -172,6 +172,9 @@ class Project : ViewModelBase
         ContentWatcher.Reset($@"{path}Content\", path);
         LightSet.AddLightSet(LightSet.DefaultKey, true);
 
+        // Before deserializing: that starts the first build of the game code.
+        GameProjectUpgrade.CheckOnLoad(path, System.IO.Path.GetFileNameWithoutExtension(file));
+
         try
         {
             var project = Serializer.FromFile<Project>(file);
