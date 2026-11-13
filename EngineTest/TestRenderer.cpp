@@ -82,12 +82,14 @@ bool is_restarting{false};
 bool is_graphics_initialized{false};
 
 utl::vector<id::id_type> render_item_id_cache;
+utl::vector<f32> render_item_thresholds;
 
 auto destroy_camera_surface(CameraSurface &surface) -> void;
 auto test_initialize() -> bool;
 auto test_shutdown() -> void;
 auto create_render_items() -> void;
 auto destroy_render_items() -> void;
+auto extra_render_item_count() -> u32;
 auto generate_lights() -> void;
 auto remove_lights() -> void;
 auto test_lights(f32 dt) -> void;
@@ -288,6 +290,14 @@ auto test_initialize() -> bool
     }
     is_graphics_initialized = true;
 
+    // PRIMAL_TEST_VSYNC=0 starts without vsync (for measurements; Space toggles it).
+    if (::test_env_u32("PRIMAL_TEST_VSYNC", 1) == 0)
+    {
+        bool vsync{false};
+        graphics::set_option(graphics::RendererOption::vsync, &vsync, sizeof(bool));
+        log::info(log::Category::test, "vsync off (PRIMAL_TEST_VSYNC=0)");
+    }
+
     const platform::WindowInitInfo info[]{
         {&::on_window_event, nullptr, "Render window 1", 100, 100, 400, 800},
         {&::on_window_event, nullptr, "Render window 2", 150, 150, 800, 400},
@@ -307,7 +317,9 @@ auto test_initialize() -> bool
 
     ::create_render_items();
 
-    render_item_id_cache.resize(4 + 12);
+    // 4 models, 12 spheres, and the extra spheres of PRIMAL_TEST_EXTRA_SPHERES.
+    render_item_id_cache.resize(4 + 12 + ::extra_render_item_count());
+    render_item_thresholds.resize(render_item_id_cache.size());
     geometry::get_render_item_ids(render_item_id_cache.data(), static_cast<u32>(render_item_id_cache.size()));
 
     input::InputSource source{};
@@ -389,17 +401,15 @@ auto EngineTest::run() -> void
             {
                 if (surfaces[i].surface.surface.is_valid())
                 {
-                    f32 thresholds[4 + 12]{};
-
                     graphics::FrameInfo info{};
-                    info.render_item_ids = render_item_id_cache.data() + 0;
-                    info.render_item_count = 4 + 12 - 0;
-                    info.thresholds = &thresholds[0];
+                    info.render_item_ids = render_item_id_cache.data();
+                    info.render_item_count = static_cast<u32>(render_item_id_cache.size());
+                    info.thresholds = render_item_thresholds.data();
                     info.light_set_key = light_set_key;
                     info.average_frame_time = dt;
                     info.camera_id = surfaces[i].camera.get_id();
 
-                    assert(std::size(thresholds) >= info.render_item_count);
+                    assert(render_item_thresholds.size() >= info.render_item_count);
                     surfaces[i].surface.surface.render(info);
                 }
             }

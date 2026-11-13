@@ -15,6 +15,12 @@
 #include "D3D12Upload.h"
 #include "Graphics/Shaders/SharedTypes.h"
 
+#include <cstdlib>
+#include <memory>
+#include <span>
+
+import primal.jobs;
+
 using namespace Microsoft::WRL;
 
 namespace primal::graphics::d3d12::core
@@ -76,6 +82,9 @@ class D3D12Command
             type == D3D12_COMMAND_LIST_TYPE_DIRECT    ? L"GFX Command List"
             : type == D3D12_COMMAND_LIST_TYPE_COMPUTE ? L"Compute Command List"
                                                       : L"Command List");
+        _lists.push_back(_cmd_list);
+        _device = device;
+        _type = type;
 
         DXCall(hr = device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&_fence)));
         if (FAILED(hr))
@@ -92,7 +101,7 @@ class D3D12Command
 
     ~D3D12Command()
     {
-        assert(!_cmd_queue && !_cmd_list && !_fence);
+        assert(!_cmd_queue && _lists.empty() && !_fence);
     }
 
     // Wait for the current frame to be signaled and reset the command list/allocator.
@@ -101,15 +110,44 @@ class D3D12Command
         const CommandFrame &frame{_cmd_frames[_frame_index]};
         frame.wait(_fence);
         DXCall(frame.cmd_allocator->Reset());
+        _queued.clear();
+        _list_index = 0;
+        _cmd_list = _lists[0];
         DXCall(_cmd_list->Reset(frame.cmd_allocator, nullptr));
+    }
+
+    // Closes the command list being recorded, queues it and then 'lists' (closed command lists recorded elsewhere),
+    // and continues the frame in another of this frame's command lists. A new list starts with no state set.
+    auto queue_and_continue(std::span<ID3D12CommandList *const> lists) -> void
+    {
+        DXCall(_cmd_list->Close());
+        _queued.push_back(_cmd_list);
+        for (ID3D12CommandList *const list : lists)
+        {
+            _queued.push_back(list);
+        }
+
+        ID3D12CommandAllocator *const allocator{_cmd_frames[_frame_index].cmd_allocator};
+        if (++_list_index == _lists.size())
+        {
+            id3d12_graphics_command_list *list{nullptr};
+            DXCall(_device->CreateCommandList(0, _type, allocator, nullptr, IID_PPV_ARGS(&list)));
+            NAME_D3D12_OBJECT_INDEXED(list, _list_index, L"GFX Command List");
+            _lists.push_back(list);
+        }
+        else
+        {
+            DXCall(_lists[_list_index]->Reset(allocator, nullptr));
+        }
+        _cmd_list = _lists[_list_index];
     }
 
     // Signal the fence with the new fence value.
     auto end_frame(const D3D12Surface &surface) -> void
     {
         DXCall(_cmd_list->Close());
-        ID3D12CommandList *const cmd_lists[]{_cmd_list};
-        _cmd_queue->ExecuteCommandLists(_countof(cmd_lists), &cmd_lists[0]);
+        _queued.push_back(_cmd_list);
+        _cmd_queue->ExecuteCommandLists(static_cast<u32>(_queued.size()), _queued.data());
 
         // Presenting swap chain buffers happens in lockstep with frame buffers.
         surface.present();
@@ -138,7 +176,13 @@ class D3D12Command
         _fence_value = 0;
 
         core::release(_cmd_queue);
-        core::release(_cmd_list);
+        for (id3d12_graphics_command_list *&list : _lists)
+        {
+            core::release(list);
+        }
+        _lists.clear();
+        _queued.clear();
+        _cmd_list = nullptr;
 
         for (u32 i{0}; i < frame_buffer_count; ++i)
         {
@@ -188,7 +232,14 @@ class D3D12Command
     };
 
     ID3D12CommandQueue *_cmd_queue{nullptr};
+    // The frame's commands may span several lists (queue_and_continue()): _lists owns them (reused every frame; a
+    // submitted list may be reset at once, its memory belongs to the allocator), _cmd_list is the one recording.
     id3d12_graphics_command_list *_cmd_list{nullptr};
+    utl::vector<id3d12_graphics_command_list *> _lists;
+    u32 _list_index{0};
+    utl::vector<ID3D12CommandList *> _queued;
+    id3d12_device *_device{nullptr};
+    D3D12_COMMAND_LIST_TYPE _type{D3D12_COMMAND_LIST_TYPE_DIRECT};
     ID3D12Fence1 *_fence{nullptr};
     u64 _fence_value{0};
     CommandFrame _cmd_frames[frame_buffer_count]{};
@@ -221,6 +272,78 @@ std::mutex deferred_releases_mutex{};
 
 // VSync can only be disabled if DXGI supports tearing.
 b32 tearing_is_supported{0};
+
+// The per-frame constant buffer's usual size. A frame with many render items gets a bigger one (reserve()).
+constexpr u32 constant_buffer_size{1024 * 1024};
+// Room reserved for what the frame allocates besides the gpass's render items (global shader data, ...).
+constexpr u64 other_constant_bytes{256 * 1024};
+
+// One per thread that records command lists in jobs: an allocator per frame, and the lists recorded with it (reused
+// after the allocator is reset). Slot jobs::worker_index(), or the last slot for a thread outside the job system.
+struct ThreadCommandLists
+{
+    ID3D12CommandAllocator *allocators[frame_buffer_count]{};
+    utl::vector<id3d12_graphics_command_list *> lists[frame_buffer_count];
+    u32 used[frame_buffer_count]{};
+};
+// unique_ptr: the vector grows on the rendering thread while no job records; a job keeps a reference meanwhile.
+utl::vector<std::unique_ptr<ThreadCommandLists>> thread_command_lists;
+
+// Set from the environment in initialize().
+bool parallel_recording{true}; // PRIMAL_D3D12_PARALLEL_RECORDING (default 1)
+bool draw_indirect{false};     // PRIMAL_D3D12_DRAW_INDIRECT (default 0)
+
+// The viewport and scissor of the surface being rendered, for command lists that start in the middle of a frame.
+D3D12_VIEWPORT current_viewport{};
+D3D12_RECT current_scissor_rect{};
+
+auto env_flag(const char *name, bool fallback) -> bool
+{
+    // std::getenv is deprecated by MSVC (C4996).
+    char *env{nullptr};
+    size_t size{0};
+    if (::_dupenv_s(&env, &size, name) != 0 || !env)
+    {
+        return fallback;
+    }
+    const bool value{env[0] != '0'};
+    std::free(env);
+    return value;
+}
+
+// What every command list of a surface's frame starts with: the shader-visible heap, viewport and scissor.
+auto set_frame_state(id3d12_graphics_command_list *cmd_list) -> void
+{
+    ID3D12DescriptorHeap *const heaps[]{srv_desc_heap.heap()};
+    cmd_list->SetDescriptorHeaps(1, &heaps[0]);
+    cmd_list->RSSetViewports(1, &current_viewport);
+    cmd_list->RSSetScissorRects(1, &current_scissor_rect);
+}
+
+auto reset_thread_command_lists(u32 frame_idx) -> void
+{
+    for (const std::unique_ptr<ThreadCommandLists> &lists : thread_command_lists)
+    {
+        DXCall(lists->allocators[frame_idx]->Reset());
+        lists->used[frame_idx] = 0;
+    }
+}
+
+auto release_thread_command_lists() -> void
+{
+    for (const std::unique_ptr<ThreadCommandLists> &lists : thread_command_lists)
+    {
+        for (u32 i{0}; i < frame_buffer_count; ++i)
+        {
+            for (id3d12_graphics_command_list *&list : lists->lists[i])
+            {
+                release(list);
+            }
+            release(lists->allocators[i]);
+        }
+    }
+    thread_command_lists.clear();
+}
 
 #ifdef _DEBUG
 // The debug layer's messages go to the log (Category::d3d12) through this callback, instead of only to a debugger.
@@ -490,6 +613,14 @@ auto initialize() -> bool
     }
 
     tearing_is_supported = 0;
+    parallel_recording = env_flag("PRIMAL_D3D12_PARALLEL_RECORDING", true);
+    draw_indirect = env_flag("PRIMAL_D3D12_DRAW_INDIRECT", false);
+    log::info(
+        log::Category::d3d12,
+        "Draws: {}",
+        draw_indirect          ? "ExecuteIndirect (PRIMAL_D3D12_DRAW_INDIRECT=1)"
+        : parallel_recording ? "direct, recorded in parallel above 512 items"
+                               : "direct, recorded serially (PRIMAL_D3D12_PARALLEL_RECORDING=0)");
 
 #if 1
     DXCall(dxgi_factory->CheckFeatureSupport(
@@ -556,7 +687,7 @@ auto initialize() -> bool
 
     for (u32 i{0}; i < frame_buffer_count; ++i)
     {
-        new (&constant_buffers[i]) ConstantBuffer{ConstantBuffer::get_default_init_info(1024 * 1024)};
+        new (&constant_buffers[i]) ConstantBuffer{ConstantBuffer::get_default_init_info(constant_buffer_size)};
         NAME_D3D12_OBJECT_INDEXED(constant_buffers[i].buffer(), i, L"Global Constant Buffer");
         if (!constant_buffers[i].buffer())
         {
@@ -589,6 +720,7 @@ auto initialize() -> bool
 auto shutdown() -> void
 {
     gfx_command.release();
+    release_thread_command_lists();
 
     // NOTE: we don't call process_deferred_releases at the end because
     //       some resources (such as swap chains) can't be released before
@@ -804,9 +936,9 @@ auto render_surface(SurfaceId id, FrameInfo info) -> void
     // reset the allocator once the GPU is done with it.
     // This frees the memory that was used to store commands.
     gfx_command.begin_frame();
-    id3d12_graphics_command_list *const cmd_list{gfx_command.command_list()};
 
     const u32 frame_idx{current_frame_index()};
+    reset_thread_command_lists(frame_idx);
 
     // Reset (clear) the global constant buffer for the current frame.
     ConstantBuffer &cbuffer{constant_buffers[frame_idx]};
@@ -817,20 +949,24 @@ auto render_surface(SurfaceId id, FrameInfo info) -> void
         process_deferred_releases(frame_idx);
     }
 
+    // The render items decide how much of the constant buffer the frame needs: room for them and for the rest of
+    // the frame (global data), before anything is allocated.
+    cbuffer.reserve(other_constant_bytes + gpass::collect_render_items(info));
+
     const D3D12Surface &surface{surfaces[id]};
     ID3D12Resource *const current_back_buffer{surface.back_buffer()};
+    current_viewport = surface.viewport();
+    current_scissor_rect = surface.scissor_rect();
 
     const D3D12FrameInfo d3d12_info{get_d3d12_frame_info(info, cbuffer, surface, frame_idx)};
 
     gpass::set_size({d3d12_info.surface_width, d3d12_info.surface_height});
     d3dx::D3D12ResourceBarrier &barriers{resource_barriers};
 
-    // Record commands
-    ID3D12DescriptorHeap *const heaps[]{srv_desc_heap.heap()};
-    cmd_list->SetDescriptorHeaps(1, &heaps[0]);
-
-    cmd_list->RSSetViewports(1, &surface.viewport());
-    cmd_list->RSSetScissorRects(1, &surface.scissor_rect());
+    // Record commands. NOTE: the gpass passes may continue the frame in another command list (parallel
+    // recording): take gfx_command.command_list() again after them.
+    id3d12_graphics_command_list *cmd_list{gfx_command.command_list()};
+    set_frame_state(cmd_list);
 
     // Depth prepass
     barriers.add(
@@ -842,12 +978,15 @@ auto render_surface(SurfaceId id, FrameInfo info) -> void
     barriers.apply(cmd_list);
     gpass::set_render_targets_for_depth_prepass(cmd_list);
 
-#define DRAW_INDIRECT 1
-#if DRAW_INDIRECT
-    gpass::depth_prepass_indirect(cmd_list, d3d12_info);
-#else
-    gpass::depth_prepass(cmd_list, d3d12_info);
-#endif
+    if (draw_indirect)
+    {
+        gpass::depth_prepass_indirect(cmd_list, d3d12_info);
+    }
+    else
+    {
+        gpass::depth_prepass(cmd_list, d3d12_info);
+    }
+    cmd_list = gfx_command.command_list();
 
     // Geometry and lighting pass
     gpass::add_transitions_for_gpass(barriers);
@@ -856,12 +995,15 @@ auto render_surface(SurfaceId id, FrameInfo info) -> void
     barriers.apply(cmd_list);
     gpass::set_render_targets_for_gpass(cmd_list);
 
-#if DRAW_INDIRECT
-    gpass::render_indirect(cmd_list, d3d12_info);
-#else
-    gpass::render(cmd_list, d3d12_info);
-#endif
-#undef DRAW_INDIRECT
+    if (draw_indirect)
+    {
+        gpass::render_indirect(cmd_list, d3d12_info);
+    }
+    else
+    {
+        gpass::render(cmd_list, d3d12_info);
+    }
+    cmd_list = gfx_command.command_list();
 
     // Post-process
     gpass::add_transitions_for_post_process(barriers);
@@ -880,5 +1022,67 @@ auto render_surface(SurfaceId id, FrameInfo info) -> void
     // Done recording commands. Now execute commands,
     // signal and increment the fence value for next frame.
     gfx_command.end_frame(surface);
+}
+
+auto prepare_thread_command_lists() -> void
+{
+    const u32 slots{jobs::worker_count() + 1};
+    while (thread_command_lists.size() < slots)
+    {
+        auto lists{std::make_unique<ThreadCommandLists>()};
+        for (u32 i{0}; i < frame_buffer_count; ++i)
+        {
+            DXCall(main_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&lists->allocators[i])));
+            NAME_D3D12_OBJECT_INDEXED(lists->allocators[i], thread_command_lists.size() * frame_buffer_count + i,
+                L"Thread Command Allocator");
+        }
+        thread_command_lists.emplace_back(std::move(lists));
+    }
+}
+
+auto begin_thread_command_list() -> id3d12_graphics_command_list *
+{
+    const u32 worker{jobs::worker_index()};
+    const u32 slot{worker == u32_invalid_id ? jobs::worker_count() : worker};
+    assert(slot < thread_command_lists.size() && "Call prepare_thread_command_lists() before recording in jobs.");
+    ThreadCommandLists &lists{*thread_command_lists[slot]};
+    const u32 frame_idx{current_frame_index()};
+    ID3D12CommandAllocator *const allocator{lists.allocators[frame_idx]};
+
+    utl::vector<id3d12_graphics_command_list *> &frame_lists{lists.lists[frame_idx]};
+    const u32 index{lists.used[frame_idx]++};
+    if (index == frame_lists.size())
+    {
+        // A new list is created recording.
+        id3d12_graphics_command_list *list{nullptr};
+        DXCall(main_device->CreateCommandList(
+            0, D3D12_COMMAND_LIST_TYPE_DIRECT, allocator, nullptr, IID_PPV_ARGS(&list)));
+        NAME_D3D12_OBJECT_INDEXED(list, slot, L"Thread Command List");
+        frame_lists.push_back(list);
+    }
+    else
+    {
+        DXCall(frame_lists[index]->Reset(allocator, nullptr));
+    }
+
+    id3d12_graphics_command_list *const cmd_list{frame_lists[index]};
+    set_frame_state(cmd_list);
+    return cmd_list;
+}
+
+auto execute_thread_command_lists(std::span<ID3D12CommandList *const> lists) -> void
+{
+    gfx_command.queue_and_continue(lists);
+    set_frame_state(gfx_command.command_list());
+}
+
+auto command_list() -> id3d12_graphics_command_list *
+{
+    return gfx_command.command_list();
+}
+
+auto parallel_recording_enabled() -> bool
+{
+    return parallel_recording;
 }
 }

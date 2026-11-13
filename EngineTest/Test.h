@@ -4,8 +4,11 @@
 #include "../Engine/Common/PlatformDetection.h"
 #include "../Engine/Core/Log.h"
 
+#include <charconv>
 #include <chrono>
+#include <cstdlib>
 #include <string>
+#include <string_view>
 #include <thread>
 
 #ifndef TEST_ENTITY_COMPONENTS
@@ -20,6 +23,33 @@
 #ifndef TEST_SURFACES
 #define TEST_SURFACES 0
 #endif
+
+// The value of an environment variable as an unsigned number, or 'fallback' when it isn't set or isn't a number.
+inline auto test_env_u32(const char *name, unsigned fallback) -> unsigned
+{
+    std::string value;
+#if PRIMAL_PLATFORM_WINDOWS
+    char *buffer{nullptr};
+    size_t length{0};
+    if (::_dupenv_s(&buffer, &length, name) == 0 && buffer)
+    {
+        value = buffer;
+        std::free(buffer);
+    }
+#else
+    if (const char *const text{std::getenv(name)})
+    {
+        value = text;
+    }
+#endif
+    unsigned result{fallback};
+    const std::string_view text{value};
+    if (std::from_chars(text.data(), text.data() + text.size(), result).ec != std::errc{})
+    {
+        return fallback;
+    }
+    return result;
+}
 
 class Test
 {

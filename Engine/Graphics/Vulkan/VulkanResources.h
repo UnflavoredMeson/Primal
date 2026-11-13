@@ -4,6 +4,8 @@
 #include "VulkanCommonHeaders.h"
 #include "VulkanHelpers.h"
 
+#include <atomic>
+
 // Counterpart of D3D12Resources.h. Memory comes from the Vulkan Memory Allocator (core::allocator()).
 namespace primal::graphics::vulkan
 {
@@ -202,13 +204,17 @@ class ConstantBuffer
     auto release() -> void
     {
         _buffer.release();
-        _cpu_offset = 0;
+        _cpu_offset.store(0, std::memory_order_relaxed);
     }
 
-    constexpr auto clear() -> void
+    auto clear() -> void
     {
-        _cpu_offset = 0;
+        _cpu_offset.store(0, std::memory_order_relaxed);
     }
+    // Right after clear(), before the frame's first allocation: makes sure that many bytes fit, with a bigger buffer
+    // (the next power of two) when they don't. The old buffer is released once no frame uses it.
+    auto reserve(u64 bytes) -> void;
+    // Lock-free: any thread may allocate. nullptr when the buffer is full (reserve() at the start of the frame).
     [[nodiscard]] auto allocate(u32 size) -> u8 *;
 
     template <typename T>
@@ -231,11 +237,10 @@ class ConstantBuffer
     }
 
     // The part of the buffer an allocation is in, to bind it as a root CBV/SRV
-    // (counterpart of d3d12::constant_buffer::gpu_address()).
+    // (counterpart of d3d12::constant_buffer::gpu_address()). Lock-free: only computes the range.
     template <typename T>
-    [[nodiscard]] auto range(T *const allocation, u64 size = sizeof(T)) -> vkx::BufferRange
+    [[nodiscard]] auto range(T *const allocation, u64 size = sizeof(T)) const -> vkx::BufferRange
     {
-        const std::scoped_lock lock{_mutex};
         const u8 *const base{cpu_address()};
         assert(base && allocation);
         if (!base || !allocation)
@@ -243,7 +248,7 @@ class ConstantBuffer
             return {};
         }
         const u8 *const address{reinterpret_cast<const u8 *>(allocation)};
-        assert(address >= base && address + size <= base + _cpu_offset);
+        assert(address >= base && address + size <= base + _cpu_offset.load(std::memory_order_relaxed));
         return {buffer(), static_cast<u64>(address - base), size};
     }
 
@@ -261,8 +266,7 @@ class ConstantBuffer
 
   private:
     VulkanBuffer _buffer;
-    u32 _cpu_offset{0};
-    std::mutex _mutex;
+    std::atomic<u32> _cpu_offset{0};
 };
 
 //// UAV CLEARABLE BUFFER /////////////////////////////////////////////////////////////////////////

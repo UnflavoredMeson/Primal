@@ -313,6 +313,8 @@ vkx::VulkanBarrier resource_barriers{};
 // Same sizes as the D3D12 backend.
 constexpr u32 srv_heap_capacity{4096};
 constexpr u32 constant_buffer_size{1024 * 1024};
+// Room reserved for what the frame allocates besides the gpass's render items (global shader data, ...).
+constexpr u64 other_constant_bytes{256 * 1024};
 
 PFN_vkSetDebugUtilsObjectNameEXT set_debug_utils_object_name{nullptr};
 
@@ -1502,6 +1504,9 @@ auto render_surface(SurfaceId id, FrameInfo info) -> void
 
     ConstantBuffer &cb{constant_buffers[frame_idx]};
     cb.clear();
+    // The render items decide how much of the constant buffer the frame needs: room for them and for the rest of
+    // the frame (global data), before anything is allocated.
+    cb.reserve(other_constant_bytes + gpass::collect_render_items(info, id));
 
     // Nothing to render to (minimized or out of date). The frame is skipped; its command
     // buffer is reset by the next begin_frame().

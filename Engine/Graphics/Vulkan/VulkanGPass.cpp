@@ -147,14 +147,34 @@ struct GpassCache
 // same time (issue #3). Grown by prepare_render_frame() on the rendering thread.
 std::vector<GpassCache> frame_caches;
 
-auto surface_cache(const VulkanFrameInfo &vulkan_info) -> GpassCache &
+auto surface_cache(SurfaceId surface_id) -> GpassCache &
 {
-    const u32 index{id::index(vulkan_info.surface_id)};
+    const u32 index{id::index(surface_id)};
     if (index >= frame_caches.size())
     {
         frame_caches.resize(index + 1);
     }
     return frame_caches[index];
+}
+
+auto surface_cache(const VulkanFrameInfo &vulkan_info) -> GpassCache &
+{
+    return surface_cache(SurfaceId{vulkan_info.surface_id});
+}
+
+// Material data per item: material_surface + texture descriptor indices (StructuredBuffer<uint> MaterialData). Each
+// item is bound as a root SRV, so it starts at a multiple of the storage buffer offset alignment (D3D12 packs the
+// items; root SRVs there only need 4-byte alignment).
+auto material_data_size(const GpassCache &cache) -> u32
+{
+    const u32 material_data_alignment{core::storage_buffer_offset_alignment()};
+    u32 size{0};
+    for (u32 i{0}; i < cache.size(); ++i)
+    {
+        size += static_cast<u32>(math::align_size_up(
+            sizeof(MaterialSurface) + cache.texture_counts[i] * sizeof(u32), material_data_alignment));
+    }
+    return size;
 }
 
 auto create_buffers(math::u32v2 size) -> bool
@@ -245,41 +265,21 @@ auto fill_per_object_data(const VulkanFrameInfo &vulkan_info) -> void
     }
 }
 
+// The allocating half of the frame's preparation; collect_render_items() has filled the cache.
 auto prepare_render_frame(const VulkanFrameInfo &vulkan_info) -> void
 {
     assert(vulkan_info.info);
 
     GpassCache &cache{surface_cache(vulkan_info)};
-    cache.clear();
-    // No camera (e.g. the SURFACES test) or nothing to draw.
-    if (!vulkan_info.camera || !vulkan_info.info->render_item_ids || !vulkan_info.info->render_item_count)
+    const u32 items_count{cache.size()};
+    // No camera (e.g. the SURFACES test) or nothing to draw: collect_render_items() left the cache empty.
+    if (!items_count || !vulkan_info.camera)
     {
         return;
     }
 
-    using namespace content;
-    render_item::get_vulkan_render_item_ids(*vulkan_info.info, cache.vulkan_render_item_ids);
-    cache.resize();
-    const u32 items_count{cache.size()};
-    const render_item::ItemsCache items_cache{cache.items_cache()};
-    render_item::get_items(cache.vulkan_render_item_ids.data(), items_count, items_cache);
-
-    const submesh::ViewsCache views_cache{cache.views_cache()};
-    submesh::get_views(items_cache.submesh_gpu_ids, items_count, views_cache);
-
-    const material::MaterialsCache materials_cache{cache.materials_cache()};
-    material::get_materials(items_cache.material_ids, items_count, materials_cache, cache.descriptor_index_count);
-
-    // Material data: material_surface + texture descriptor indices per item (StructuredBuffer<uint> MaterialData).
-    // Each item is bound as a root SRV, so it starts at a multiple of the storage buffer offset alignment
-    // (D3D12 packs the items; root SRVs there only need 4-byte alignment).
     const u32 material_data_alignment{core::storage_buffer_offset_alignment()};
-    u32 size{0};
-    for (u32 i{0}; i < items_count; ++i)
-    {
-        size += static_cast<u32>(math::align_size_up(
-            sizeof(MaterialSurface) + cache.texture_counts[i] * sizeof(u32), material_data_alignment));
-    }
+    const u32 size{material_data_size(cache)};
 
     ConstantBuffer &cbuffer{core::cbuffer()};
     u8 *const material_data{cbuffer.allocate(size)};
@@ -479,6 +479,35 @@ auto record_pass(
 auto initialize() -> bool
 {
     return create_buffers(initial_dimensions);
+}
+
+auto collect_render_items(const FrameInfo &info, SurfaceId surface_id) -> u64
+{
+    GpassCache &cache{surface_cache(surface_id)};
+    cache.clear();
+    // No camera (e.g. the SURFACES test) or nothing to draw.
+    if (!id::is_valid(info.camera_id) || !info.render_item_ids || !info.render_item_count)
+    {
+        return 0;
+    }
+
+    using namespace content;
+    render_item::get_vulkan_render_item_ids(info, cache.vulkan_render_item_ids);
+    cache.resize();
+    const u32 items_count{cache.size()};
+    const render_item::ItemsCache items_cache{cache.items_cache()};
+    render_item::get_items(cache.vulkan_render_item_ids.data(), items_count, items_cache);
+
+    const submesh::ViewsCache views_cache{cache.views_cache()};
+    submesh::get_views(items_cache.submesh_gpu_ids, items_count, views_cache);
+
+    const material::MaterialsCache materials_cache{cache.materials_cache()};
+    material::get_materials(items_cache.material_ids, items_count, materials_cache, cache.descriptor_index_count);
+
+    // At most: per-object data counts every item as its own object.
+    constexpr u64 per_object_stride{math::align_size_up<ConstantBuffer::alignment>(sizeof(hlsl::PerObjectData))};
+    return math::align_size_up<ConstantBuffer::alignment>(u64{material_data_size(cache)}) +
+           items_count * per_object_stride;
 }
 
 auto shutdown() -> void

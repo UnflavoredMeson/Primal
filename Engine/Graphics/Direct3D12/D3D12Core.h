@@ -4,6 +4,8 @@
 #include "D3D12CommonHeaders.h"
 #include "D3D12Resources.h"
 
+#include <span>
+
 namespace primal::graphics::d3d12
 {
 
@@ -74,4 +76,19 @@ auto resize_surface(SurfaceId id, u32, u32) -> void;
 [[nodiscard]] auto surface_width(SurfaceId id) -> u32;
 [[nodiscard]] auto surface_height(SurfaceId id) -> u32;
 auto render_surface(SurfaceId id, FrameInfo info) -> void;
+
+// Parallel recording: jobs record draws into command lists of their own (one allocator
+// per thread and frame), which run between two parts of the frame's command list.
+// - prepare_thread_command_lists(): on the recording thread before it starts the jobs;
+// - begin_thread_command_list(): from a job; a list of the calling thread, reset and recording, with the descriptor
+//   heaps, viewport and scissor of the surface being rendered set. The job closes it;
+// - execute_thread_command_lists(): on the recording thread after the jobs; closes the frame's command list, queues
+//   it and then these lists, and opens a new one (with descriptor heaps, viewport and scissor set again).
+auto prepare_thread_command_lists() -> void;
+[[nodiscard]] auto begin_thread_command_list() -> id3d12_graphics_command_list *;
+auto execute_thread_command_lists(std::span<ID3D12CommandList *const> lists) -> void;
+// The frame's command list being recorded (changes in execute_thread_command_lists()).
+[[nodiscard]] auto command_list() -> id3d12_graphics_command_list *;
+// PRIMAL_D3D12_PARALLEL_RECORDING=0 records every draw on the rendering thread.
+[[nodiscard]] auto parallel_recording_enabled() -> bool;
 }

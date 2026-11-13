@@ -39,6 +39,9 @@ game_entity::EntityId int_entity_id{id::invalid_id};
 game_entity::EntityId lab_entity_id{id::invalid_id};
 game_entity::EntityId fembot_entity_id{id::invalid_id};
 game_entity::EntityId sphere_entity_ids[12];
+// PRIMAL_TEST_EXTRA_SPHERES=<n>: n more spheres in a grid above the scene, to measure render preparation and
+// recording with many render items parallel recording starts above 512 items).
+utl::vector<game_entity::EntityId> extra_sphere_entity_ids;
 
 struct TextureUsage
 {
@@ -296,6 +299,32 @@ auto create_render_items() -> void
         const f32 z = x;
         sphere_entity_ids[i] = ::create_one_game_entity({x, y, z}, {}, &geometry_info, nullptr).get_id();
     }
+
+    const u32 extra_count{::test_env_u32("PRIMAL_TEST_EXTRA_SPHERES", 0)};
+    if (extra_count)
+    {
+        // A square grid, 1.5 apart, centred over the scene at a height of 12.
+        u32 side{1};
+        while (side * side < extra_count)
+        {
+            ++side;
+        }
+        extra_sphere_entity_ids.resize(extra_count);
+        for (u32 i{0}; i < extra_count; ++i)
+        {
+            id::id_type sphere_mtls[]{pbr_mtl_ids[i % std::size(pbr_mtl_ids)]};
+            geometry_info.material_ids = &sphere_mtls[0];
+            const f32 x{(static_cast<f32>(i % side) - static_cast<f32>(side) * 0.5f) * 1.5f};
+            const f32 z{(static_cast<f32>(i / side) - static_cast<f32>(side) * 0.5f) * 1.5f};
+            extra_sphere_entity_ids[i] = ::create_one_game_entity({x, 12.f, z}, {}, &geometry_info, nullptr).get_id();
+        }
+        log::info(log::Category::test, "{} extra spheres (PRIMAL_TEST_EXTRA_SPHERES)", extra_count);
+    }
+}
+
+auto extra_render_item_count() -> u32
+{
+    return static_cast<u32>(extra_sphere_entity_ids.size());
 }
 
 auto destroy_render_items() -> void
@@ -309,6 +338,11 @@ auto destroy_render_items() -> void
     {
         ::remove_game_entity(sphere_entity_ids[i]);
     }
+    for (const game_entity::EntityId id : extra_sphere_entity_ids)
+    {
+        ::remove_game_entity(id);
+    }
+    extra_sphere_entity_ids.clear();
 
     remove_model(lab_model_id);
     remove_model(fan_model_id);

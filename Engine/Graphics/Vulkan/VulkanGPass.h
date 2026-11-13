@@ -25,6 +25,10 @@ auto shutdown() -> void;
 [[nodiscard]] auto main_buffer() -> const VulkanRenderTexture &;
 [[nodiscard]] auto depth_buffer() -> const VulkanDepthBuffer &;
 
+// First step of a frame, before anything is allocated from the frame's constant buffer: gathers the surface's
+// render items and returns the constant buffer bytes the gpass will allocate for them (core reserves them).
+[[nodiscard]] auto collect_render_items(const FrameInfo &info, SurfaceId surface_id) -> u64;
+
 // NOTE: call this every frame before rendering anything in gpass.
 auto set_size(math::u32v2 size) -> void;
 

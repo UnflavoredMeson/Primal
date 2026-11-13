@@ -156,6 +156,11 @@ auto D3D12Buffer::release() -> void
 ConstantBuffer::ConstantBuffer(const D3D12BufferInitInfo &info)
     : _buffer{info, true}
 {
+    map();
+}
+
+auto ConstantBuffer::map() -> void
+{
     NAME_D3D12_OBJECT_INDEXED(buffer(), size(), L"Constant Buffer - size");
 
     const D3D12_RANGE range{};
@@ -163,19 +168,42 @@ ConstantBuffer::ConstantBuffer(const D3D12BufferInitInfo &info)
     assert(_cpu_address);
 }
 
-auto ConstantBuffer::allocate(u32 size) -> u8 *
+auto ConstantBuffer::reserve(u64 bytes) -> void
 {
-    const std::scoped_lock lock{_mutex};
-    const u32 aligned_size{static_cast<u32>(d3dx::align_size_for_constant_buffer(size))};
-    assert(_cpu_offset + aligned_size <= _buffer.size());
-    if (_cpu_offset + aligned_size <= _buffer.size())
+    assert(_cpu_offset.load(std::memory_order_relaxed) == 0 && "reserve() before the frame's first allocation");
+    if (bytes <= _buffer.size())
     {
-        u8 *const address{_cpu_address + _cpu_offset};
-        _cpu_offset += aligned_size;
-        return address;
+        return;
     }
 
-    return nullptr;
+    u64 new_size{_buffer.size() ? _buffer.size() : D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT};
+    while (new_size < bytes)
+    {
+        new_size *= 2;
+    }
+    assert(new_size <= u32_invalid_id);
+    log::debug(log::Category::d3d12, "Constant buffer grown from {} to {} bytes", _buffer.size(), new_size);
+
+    // The old buffer goes through deferred release: a frame still in flight may use it.
+    _buffer = D3D12Buffer{get_default_init_info(static_cast<u32>(new_size)), true};
+    _cpu_address = nullptr;
+    map();
+}
+
+auto ConstantBuffer::allocate(u32 size) -> u8 *
+{
+    const u32 aligned_size{static_cast<u32>(d3dx::align_size_for_constant_buffer(size))};
+    u32 offset{_cpu_offset.load(std::memory_order_relaxed)};
+    do
+    {
+        if (offset + aligned_size > _buffer.size())
+        {
+            assert(false && "The frame's constant buffer is full: reserve() more at the start of the frame.");
+            return nullptr;
+        }
+    } while (!_cpu_offset.compare_exchange_weak(offset, offset + aligned_size, std::memory_order_relaxed));
+
+    return _cpu_address + offset;
 }
 //// UAV CLEARABLE BUFFER /////////////////////////////////////////////////////////////////////////
 UavClearableBuffer::UavClearableBuffer(const D3D12BufferInitInfo &info)
