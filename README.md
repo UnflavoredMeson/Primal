@@ -40,7 +40,7 @@ through June 15, 2026.
 ### Dependencies
 
 - [FBX SDK 2020](https://www.autodesk.com/developer-network/platform-technologies/fbx-sdk-2020-0) (manual installation required). A typical install path looks like:
- `C:\Program Files\Autodesk\FBX\FBX SDK\2020.3.7`
+ `C:\Program Files\Autodesk\FBX\FBX SDK\2020.3.11`
 - MikkTSpace (already included with ContentTools)
 - doctest (downloaded automatically when UnitTests is built)
 - DirectXTex (automatically restored via vcpkg for ContentTools)
@@ -60,7 +60,7 @@ through June 15, 2026.
 1. Clone the repository: `git clone https://github.com/TheGameEngineers/Primal.git`
 2. Open `Primal.slnx` in Visual Studio 2026.
 3. Restore NuGet packages and vcpkg ports (Visual Studio normally does this automatically).
-4. Install the FBX SDK and, if necessary, update the include/library paths in `ContentTools.vcxproj` and `FbxImporter.cpp` to match your installation location.
+4. Install the FBX SDK 2020.3.11 (VS2022). For another folder or version, pass `/p:PrimalFbxSdkDir=<folder>\` to MSBuild (or set an environment variable of that name); the path is defined once in `ContentTools.vcxproj`.
 5. Choose a solution configuration:
    - **DebugEditor / ReleaseEditor** — builds with editor support
    - **Debug / Release** — pure runtime / test builds

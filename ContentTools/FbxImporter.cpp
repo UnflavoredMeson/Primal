@@ -4,19 +4,8 @@
 
 #include "Geometry.h"
 
-// If you get any compilation or linker errors than make sure that
-// 1) FBX SDK 2020.2 or later is installed on your system
-// 2) the include path to fbxsdk.h is added to "Additional Include Directories" (compiler settings)
-// 3) the library paths in the following section point to the correct location
-#if _DEBUG
-#pragma comment(lib, "C:\\Program Files\\Autodesk\\FBX\\FBX SDK\\2020.3.7\\lib\\x64\\debug\\libfbxsdk-md.lib")
-#pragma comment(lib, "C:\\Program Files\\Autodesk\\FBX\\FBX SDK\\2020.3.7\\lib\\x64\\debug\\libxml2-md.lib")
-#pragma comment(lib, "C:\\Program Files\\Autodesk\\FBX\\FBX SDK\\2020.3.7\\lib\\x64\\debug\\zlib-md.lib")
-#else
-#pragma comment(lib, "C:\\Program Files\\Autodesk\\FBX\\FBX SDK\\2020.3.7\\lib\\x64\\release\\libfbxsdk-md.lib")
-#pragma comment(lib, "C:\\Program Files\\Autodesk\\FBX\\FBX SDK\\2020.3.7\\lib\\x64\\release\\libxml2-md.lib")
-#pragma comment(lib, "C:\\Program Files\\Autodesk\\FBX\\FBX SDK\\2020.3.7\\lib\\x64\\release\\zlib-md.lib")
-#endif
+// The FBX SDK's include and library folders come from the MSBuild property PrimalFbxSdkDir (ContentTools.vcxproj,
+// default: FBX SDK 2020.3.11 in its default folder). Pass /p:PrimalFbxSdkDir=<folder>\ for another location.
 // LNK4099 PDB not found warnings can be resolved either by installing FBX SDK PDBs (separate download) or
 // by disabling this warning in linker options (Linker command line: /ignore:4099).
 
