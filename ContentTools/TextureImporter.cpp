@@ -158,6 +158,7 @@ auto get_adapters_by_performance() -> utl::vector<ComPtr<IDXGIAdapter>>
         constexpr u32 warp_id{0x1414};
 
         ComPtr<IDXGIAdapter> adapter;
+        ComPtr<IDXGIAdapter> warp_adapter;
         for (u32 i{0};
              factory->EnumAdapterByGpuPreference(i, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE, IID_PPV_ARGS(&adapter)) !=
              DXGI_ERROR_NOT_FOUND;
@@ -175,8 +176,19 @@ auto get_adapters_by_performance() -> utl::vector<ComPtr<IDXGIAdapter>>
             {
                 adapters.emplace_back(adapter);
             }
+            else if (!warp_adapter)
+            {
+                warp_adapter = adapter;
+            }
 
             adapter.Reset();
+        }
+
+        // WARP (software) only when there is no hardware adapter at all, e.g. in a VM or on CI: slow, but without it
+        // every GPU path (BRDF LUT, IBL prefiltering, BC compression) fails (issue #40).
+        if (adapters.empty() && warp_adapter)
+        {
+            adapters.emplace_back(warp_adapter);
         }
     }
 

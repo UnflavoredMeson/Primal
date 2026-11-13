@@ -94,6 +94,7 @@
     <ClCompile Include="ContentLoaderTests.cpp" />
     <ClCompile Include="EntityTests.cpp" />
     <ClCompile Include="FrameTests.cpp" />
+    <ClCompile Include="GameScriptTests.cpp" />
     <ClCompile Include="FreeListTests.cpp" />
     <ClCompile Include="IdTests.cpp" />
     <ClCompile Include="InputTests.cpp" />
@@ -101,6 +102,8 @@
     <ClCompile Include="JobTests.cpp" />
     <ClCompile Include="LogTests.cpp" />
     <ClCompile Include="MathTests.cpp" />
+    <ClCompile Include="ScriptRegistryOtherFile.cpp" />
+    <ClCompile Include="ScriptRegistryTests.cpp" />
     <ClCompile Include="ShaderBlobTests.cpp" />
     <ClCompile Include="VectorTests.cpp" />
   </ItemGroup>

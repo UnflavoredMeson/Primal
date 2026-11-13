@@ -57,7 +57,7 @@ class SpinScript : public script::EntityScript
     f32 _angle{0.f};
 };
 
-REGISTER_SCRIPT(SpinScript);
+PRIMAL_SCRIPT(SpinScript);
 
 // The order TestShader.hlsl reads a textured material's textures in.
 struct TextureUsage

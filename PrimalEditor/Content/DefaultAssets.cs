@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 
 namespace PrimalEditor.Content;
 
@@ -19,15 +20,16 @@ static class DefaultAssets
     public static AssetInfo DefaultSpecularIBL { get; private set; }
     public static AssetInfo DefaultDiffuseIBL { get; private set; }
 
-    public static List<AssetInfo> DefaultAssetsList => [
-
-        BrdfIntegrationLut,
-        DefaultGeometry,
-        DefaultMaterial,
-        DefaultTexture,
-        DefaultSpecularIBL,
-        DefaultDiffuseIBL,
-     ];
+    // The default assets that exist: one that couldn't be made (GenerateDefaultAssets() logs it) is left out.
+    public static List<AssetInfo> DefaultAssetsList => [..
+        new[] {
+            BrdfIntegrationLut,
+            DefaultGeometry,
+            DefaultMaterial,
+            DefaultTexture,
+            DefaultSpecularIBL,
+            DefaultDiffuseIBL,
+        }.Where(x => x != null)];
 
     /// <summary>
     ///     Generate default assets if necessary.
@@ -71,6 +73,18 @@ static class DefaultAssets
         DefaultTexture = Asset.GetAssetInfo(textureFileName);
         DefaultSpecularIBL = Asset.GetAssetInfo(specularIblFileName);
         DefaultDiffuseIBL = Asset.GetAssetInfo(diffuseIblFileName);
+
+        // A default asset that couldn't be made (e.g. the BRDF LUT without a usable GPU) stays null: say so once, and
+        // let the rest of the editor work without it.
+        foreach (var (asset, file) in new[] {
+            (BrdfIntegrationLut, brdfLutFileName), (DefaultGeometry, cubeFileName), (DefaultMaterial, mtlFileName),
+            (DefaultTexture, textureFileName), (DefaultSpecularIBL, specularIblFileName), (DefaultDiffuseIBL, diffuseIblFileName) })
+        {
+            if (asset == null)
+            {
+                Logger.Log(MessageType.Error, $"Default asset missing: {file}");
+            }
+        }
     }
 
     private static void ComputeBrdfIntegrationLut(string file)
