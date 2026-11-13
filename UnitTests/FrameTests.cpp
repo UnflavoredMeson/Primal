@@ -9,6 +9,8 @@
 
 #include <algorithm>
 #include <array>
+#include <source_location>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -447,6 +449,78 @@ TEST_CASE("script::update() without frames begins play first")
     script::update(0.1f);
     CHECK(LifetimeScript::events == "buu");
     game_entity::remove(entity.get_id());
+}
+
+namespace
+{
+
+// Logs through the EntityScript helpers.
+class LoggingScript : public script::EntityScript
+{
+  public:
+    static inline u32 begin_play_line{0};
+
+    explicit LoggingScript(game_entity::Entity entity)
+        : script::EntityScript{entity}
+    {
+    }
+
+    auto begin_play() -> void override
+    {
+        begin_play_line = std::source_location::current().line() + 1;
+        log_info("began play with {} coins", 3);
+        log_warning("no arguments");
+    }
+};
+REGISTER_SCRIPT(LoggingScript);
+
+struct LoggedMessage
+{
+    std::string text;
+    std::string file;
+    u32 line{0};
+    log::Level level{log::Level::info};
+    log::Category category{log::Category::core};
+};
+
+auto keep_message(const log::Message &message, void *user_data) -> void
+{
+    static_cast<std::vector<LoggedMessage> *>(user_data)->push_back({
+        .text = std::string{message.text},
+        .file = message.file ? message.file : "",
+        .line = message.line,
+        .level = message.level,
+        .category = message.category,
+    });
+}
+
+}
+
+TEST_CASE("the script log helpers add the category and the script's name")
+{
+    std::vector<LoggedMessage> messages;
+    const log::Level level{log::level()};
+    log::set_level(log::Level::debug);
+    log::enable_console(false);
+    const u32 sink{log::add_sink(&keep_message, &messages)};
+
+    const game_entity::Entity entity{create_with_script(&script::detail::create_script<LoggingScript>)};
+    run_frame();
+
+    log::remove_sink(sink);
+    log::enable_console(true);
+    log::set_level(level);
+    game_entity::remove(entity.get_id());
+
+    REQUIRE(messages.size() == 2);
+    CHECK(messages[0].text == "LoggingScript: began play with 3 coins");
+    CHECK(messages[0].level == log::Level::info);
+    CHECK(messages[0].category == log::Category::script);
+    // The location is the script's, not the helper's.
+    CHECK(messages[0].line == LoggingScript::begin_play_line);
+    CHECK(std::string_view{messages[0].file}.ends_with("FrameTests.cpp"));
+    CHECK(messages[1].text == "LoggingScript: no arguments");
+    CHECK(messages[1].level == log::Level::warning);
 }
 
 TEST_SUITE_END();

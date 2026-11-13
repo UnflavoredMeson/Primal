@@ -153,6 +153,18 @@ auto write(
     std::string_view format,
     std::format_args args) -> void;
 
+// A game DLL that the editor loads has its own copy of the engine library, and so of this log, whose messages would
+// never reach the editor. EngineDLL hands the DLL write_forwarded() (through the DLL's set_log_forward() export), and
+// from then on the DLL's copy formats each message and passes it on, instead of writing it itself. The text and the
+// file name are only valid during the call.
+using forward_function =
+    void (*)(Level level, Category category, const char *file, u32 line, const char *text, u32 length);
+// nullptr writes locally again.
+auto set_forward(forward_function function) -> void;
+// Writes a message that another copy of the log has formatted. Keeps its own copy of 'file'.
+auto write_forwarded(Level level, Category category, const char *file, u32 line, const char *text, u32 length)
+    -> void;
+
 }
 
 template <typename... Args>

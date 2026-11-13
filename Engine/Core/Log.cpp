@@ -16,10 +16,26 @@
 #include <unistd.h>
 #endif
 
+// MSVC's <chrono> has a try block (the time zone database), which warns (C4530) when the engine is built without
+// exceptions (Engine.vcxproj). The engine doesn't use time zones.
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable : 4530)
+#endif
+#include <chrono>
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif
+
+#if defined(__cpp_exceptions) || defined(_CPPUNWIND)
+#define PRIMAL_LOG_HAS_EXCEPTIONS 1
+#else
+#define PRIMAL_LOG_HAS_EXCEPTIONS 0
+#endif
+
 #include <algorithm>
 #include <array>
 #include <atomic>
-#include <chrono>
 #include <condition_variable>
 #include <cstddef>
 #include <cstdio>
@@ -31,7 +47,9 @@
 #include <iterator>
 #include <memory>
 #include <mutex>
+#include <set>
 #include <span>
+#include <string>
 #include <system_error>
 #include <thread>
 
@@ -107,6 +125,11 @@ struct State
     ConsoleStyle console_style{ConsoleStyle::full};
     std::FILE *file{nullptr};
 
+    // Copies of the file names of forwarded messages (detail::write_forwarded()): the names belong to a game DLL
+    // that may be unloaded while the ring buffer still points at them. Never shrinks.
+    std::mutex forwarded_files_mutex;
+    std::set<std::string, std::less<>> forwarded_files;
+
     std::atomic<Level> level{compiled_level};
     std::atomic<u32> thread_count{0};
     std::chrono::steady_clock::time_point start_time{std::chrono::steady_clock::now()};
@@ -118,6 +141,9 @@ struct State
     State(State &&) = delete;
     auto operator=(State &&) -> State & = delete;
 };
+
+// Set in a game DLL's copy of the log: where its messages go instead (detail::set_forward()).
+std::atomic<detail::forward_function> forward{nullptr};
 
 // Set when the State is destroyed, as the process ends. Static objects that are destroyed later may still log:
 // their messages go straight to stderr.
@@ -182,6 +208,7 @@ class RecordWriter
 auto format_text(Record &record, std::string_view format, std::format_args args) -> void
 {
     record.length = 0;
+#if PRIMAL_LOG_HAS_EXCEPTIONS
     try
     {
         std::vformat_to(RecordWriter{record}, format, args);
@@ -191,6 +218,11 @@ auto format_text(Record &record, std::string_view format, std::format_args args)
         record.length = 0;
         std::format_to(RecordWriter{record}, "(message could not be formatted: {})", exception.what());
     }
+#else
+    // The engine builds without exceptions on MSVC (Engine.vcxproj). The format string was checked at compile time
+    // (log::detail::Format), so only a bad runtime width or precision can still fail, and that ends the program.
+    std::vformat_to(RecordWriter{record}, format, args);
+#endif
 
     if (record.length > max_message_length)
     {
@@ -617,44 +649,29 @@ auto to_string(Category category) -> std::string_view
 namespace detail
 {
 
-auto write(
-    Level level,
-    Category category,
-    const std::source_location &location,
-    std::string_view format,
-    std::format_args args) -> void
+namespace
 {
-    if (state_destroyed.load())
-    {
-        Record record;
-        format_text(record, format, args);
-        const std::string_view name{to_string(level)};
-        std::fprintf(
-            stderr,
-            "[%.*s] %.*s\n",
-            static_cast<int>(name.size()),
-            name.data(),
-            static_cast<int>(record.length),
-            record.text.data());
-        return;
-    }
 
-    State &current{state()};
-    if (level < current.level.load(std::memory_order_relaxed))
-    {
-        return;
-    }
+auto write_after_shutdown(const Record &record) -> void
+{
+    const std::string_view name{to_string(record.level)};
+    std::fprintf(
+        stderr,
+        "[%.*s] %.*s\n",
+        static_cast<int>(name.size()),
+        name.data(),
+        static_cast<int>(record.length),
+        record.text.data());
+}
 
-    Record record;
+// Hands a formatted record (text, file, line, level, category set) to the logger thread or the sinks.
+auto submit(State &current, Record &record) -> void
+{
     record.time_ns = static_cast<u64>(
         std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - current.start_time)
             .count());
-    record.file = location.file_name();
-    record.line = location.line();
     record.thread = thread_number();
-    record.level = level;
-    record.category = category;
-    format_text(record, format, args);
+    const Level level{record.level};
 
     if (in_sink)
     {
@@ -696,6 +713,81 @@ auto write(
     deliver(current, record);
     current.delivered_sequence = record.sequence;
     current.delivered_changed.notify_all();
+}
+
+}
+
+auto write(
+    Level level,
+    Category category,
+    const std::source_location &location,
+    std::string_view format,
+    std::format_args args) -> void
+{
+    Record record;
+    record.file = location.file_name();
+    record.line = location.line();
+    record.level = level;
+    record.category = category;
+
+    if (const forward_function function{forward.load(std::memory_order_acquire)})
+    {
+        // A game DLL's copy: the receiving log checks the level.
+        format_text(record, format, args);
+        function(level, category, record.file, record.line, record.text.data(), record.length);
+        return;
+    }
+
+    if (state_destroyed.load())
+    {
+        format_text(record, format, args);
+        write_after_shutdown(record);
+        return;
+    }
+
+    State &current{state()};
+    if (level < current.level.load(std::memory_order_relaxed))
+    {
+        return;
+    }
+
+    format_text(record, format, args);
+    submit(current, record);
+}
+
+auto set_forward(forward_function function) -> void
+{
+    forward.store(function, std::memory_order_release);
+}
+
+auto write_forwarded(Level level, Category category, const char *file, u32 line, const char *text, u32 length)
+    -> void
+{
+    Record record;
+    record.line = line;
+    record.level = level;
+    record.category = category;
+    record.length = std::min(length, max_message_length);
+    std::memcpy(record.text.data(), text, record.length);
+
+    if (state_destroyed.load())
+    {
+        write_after_shutdown(record);
+        return;
+    }
+
+    State &current{state()};
+    if (level < current.level.load(std::memory_order_relaxed))
+    {
+        return;
+    }
+
+    if (file)
+    {
+        const std::scoped_lock lock{current.forwarded_files_mutex};
+        record.file = current.forwarded_files.emplace(file).first->c_str();
+    }
+    submit(current, record);
 }
 
 }

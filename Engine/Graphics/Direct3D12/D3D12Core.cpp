@@ -222,6 +222,76 @@ std::mutex deferred_releases_mutex{};
 // VSync can only be disabled if DXGI supports tearing.
 b32 tearing_is_supported{0};
 
+#ifdef _DEBUG
+// The debug layer's messages go to the log (Category::d3d12) through this callback, instead of only to a debugger.
+ID3D12InfoQueue1 *debug_info_queue{nullptr};
+DWORD debug_message_callback_cookie{0};
+
+// NOLINTNEXTLINE(modernize-use-trailing-return-type): a D3D12 callback with a calling convention.
+void CALLBACK debug_layer_message(
+    D3D12_MESSAGE_CATEGORY /*category*/,
+    D3D12_MESSAGE_SEVERITY severity,
+    D3D12_MESSAGE_ID id,
+    LPCSTR description,
+    void * /*context*/)
+{
+    const std::string_view text{description ? description : ""};
+    const auto id_number{std::to_underlying(id)};
+    switch (severity)
+    {
+        case D3D12_MESSAGE_SEVERITY_CORRUPTION:
+        case D3D12_MESSAGE_SEVERITY_ERROR:
+            // error() returns when the line is written: SetBreakOnSeverity() breaks right after this.
+            log::error(log::Category::d3d12, "Debug layer: {} (message {})", text, id_number);
+            break;
+        case D3D12_MESSAGE_SEVERITY_WARNING:
+            log::warning(log::Category::d3d12, "Debug layer: {} (message {})", text, id_number);
+            break;
+        case D3D12_MESSAGE_SEVERITY_INFO:
+        case D3D12_MESSAGE_SEVERITY_MESSAGE:
+        default: log::debug(log::Category::d3d12, "Debug layer: {} (message {})", text, id_number); break;
+    }
+}
+
+// Needs ID3D12InfoQueue1 (Windows 11, or the Agility SDK's debug layer); without it the messages only reach a
+// debugger, as before.
+auto start_debug_layer_logging(ID3D12InfoQueue *info_queue) -> void
+{
+    if (FAILED(info_queue->QueryInterface(IID_PPV_ARGS(&debug_info_queue))))
+    {
+        log::debug(
+            log::Category::d3d12, "ID3D12InfoQueue1 isn't available: debug layer messages go to the debugger only.");
+        return;
+    }
+
+    if (FAILED(debug_info_queue->RegisterMessageCallback(
+            &debug_layer_message, D3D12_MESSAGE_CALLBACK_FLAG_NONE, nullptr, &debug_message_callback_cookie)))
+    {
+        log::warning(log::Category::d3d12, "Couldn't register the debug layer message callback.");
+        release(debug_info_queue);
+        return;
+    }
+
+    // The debug layer keeps writing to the debugger too: SetMuteDebugOutput(TRUE) would also stop the callback
+    // so in a debugger each message shows twice (the layer's line and the log's).
+    //
+    // One line through the callback, so that a Debug run shows that the route works. Severity MESSAGE: the layer's
+    // default storage filter denies INFO, and the callback only gets what the filter lets through.
+    debug_info_queue->AddApplicationMessage(D3D12_MESSAGE_SEVERITY_MESSAGE, "messages go to the log");
+}
+
+// Before ReportLiveDeviceObjects(): that report goes to the debugger only, as before.
+auto stop_debug_layer_logging() -> void
+{
+    if (debug_info_queue)
+    {
+        debug_info_queue->UnregisterMessageCallback(debug_message_callback_cookie);
+        debug_message_callback_cookie = 0;
+        release(debug_info_queue);
+    }
+}
+#endif
+
 struct Options
 {
     bool enable_vsync{true}; // enable/disable vsync
@@ -469,6 +539,8 @@ auto initialize() -> bool
         info_queue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, true);
         info_queue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_WARNING, true);
         info_queue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, true);
+
+        start_debug_layer_logging(info_queue.Get());
     }
 #endif
 
@@ -568,6 +640,7 @@ auto shutdown() -> void
             info_queue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_WARNING, false);
             info_queue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, false);
         }
+        stop_debug_layer_logging();
 
         ComPtr<ID3D12DebugDevice2> debug_device;
         DXCall(main_device->QueryInterface(IID_PPV_ARGS(&debug_device)));

@@ -119,6 +119,83 @@ TEST_CASE("a message reaches the sinks with its level, category, text and locati
     CHECK(second.thread == first.thread);
 }
 
+namespace
+{
+
+// Stands in for the editor's log (log::detail::write_forwarded()) in the forwarding test.
+struct Forwarded
+{
+    std::string text;
+    std::string file;
+    u32 line{0};
+    log::Level level{log::Level::info};
+    log::Category category{log::Category::core};
+};
+std::vector<Forwarded> forwarded;
+
+auto keep_forwarded(log::Level level, log::Category category, const char *file, u32 line, const char *text, u32 length)
+    -> void
+{
+    forwarded.push_back({
+        .text = std::string{text, length},
+        .file = file ? file : "",
+        .line = line,
+        .level = level,
+        .category = category,
+    });
+}
+
+}
+
+TEST_CASE("with a forward function, a message is formatted and handed on instead of written")
+{
+    LogTest test{false};
+    forwarded.clear();
+
+    log::detail::set_forward(&keep_forwarded);
+    const u32 line{std::source_location::current().line() + 1};
+    log::warning(log::Category::script, "{} coins", 7);
+    log::detail::set_forward(nullptr);
+
+    CHECK(test.collector.messages.empty());
+    REQUIRE(forwarded.size() == 1);
+    CHECK(forwarded[0].text == "7 coins");
+    CHECK(forwarded[0].level == log::Level::warning);
+    CHECK(forwarded[0].category == log::Category::script);
+    CHECK(forwarded[0].line == line);
+    CHECK(forwarded[0].file.ends_with("LogTests.cpp"));
+
+    // Writes locally again.
+    log::info(log::Category::script, "local");
+    CHECK(test.collector.messages.size() == 1);
+}
+
+TEST_CASE("a forwarded message reaches the sinks, with its own copy of the file name")
+{
+    LogTest test{false};
+
+    std::string file{"C:/game/PlayerScript.cpp"};
+    const std::string text{"PlayerScript: hello [cut here]"};
+    log::detail::write_forwarded(
+        log::Level::warning, log::Category::script, file.c_str(), 12, text.data(), static_cast<u32>(text.size() - 11));
+    // As if the game DLL that owned the name were unloaded.
+    file.assign(file.size(), 'x');
+
+    REQUIRE(test.collector.messages.size() == 1);
+    const log::StoredMessage &message{test.collector.messages[0]};
+    CHECK(message.text == "PlayerScript: hello");
+    CHECK(message.level == log::Level::warning);
+    CHECK(message.category == log::Category::script);
+    CHECK(message.line == 12);
+    REQUIRE(message.file != nullptr);
+    CHECK(std::string_view{message.file} == "C:/game/PlayerScript.cpp");
+
+    // The run-time level applies to forwarded messages too.
+    log::set_level(log::Level::error);
+    log::detail::write_forwarded(log::Level::info, log::Category::script, nullptr, 0, "dropped", 7);
+    CHECK(test.collector.messages.size() == 1);
+}
+
 TEST_CASE("arguments can be lvalues, rvalues and strings")
 {
     LogTest test{false};

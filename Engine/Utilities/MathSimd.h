@@ -207,11 +207,11 @@ inline auto XM_CALLCONV store(m4x4a &dst, DirectX::FXMMATRIX m) noexcept -> void
     return DirectX::XMVector3Transform(v, m);
 }
 
-// True when all four components of a and b differ by at most the matching component of 'epsilon'.
+// True when all four components of a and b differ by at most the matching component of 'tolerance'.
 [[nodiscard]] inline auto XM_CALLCONV
-near_equal4(DirectX::FXMVECTOR a, DirectX::FXMVECTOR b, DirectX::FXMVECTOR epsilon) noexcept -> bool
+near_equal4(DirectX::FXMVECTOR a, DirectX::FXMVECTOR b, DirectX::FXMVECTOR tolerance) noexcept -> bool
 {
-    return DirectX::XMVector4NearEqual(a, b, epsilon);
+    return DirectX::XMVector4NearEqual(a, b, tolerance);
 }
 
 // ---- quaternions --------------------------------------------------------------------------------------------

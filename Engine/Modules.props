@@ -11,6 +11,10 @@
   - A project other than the engine gets a reference to Engine.vcxproj: that is how MSBuild hands the engine's
     compiled module interfaces (.ifc) to it. The reference doesn't link anything: the projects name engine.lib
     themselves.
+  - C5050 ("possible incompatible environment while importing module") is off in the other projects. The engine is
+    built without RTTI, exceptions and /sdl, its users with them, so MSVC warns on every import. That difference is
+    not new: the engine's headers are already compiled both ways, in engine.lib and in the projects that include
+    them, and the modules use neither RTTI nor exceptions.
 -->
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
@@ -19,6 +23,11 @@
   <ItemDefinitionGroup>
     <ClCompile>
       <ScanSourceForModuleDependencies>true</ScanSourceForModuleDependencies>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(MSBuildProjectName)' != 'Engine'">
+    <ClCompile>
+      <DisableSpecificWarnings>5050;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup Condition="'$(MSBuildProjectName)' != 'Engine'">

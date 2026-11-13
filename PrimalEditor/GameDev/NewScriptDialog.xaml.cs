@@ -55,8 +55,7 @@ public:
     auto end_play() -> void override;
 private:
 }};
-
-}} // namespace {1}";
+}}";
 
     private static readonly string _namespace = GetNamespaceFromProjectName();
 

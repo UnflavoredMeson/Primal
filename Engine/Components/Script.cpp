@@ -2,6 +2,7 @@
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "Script.h"
 
+#include "../Core/Log.h"
 #include "Entity.h"
 #include "Transform.h"
 
@@ -39,6 +40,14 @@ auto registry() -> script_registry &
     //       be certain that the data is initialized before accessing it.
     static script_registry reg;
     return reg;
+}
+
+// Class names of the registered script types (string literals from REGISTER_SCRIPT), in a function for the same
+// reason as registry().
+auto script_type_names() -> utl::vector<const char *> &
+{
+    static utl::vector<const char *> names;
+    return names;
 }
 
 #ifdef USE_WITH_EDITOR
@@ -156,6 +165,18 @@ auto get_script_creator(size_t tag) -> script_creator
     //       game code no longer has). The callers check for it.
     const auto script = primal::script::registry().find(tag);
     return script != primal::script::registry().end() ? script->second : nullptr;
+}
+
+auto add_script_type_name(const char *name) -> u32
+{
+    assert(name);
+    script_type_names().push_back(name);
+    return static_cast<u32>(script_type_names().size() - 1);
+}
+
+auto script_type_name(u32 index) -> const char *
+{
+    return index < script_type_names().size() ? script_type_names()[index] : nullptr;
 }
 
 #ifdef USE_WITH_EDITOR
@@ -295,6 +316,19 @@ auto EntityScript::set_scale(const game_entity::Entity *const entity, math::v3 s
     cache.scale = scale;
 }
 
+auto EntityScript::script_name() const -> std::string_view
+{
+    const char *const name{detail::script_type_name(_script_type)};
+    return name ? name : "script";
+}
+
+auto EntityScript::log_message(log::Level level, const std::source_location &location, std::string_view text) const
+    -> void
+{
+    const std::string_view name{script_name()};
+    log::detail::write(level, log::Category::script, location, "{}: {}", std::make_format_args(name, text));
+}
+
 }
 
 #ifdef USE_WITH_EDITOR
@@ -313,5 +347,12 @@ extern "C" __declspec(dllexport) auto get_script_names() -> LPSAFEARRAY
         names.SetAt(i, ::A2BSTR_EX(primal::script::script_names()[i].c_str()), false);
     }
     return names.Detach();
+}
+
+// The editor (EngineDLL) calls this in the game DLL it loads, so that the game's log messages reach the editor's log
+// (see log::detail::set_forward()).
+extern "C" __declspec(dllexport) auto set_log_forward(primal::log::detail::forward_function function) -> void
+{
+    primal::log::detail::set_forward(function);
 }
 #endif

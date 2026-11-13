@@ -37,6 +37,7 @@ using get_script_creator_fn = primal::script::detail::script_creator (*)(size_t)
 get_script_creator_fn get_script_creator{nullptr};
 using get_script_names_fn = LPSAFEARRAY (*)();
 get_script_names_fn get_script_names{nullptr};
+using set_log_forward_fn = void (*)(log::detail::forward_function);
 
 struct ViewportSurface : public graphics::RenderSurface
 {
@@ -298,6 +299,17 @@ EDITOR_INTERFACE auto LoadGameCodeDll(const char *dll_path) -> u32
 
     get_script_creator = (get_script_creator_fn)::GetProcAddress(game_code_dll, "get_script_creator");
     get_script_names = (get_script_names_fn)::GetProcAddress(game_code_dll, "get_script_names");
+
+    // The game DLL has its own copy of the engine's log: send its messages to this one (a DLL built before
+    // set_log_forward existed doesn't have it, and keeps writing to stderr itself).
+    if (game_code_dll)
+    {
+        if (const auto set_log_forward{
+                reinterpret_cast<set_log_forward_fn>(::GetProcAddress(game_code_dll, "set_log_forward"))})
+        {
+            set_log_forward(&log::detail::write_forwarded);
+        }
+    }
 
     return (game_code_dll && get_script_creator && get_script_names) ? TRUE : FALSE;
 }
