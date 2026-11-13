@@ -1,14 +1,13 @@
 // Copyright (c) 2026 Charles Smith
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "CommonHeaders.h"
+#include "Core/Log.h"
 #if PRIMAL_PLATFORM_LINUX
 #include "Input/InputSDL.h"
 #include "Platform.h"
 #include "PlatformTypes.h"
 
 #include <SDL3/SDL.h>
-
-#include <cstdio>
 
 // Linux counterpart of PlatformWin32.cpp, using SDL3 for standalone windows.
 // Graphics backends must use window::handle() (a native_window_handle), not SDL objects.
@@ -77,7 +76,7 @@ auto init_video() -> bool
     ::SDL_SetHint(SDL_HINT_FRAMEBUFFER_ACCELERATION, "0");
     if (!::SDL_InitSubSystem(SDL_INIT_VIDEO))
     {
-        std::fprintf(stderr, "SDL_InitSubSystem(SDL_INIT_VIDEO) failed: %s\n", ::SDL_GetError());
+        log::error(log::Category::core, "SDL_InitSubSystem(SDL_INIT_VIDEO) failed: {}", ::SDL_GetError());
         return false;
     }
     return true;
@@ -114,7 +113,7 @@ auto query_native_handle(SDL_Window *sdl_window, NativeWindowHandle &handle) -> 
     }
     else
     {
-        std::fprintf(stderr, "Unsupported SDL video driver: %s\n", driver ? driver : "(none)");
+        log::error(log::Category::core, "Unsupported SDL video driver: {}", driver ? driver : "(none)");
         return false;
     }
 
@@ -317,7 +316,7 @@ auto create_window(const WindowInitInfo *init_info /* = nullptr */) -> Window
 
     if (!sdl_window)
     {
-        std::fprintf(stderr, "SDL_CreateWindowWithProperties failed: %s\n", ::SDL_GetError());
+        log::error(log::Category::core, "SDL_CreateWindowWithProperties failed: {}", ::SDL_GetError());
         shutdown_video();
         return {};
     }

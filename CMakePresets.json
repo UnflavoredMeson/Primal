@@ -1,6 +1,6 @@
 {
   "version": 6,
-  "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+  "cmakeMinimumRequired": { "major": 3, "minor": 28, "patch": 0 },
   "configurePresets": [
     {
       "name": "linux-base",
@@ -38,12 +38,60 @@
       "description": "Same x64/<Config>/ output folder as the clang presets: the last build wins.",
       "inherits": "linux-base",
       "cacheVariables": { "CMAKE_CXX_COMPILER": "g++", "CMAKE_BUILD_TYPE": "Release" }
+    },
+    {
+      "name": "linux-debug-renderer",
+      "displayName": "Linux Debug (clang), EngineTest: renderer",
+      "description": "EngineTest's renderer test. A build folder of its own, but the same x64/Debug/ output folder as the other Debug presets: the last build wins.",
+      "inherits": "linux-debug",
+      "cacheVariables": { "PRIMAL_ENGINE_TEST": "RENDERER" }
+    },
+    {
+      "name": "linux-debug-surfaces",
+      "displayName": "Linux Debug (clang), EngineTest: surfaces",
+      "description": "EngineTest's surfaces test. Same x64/Debug/ output folder as the other Debug presets.",
+      "inherits": "linux-debug",
+      "cacheVariables": { "PRIMAL_ENGINE_TEST": "SURFACES" }
+    },
+    {
+      "name": "linux-debug-window",
+      "displayName": "Linux Debug (clang), EngineTest: window",
+      "description": "EngineTest's window test. Same x64/Debug/ output folder as the other Debug presets.",
+      "inherits": "linux-debug",
+      "cacheVariables": { "PRIMAL_ENGINE_TEST": "WINDOW" }
+    },
+    {
+      "name": "linux-debug-entity-components",
+      "displayName": "Linux Debug (clang), EngineTest: entity components",
+      "description": "EngineTest's entity component test (console). Same x64/Debug/ output folder as the other Debug presets.",
+      "inherits": "linux-debug",
+      "cacheVariables": { "PRIMAL_ENGINE_TEST": "ENTITY_COMPONENTS" }
+    },
+    {
+      "name": "linux-release-renderer",
+      "displayName": "Linux Release (clang), EngineTest: renderer",
+      "description": "EngineTest's renderer test, optimized. Same x64/Release/ output folder as the other Release presets.",
+      "inherits": "linux-release",
+      "cacheVariables": { "PRIMAL_ENGINE_TEST": "RENDERER" }
+    },
+    {
+      "name": "linux-tsan",
+      "displayName": "Linux Debug with ThreadSanitizer (clang)",
+      "description": "Finds data races. Same x64/Debug/ output folder as the other Debug presets: the last build wins.",
+      "inherits": "linux-base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "PRIMAL_ENABLE_TSAN": "ON" }
     }
   ],
   "buildPresets": [
     { "name": "linux-debug", "configurePreset": "linux-debug" },
     { "name": "linux-release", "configurePreset": "linux-release" },
     { "name": "linux-gcc-debug", "configurePreset": "linux-gcc-debug" },
-    { "name": "linux-gcc-release", "configurePreset": "linux-gcc-release" }
+    { "name": "linux-gcc-release", "configurePreset": "linux-gcc-release" },
+    { "name": "linux-debug-renderer", "configurePreset": "linux-debug-renderer" },
+    { "name": "linux-debug-surfaces", "configurePreset": "linux-debug-surfaces" },
+    { "name": "linux-debug-window", "configurePreset": "linux-debug-window" },
+    { "name": "linux-debug-entity-components", "configurePreset": "linux-debug-entity-components" },
+    { "name": "linux-release-renderer", "configurePreset": "linux-release-renderer" },
+    { "name": "linux-tsan", "configurePreset": "linux-tsan" }
   ]
 }

@@ -12,6 +12,7 @@
 #endif
 
 #include "Content/ContentToEngine.h"
+#include "Core/Log.h"
 #include "Graphics/Renderer.h"
 #include "Utilities/IOStream.h"
 
@@ -22,6 +23,7 @@
 #include <fstream>
 #include <iterator>
 #include <string>
+#include <string_view>
 
 using namespace primal;
 
@@ -51,13 +53,32 @@ class com_ptr : public CComPtr<T>
 #endif
 #endif
 
-auto shader_log(const char *message) -> void
+// Logs the compiler's output (errors and warnings) line by line: a build system reads them as they are.
+auto log_compiler_output(std::string_view output, bool failed) -> void
 {
-#if PRIMAL_PLATFORM_WINDOWS
-    ::OutputDebugStringA(message);
-#endif
-    // Also on Windows: PrimalShaderCompiler runs as a build step, where only stderr reaches the build output.
-    std::fputs(message, stderr);
+    while (!output.empty())
+    {
+        const size_t line_end{output.find('\n')};
+        std::string_view line{output.substr(0, line_end)};
+        output.remove_prefix(line_end == std::string_view::npos ? output.size() : line_end + 1);
+        if (!line.empty() && line.back() == '\r')
+        {
+            line.remove_suffix(1);
+        }
+        if (line.empty())
+        {
+            continue;
+        }
+
+        if (failed)
+        {
+            log::error(log::Category::tools, "{}", line);
+        }
+        else
+        {
+            log::warning(log::Category::tools, "{}", line);
+        }
+    }
 }
 
 }
@@ -68,15 +89,7 @@ auto shader_log(const char *message) -> void
 #define DXCall(x)                                                                                                      \
     if (FAILED(x))                                                                                                     \
     {                                                                                                                  \
-        char line_number[32];                                                                                          \
-        snprintf(line_number, sizeof(line_number), "%u", __LINE__);                                                    \
-        shader_log("Error in: ");                                                                                      \
-        shader_log(__FILE__);                                                                                          \
-        shader_log("\nLine: ");                                                                                        \
-        shader_log(line_number);                                                                                       \
-        shader_log("\n");                                                                                              \
-        shader_log(#x);                                                                                                \
-        shader_log("\n");                                                                                              \
+        log::error(log::Category::tools, "Shader compiler call failed: {}", #x);                                       \
         DEBUG_BREAK();                                                                                                 \
     }
 #endif
@@ -250,10 +263,7 @@ class ShaderCompiler
         info.function = function;
         info.type = type;
 
-        // TODO: do proper developer logging
-        shader_log("Compiling ");
-        shader_log(function);
-        shader_log("\n");
+        log::info(log::Category::tools, "Compiling {}", function);
 
         return compile(source_blob.Get(), get_args(info, extra_args));
     }
@@ -273,11 +283,7 @@ class ShaderCompiler
         }
         assert(source_blob && source_blob->GetBufferSize());
 
-        shader_log("Compiling ");
-        shader_log(info.file_name);
-        shader_log(" : ");
-        shader_log(info.function);
-        shader_log("\n");
+        log::info(log::Category::tools, "Compiling {} : {}", info.file_name, info.function);
 
         return compile(source_blob.Get(), get_args(info, extra_args));
     }
@@ -312,20 +318,16 @@ class ShaderCompiler
             return {};
         }
 
-        if (errors && errors->GetStringLength())
-        {
-            shader_log("\nShader compilation error: \n");
-            shader_log(errors->GetStringPointer());
-        }
-        else
-        {
-            shader_log(" [ Succeeded ]");
-        }
-        shader_log("\n");
-
         HRESULT status{S_OK};
         DXCall(hr = results->GetStatus(&status));
-        if (FAILED(hr) || FAILED(status))
+        const bool failed{FAILED(hr) || FAILED(status)};
+
+        // The compiler's output: errors when the compilation failed, otherwise warnings.
+        if (errors && errors->GetStringLength())
+        {
+            log_compiler_output({errors->GetStringPointer(), errors->GetStringLength()}, failed);
+        }
+        if (failed)
         {
             return {};
         }
@@ -358,14 +360,15 @@ class ShaderCompiler
             std::memcpy(&result.hash[0], &hash_buffer->HashDigest[0], shader_hash_length);
         }
 
-        shader_log("Shader hash: ");
-        for (u32 i{0}; i < shader_hash_length; ++i)
+        if (log::compiled_level <= log::Level::debug)
         {
-            char hash_bytes[4]{}; // 2 chars for hex value, a space and termination 0.
-            std::snprintf(hash_bytes, sizeof(hash_bytes), "%02x ", static_cast<u32>(result.hash[i]));
-            shader_log(hash_bytes);
+            std::string hash_text;
+            for (const u8 byte : result.hash)
+            {
+                std::format_to(std::back_inserter(hash_text), "{:02x} ", byte);
+            }
+            log::debug(log::Category::tools, "Shader hash: {}", hash_text);
         }
-        shader_log("\n");
 
         // NOTE: disassembly is optional (only used by the editor's shader view). DXC can only
         //       disassemble DXIL; use spirv-dis for SPIR-V.
@@ -597,9 +600,10 @@ auto save_compiled_shaders(
     std::filesystem::create_directories(engine_shaders_path.parent_path(), ec);
     if (ec)
     {
-        shader_log("Can't create the compiled shaders folder: ");
-        shader_log(engine_shaders_path.parent_path().string().c_str());
-        shader_log("\n");
+        log::error(
+            log::Category::tools,
+            "Can't create the compiled shaders folder: {}",
+            engine_shaders_path.parent_path().string());
         return false;
     }
 
@@ -607,9 +611,7 @@ auto save_compiled_shaders(
         std::ofstream file(engine_shaders_path, std::ios::out | std::ios::binary);
         if (!file)
         {
-            shader_log("Can't write ");
-            shader_log(engine_shaders_path.string().c_str());
-            shader_log("\n");
+            log::error(log::Category::tools, "Can't write {}", engine_shaders_path.string());
             return false;
         }
 
@@ -762,8 +764,8 @@ auto selected_graphics_platform() -> graphics::GraphicsPlatform
     {
         return graphics::GraphicsPlatform::direct3d12;
     }
-    std::fprintf(
-        stderr, "PRIMAL_GRAPHICS=%s is not \"vulkan\" or \"d3d12\"; using the default backend.\n", value.c_str());
+    log::warning(
+        log::Category::graphics, R"(PRIMAL_GRAPHICS={} is not "vulkan" or "d3d12"; using the default backend.)", value);
     return default_shader_platform;
 }
 
@@ -790,9 +792,7 @@ auto compile_shaders(graphics::GraphicsPlatform platform /*=default_shader_platf
         std::error_code ec;
         if (!std::filesystem::exists(full_path, ec))
         {
-            shader_log("Engine shader source not found: ");
-            shader_log(full_path.string().c_str());
-            shader_log("\n");
+            log::error(log::Category::tools, "Engine shader source not found: {}", full_path.string());
             return false;
         }
 

@@ -24,17 +24,19 @@ auto load_engine_shaders() -> bool
     const bool loaded{content::load_engine_shaders(engine_shaders_blob, size)};
     if (!loaded || !engine_shaders_blob || !size)
     {
-        ::OutputDebugStringA(
-            "D3D12: couldn't load the engine shaders (shaders/d3d12/shaders.bin). Compile them with "
-            "compile_shaders(GraphicsPlatform::direct3d12).\n");
+        log::error(
+            log::Category::d3d12,
+            "Couldn't load the engine shaders (shaders/d3d12/shaders.bin). Compile them with "
+            "compile_shaders(GraphicsPlatform::direct3d12).");
         engine_shaders_blob.reset();
         return false;
     }
 
     if (!content::get_engine_shaders(engine_shaders_blob.get(), size, &engine_shaders[0], EngineShader::count))
     {
-        ::OutputDebugStringA(
-            "D3D12: shaders/d3d12/shaders.bin is corrupt or from another version (delete it to recompile).\n");
+        log::error(
+            log::Category::d3d12,
+            "shaders/d3d12/shaders.bin is corrupt or from another version (delete it to recompile).");
         engine_shaders_blob.reset();
         for (auto &shader : engine_shaders)
         {

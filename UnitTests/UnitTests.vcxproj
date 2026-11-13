@@ -93,15 +93,19 @@
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="ContentLoaderTests.cpp" />
     <ClCompile Include="EntityTests.cpp" />
+    <ClCompile Include="FrameTests.cpp" />
     <ClCompile Include="FreeListTests.cpp" />
     <ClCompile Include="IdTests.cpp" />
     <ClCompile Include="InputTests.cpp" />
     <ClCompile Include="IOStreamTests.cpp" />
+    <ClCompile Include="JobTests.cpp" />
+    <ClCompile Include="LogTests.cpp" />
     <ClCompile Include="MathTests.cpp" />
     <ClCompile Include="ShaderBlobTests.cpp" />
     <ClCompile Include="VectorTests.cpp" />
   </ItemGroup>
   <Import Project="$(SolutionDir)Engine\Vulkan.props" />
+  <Import Project="$(SolutionDir)Engine\Modules.props" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

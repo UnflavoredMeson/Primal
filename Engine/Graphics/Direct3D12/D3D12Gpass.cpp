@@ -11,6 +11,8 @@
 #include "D3D12LightCulling.h"
 #include "Graphics/Shaders/SharedTypes.h"
 
+import primal.jobs;
+
 namespace primal::graphics::d3d12::gpass
 {
 namespace
@@ -44,6 +46,11 @@ struct GpassCache
     u32 descriptor_index_count{0};
     u32 gpass_pso_count{0};
     u32 depth_pso_count{0};
+    // fill_per_object_data(): one entry per entity (not per render item).
+    utl::vector<id::id_type> object_entity_ids;
+    utl::vector<u32> item_objects; // per render item: its entity's index in object_entity_ids
+    // record_pass(): the command lists of the pass being recorded in jobs, in draw order.
+    utl::vector<ID3D12CommandList *> batch_lists;
 
     // NOTE: when adding new arrays, make sure to update resize() and struct_size.
     id::id_type *entity_ids{nullptr};
@@ -270,32 +277,55 @@ auto create_buffers(math::u32v2 size) -> bool
     return gpass_main_buffer.resource() && gpass_depth_buffer.resource();
 }
 
+// Per-object data (world matrices) once per entity: the render items of an entity are next to each other. The
+// entities are listed first; their data is computed in parallel (job system) straight into the constant buffer.
 auto fill_per_object_data(const D3D12FrameInfo &d3d12_info) -> void
 {
-    const GpassCache &cache{frame_cache};
+    GpassCache &cache{frame_cache};
     const u32 render_items_count{cache.size()};
-    id::id_type current_entity_id{id::invalid_id};
-    hlsl::PerObjectData *current_data_pointer{nullptr};
 
+    cache.object_entity_ids.clear();
+    cache.item_objects.resize(render_items_count);
+    for (u32 i{0}; i < render_items_count; ++i)
+    {
+        if (cache.object_entity_ids.empty() || cache.object_entity_ids.back() != cache.entity_ids[i])
+        {
+            cache.object_entity_ids.push_back(cache.entity_ids[i]);
+        }
+        cache.item_objects[i] = static_cast<u32>(cache.object_entity_ids.size() - 1);
+    }
+
+    const u32 object_count{static_cast<u32>(cache.object_entity_ids.size())};
+    constexpr u32 stride{static_cast<u32>(d3dx::align_size_for_constant_buffer(sizeof(hlsl::PerObjectData)))};
     ConstantBuffer &cbuffer{core::cbuffer()};
+    u8 *const objects{cbuffer.allocate(object_count * stride)};
+    assert(objects);
+
+    // About 22 ns per object: 1,500 objects take 34 us on one thread, and waking
+    // the workers costs more than that (37-48 us with batches of 128 to 1024). Up to 1024 objects run on the calling
+    // thread
+    constexpr u32 batch_size{1024};
+    jobs::parallel_for(
+        object_count,
+        batch_size,
+        [&d3d12_info, objects](u32 begin, u32 end)
+        {
+            const math::mat vp{d3d12_info.camera->view_projection()};
+            for (u32 i{begin}; i < end; ++i)
+            {
+                hlsl::PerObjectData data{};
+                transform::get_transform_matrices(
+                    game_entity::EntityId{frame_cache.object_entity_ids[i]}, data.World, data.InvWorld);
+                const math::mat world{math::load(data.World)};
+                math::store(data.WorldViewProjection, math::mul(world, vp));
+                std::memcpy(objects + static_cast<size_t>(i) * stride, &data, sizeof(hlsl::PerObjectData));
+            }
+        });
 
     for (u32 i{0}; i < render_items_count; ++i)
     {
-        if (current_entity_id != cache.entity_ids[i])
-        {
-            current_entity_id = cache.entity_ids[i];
-            hlsl::PerObjectData data{};
-            transform::get_transform_matrices(game_entity::EntityId{current_entity_id}, data.World, data.InvWorld);
-            const math::mat world{math::load(data.World)};
-            const math::mat wvp{math::mul(world, d3d12_info.camera->view_projection())};
-            math::store(data.WorldViewProjection, wvp);
-
-            current_data_pointer = cbuffer.allocate<hlsl::PerObjectData>();
-            std::memcpy(current_data_pointer, &data, sizeof(hlsl::PerObjectData));
-        }
-
-        assert(current_data_pointer);
-        cache.per_object_data[i] = cbuffer.gpu_address(current_data_pointer);
+        u8 *const object{objects + static_cast<size_t>(cache.item_objects[i]) * stride};
+        cache.per_object_data[i] = cbuffer.gpu_address(object);
     }
 }
 
@@ -319,29 +349,26 @@ auto set_root_parameters(id3d12_graphics_command_list *const cmd_list, u32 cache
     }
 }
 
+// Constant buffer bytes the gpass allocates in a frame with these items (at most: per-object data counts every item
+// as its own object).
+auto constant_buffer_bytes(u32 items_count, u32 descriptor_index_count) -> u64
+{
+    constexpr u64 per_object_stride{d3dx::align_size_for_constant_buffer(sizeof(hlsl::PerObjectData))};
+    const u64 material_bytes{items_count * sizeof(MaterialSurface) + descriptor_index_count * sizeof(u32)};
+    return d3dx::align_size_for_constant_buffer(material_bytes) + items_count * per_object_stride;
+}
+
+// The allocating half of the frame's preparation; collect_render_items() has filled the cache.
 auto prepare_render_frame(const D3D12FrameInfo &d3d12_info) -> void
 {
     assert(d3d12_info.info && d3d12_info.camera);
 
     GpassCache &cache{frame_cache};
-    cache.clear();
-    if (!d3d12_info.info->render_item_ids || !d3d12_info.info->render_item_count)
+    const u32 items_count{cache.size()};
+    if (!items_count)
     {
         return;
     }
-
-    using namespace content;
-    render_item::get_d3d12_render_item_ids(*d3d12_info.info, cache.d3d12_render_item_ids);
-    cache.resize();
-    const u32 items_count{cache.size()};
-    const render_item::ItemsCache items_cache{cache.items_cache()};
-    render_item::get_items(cache.d3d12_render_item_ids.data(), items_count, items_cache);
-
-    const submesh::ViewsCache views_cache{cache.views_cache()};
-    submesh::get_views(items_cache.submesh_gpu_ids, items_count, views_cache);
-
-    const material::MaterialsCache materials_cache{cache.materials_cache()};
-    material::get_materials(items_cache.material_ids, items_count, materials_cache, cache.descriptor_index_count);
 
     ConstantBuffer &cbuffer{core::cbuffer()};
     const u32 size{items_count * sizeof(MaterialSurface) + cache.descriptor_index_count * sizeof(u32)};
@@ -562,6 +589,31 @@ auto initialize() -> bool
     return create_buffers(initial_dimensions);
 }
 
+auto collect_render_items(const FrameInfo &info) -> u64
+{
+    GpassCache &cache{frame_cache};
+    cache.clear();
+    if (!info.render_item_ids || !info.render_item_count || !id::is_valid(info.camera_id))
+    {
+        return 0;
+    }
+
+    using namespace content;
+    render_item::get_d3d12_render_item_ids(info, cache.d3d12_render_item_ids);
+    cache.resize();
+    const u32 items_count{cache.size()};
+    const render_item::ItemsCache items_cache{cache.items_cache()};
+    render_item::get_items(cache.d3d12_render_item_ids.data(), items_count, items_cache);
+
+    const submesh::ViewsCache views_cache{cache.views_cache()};
+    submesh::get_views(items_cache.submesh_gpu_ids, items_count, views_cache);
+
+    const material::MaterialsCache materials_cache{cache.materials_cache()};
+    material::get_materials(items_cache.material_ids, items_count, materials_cache, cache.descriptor_index_count);
+
+    return constant_buffer_bytes(items_count, cache.descriptor_index_count);
+}
+
 auto shutdown() -> void
 {
     gpass_main_buffer.release();
@@ -594,17 +646,22 @@ auto set_size(math::u32v2 size) -> void
     }
 }
 
-auto depth_prepass(id3d12_graphics_command_list *cmd_list, const D3D12FrameInfo &d3d12_info) -> void
+namespace
 {
-    prepare_render_frame(d3d12_info);
 
+// Items [begin, end) of the depth prepass, with the state each needs (a batch starts with none set).
+auto record_depth_items(
+    id3d12_graphics_command_list *cmd_list,
+    const D3D12FrameInfo &d3d12_info,
+    u32 begin,
+    u32 end) -> void
+{
     const GpassCache &cache{frame_cache};
-    const u32 items_count{cache.size()};
 
     ID3D12RootSignature *current_root_signature{nullptr};
     ID3D12PipelineState *current_pipeline_state{nullptr};
 
-    for (u32 i{0}; i < items_count; ++i)
+    for (u32 i{begin}; i < end; ++i)
     {
         if (current_root_signature != cache.root_signatures[i])
         {
@@ -631,17 +688,21 @@ auto depth_prepass(id3d12_graphics_command_list *cmd_list, const D3D12FrameInfo 
     }
 }
 
-auto render(id3d12_graphics_command_list *cmd_list, const D3D12FrameInfo &d3d12_info) -> void
+// Items [begin, end) of the geometry pass, with the state each needs (a batch starts with none set).
+auto record_gpass_items(
+    id3d12_graphics_command_list *cmd_list,
+    const D3D12FrameInfo &d3d12_info,
+    u32 begin,
+    u32 end) -> void
 {
     const GpassCache &cache{frame_cache};
-    const u32 items_count{cache.size()};
     const u32 frame_index{d3d12_info.frame_index};
     const id::id_type light_culling_id{d3d12_info.light_culling_id};
 
     ID3D12RootSignature *current_root_signature{nullptr};
     ID3D12PipelineState *current_pipeline_state{nullptr};
 
-    for (u32 i{0}; i < items_count; ++i)
+    for (u32 i{begin}; i < end; ++i)
     {
         if (current_root_signature != cache.root_signatures[i])
         {
@@ -674,6 +735,80 @@ auto render(id3d12_graphics_command_list *cmd_list, const D3D12FrameInfo &d3d12_
         cmd_list->IASetPrimitiveTopology(cache.primitive_topologies[i]);
         cmd_list->DrawIndexedInstanced(index_count, 1, 0, 0, 0);
     }
+}
+
+// The pass's render targets in a command list that starts in the middle of the pass (no clear: the frame's list
+// cleared them before).
+auto bind_render_targets_for_depth_prepass(id3d12_graphics_command_list *cmd_list) -> void
+{
+    const D3D12_CPU_DESCRIPTOR_HANDLE dsv{gpass_depth_buffer.dsv()};
+    cmd_list->OMSetRenderTargets(0, nullptr, 0, &dsv);
+}
+
+auto bind_render_targets_for_gpass(id3d12_graphics_command_list *cmd_list) -> void
+{
+    const D3D12_CPU_DESCRIPTOR_HANDLE rtv{gpass_main_buffer.rtv(0)};
+    const D3D12_CPU_DESCRIPTOR_HANDLE dsv{gpass_depth_buffer.dsv()};
+    cmd_list->OMSetRenderTargets(1, &rtv, 0, &dsv);
+}
+
+using record_function = auto (*)(id3d12_graphics_command_list *, const D3D12FrameInfo &, u32, u32) -> void;
+using bind_function = auto (*)(id3d12_graphics_command_list *) -> void;
+
+// Records one pass over every item: into the frame's command list, or, with many items, into command lists that
+// jobs record in batches and that run, in order, between two parts of the frame's list
+// (Vulkan: record_pass() with secondary command buffers). D3D12 lists inherit nothing, so each batch sets the heap,
+// viewport, scissor (core::begin_thread_command_list()) and render targets itself.
+auto record_pass(
+    id3d12_graphics_command_list *cmd_list,
+    const D3D12FrameInfo &d3d12_info,
+    record_function record,
+    bind_function bind) -> void
+{
+    const u32 items_count{frame_cache.size()};
+    // Same batch size as Vulkan's; up to one batch is recorded serially.
+    constexpr u32 batch_size{512};
+    if (!core::parallel_recording_enabled() || items_count <= batch_size)
+    {
+        record(cmd_list, d3d12_info, 0, items_count);
+        return;
+    }
+
+    const u32 batch_count{(items_count + batch_size - 1) / batch_size};
+    utl::vector<ID3D12CommandList *> &lists{frame_cache.batch_lists};
+    lists.resize(batch_count);
+    core::prepare_thread_command_lists();
+
+    jobs::parallel_for(
+        batch_count,
+        1,
+        [&](u32 first, u32 last)
+        {
+            for (u32 batch{first}; batch < last; ++batch)
+            {
+                id3d12_graphics_command_list *const batch_list{core::begin_thread_command_list()};
+                bind(batch_list);
+                const u32 begin{batch * batch_size};
+                record(batch_list, d3d12_info, begin, std::min(begin + batch_size, items_count));
+                DXCall(batch_list->Close());
+                lists[batch] = batch_list;
+            }
+        });
+
+    core::execute_thread_command_lists({lists.data(), lists.size()});
+}
+
+}
+
+auto depth_prepass(id3d12_graphics_command_list *cmd_list, const D3D12FrameInfo &d3d12_info) -> void
+{
+    prepare_render_frame(d3d12_info);
+    record_pass(cmd_list, d3d12_info, &record_depth_items, &bind_render_targets_for_depth_prepass);
+}
+
+auto render(id3d12_graphics_command_list *cmd_list, const D3D12FrameInfo &d3d12_info) -> void
+{
+    record_pass(cmd_list, d3d12_info, &record_gpass_items, &bind_render_targets_for_gpass);
 }
 
 auto depth_prepass_indirect(id3d12_graphics_command_list *cmd_list, const D3D12FrameInfo &d3d12_info) -> void

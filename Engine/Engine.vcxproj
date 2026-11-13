@@ -81,8 +81,8 @@
     <ClInclude Include="Utilities\IOStream.h" />
     <ClInclude Include="Utilities\Math.h" />
     <ClInclude Include="Utilities\MathSimd.h" />
+    <ClInclude Include="Core\Log.h" />
     <ClInclude Include="Utilities\MathTypes.h" />
-    <ClInclude Include="Utilities\Threading.h" />
     <ClInclude Include="Utilities\Utilities.h" />
     <ClInclude Include="Utilities\Vector.h" />
   </ItemGroup>
@@ -94,6 +94,11 @@
     <ClCompile Include="Content\ContentLoader.cpp" />
     <ClCompile Include="Content\ContentToEngine.cpp" />
     <ClCompile Include="Core\Engine.cpp" />
+    <ClCompile Include="Core\Frame.cpp" />
+    <ClCompile Include="Core\Frame.ixx" />
+    <ClCompile Include="Core\Jobs.cpp" />
+    <ClCompile Include="Core\Jobs.ixx" />
+    <ClCompile Include="Core\Log.cpp" />
     <ClCompile Include="Core\MainWin32.cpp" />
     <ClCompile Include="Graphics\Direct3D12\D3D12Camera.cpp" />
     <ClCompile Include="Graphics\Direct3D12\D3D12Content.cpp" />
@@ -295,6 +300,7 @@
     </Manifest>
   </ItemDefinitionGroup>
   <Import Project="Vulkan.props" />
+  <Import Project="Modules.props" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
     <Import Project="..\packages\Microsoft.Direct3D.D3D12.1.619.4\build\native\Microsoft.Direct3D.D3D12.targets" Condition="Exists('..\packages\Microsoft.Direct3D.D3D12.1.619.4\build\native\Microsoft.Direct3D.D3D12.targets')" />

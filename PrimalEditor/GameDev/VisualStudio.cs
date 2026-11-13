@@ -19,7 +19,7 @@ enum BuildConfiguration
     Release,
     ReleaseEditor,
 }
-static class VisualStudio
+static partial class VisualStudio
 {
     private static readonly ManualResetEvent _resetEvent = new(false);
     private static readonly string _progID = "VisualStudio.DTE.18.0";
@@ -121,6 +121,7 @@ static class VisualStudio
 
     public static void OpenVisualStudio(string solutionPath)
     {
+        if (UseCommandLine) return;
         lock (_lock) { OpenVisualStudio_Internal(solutionPath); }
     }
 
@@ -140,6 +141,7 @@ static class VisualStudio
 
     public static void CloseVisualStudio()
     {
+        if (UseCommandLine) return;
         lock (_lock) { CloseVisualStudio_Internal(); }
     }
 
@@ -188,7 +190,12 @@ static class VisualStudio
 
     public static bool AddFilesToSolution(string solution, string projectName, string[] files)
     {
-        lock (_lock) { return AddFilesToSolution_Internal(solution, projectName, files); }
+        lock (_lock)
+        {
+            return UseCommandLine
+                ? AddFilesToSolution_CommandLine(solution, projectName, files)
+                : AddFilesToSolution_Internal(solution, projectName, files);
+        }
     }
 
     private static void OnBuildSolutionBegin(string project, string projectConfig, string platform, string solutionConfig)
@@ -223,6 +230,7 @@ static class VisualStudio
 
     public static bool IsDebugging()
     {
+        if (UseCommandLine) return IsGameRunning();
         // TODO: //lock (_lock) { return IsDebugging_Internal(); }
         return IsDebugging_Internal();
     }
@@ -250,15 +258,7 @@ static class VisualStudio
         });
 
         var configName = GetConfigurationName(buildConfig);
-
-        try
-        {
-            foreach (var pdbFile in Directory.GetFiles(Path.Combine($"{project.Path}", $@"x64\{configName}"), "*.pdb"))
-            {
-                File.Delete(pdbFile);
-            }
-        }
-        catch (Exception ex) { Debug.WriteLine(ex.Message); }
+        DeletePdbFiles(project, configName);
 
         CallOnSTAThread(() =>
         {
@@ -269,9 +269,25 @@ static class VisualStudio
         });
     }
 
+    private static void DeletePdbFiles(Project project, string configName)
+    {
+        try
+        {
+            foreach (var pdbFile in Directory.GetFiles(Path.Combine($"{project.Path}", $@"x64\{configName}"), "*.pdb"))
+            {
+                File.Delete(pdbFile);
+            }
+        }
+        catch (Exception ex) { Debug.WriteLine(ex.Message); }
+    }
+
     public static void BuildSolution(Project project, BuildConfiguration buildConfig, bool showWindow = true)
     {
-        lock (_lock) { BuildSolution_Internal(project, buildConfig, showWindow); }
+        lock (_lock)
+        {
+            if (UseCommandLine) BuildSolution_CommandLine(project, buildConfig);
+            else BuildSolution_Internal(project, buildConfig, showWindow);
+        }
     }
 
     private static void Run_Internal(Project project, BuildConfiguration buildConfig, bool debug)
@@ -287,7 +303,11 @@ static class VisualStudio
 
     public static void Run(Project project, BuildConfiguration buildConfig, bool debug)
     {
-        lock (_lock) { Run_Internal(project, buildConfig, debug); }
+        lock (_lock)
+        {
+            if (UseCommandLine) Run_CommandLine(project, buildConfig, debug);
+            else Run_Internal(project, buildConfig, debug);
+        }
     }
 
     private static void Stop_Internal()
@@ -303,7 +323,11 @@ static class VisualStudio
 
     public static void Stop()
     {
-        lock (_lock) { Stop_Internal(); }
+        lock (_lock)
+        {
+            if (UseCommandLine) Stop_CommandLine();
+            else Stop_Internal();
+        }
     }
 }
 

@@ -9,6 +9,8 @@
 
 #include <doctest.h>
 
+import primal.jobs;
+
 auto main(int argc, char **argv) -> int
 {
     // The engine finds its shaders (and the tests find TestShader.hlsl) relative to the executable.
@@ -17,6 +19,10 @@ auto main(int argc, char **argv) -> int
         return 1;
     }
 
+    // The renderer uses the job system (parallel_for in render preparation); PRIMAL_JOBS=0 runs it inline.
+    primal::jobs::initialize();
     doctest::Context context{argc, argv};
-    return context.run();
+    const int result{context.run()};
+    primal::jobs::shutdown();
+    return result;
 }

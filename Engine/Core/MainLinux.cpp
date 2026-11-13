@@ -2,8 +2,11 @@
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #include "CommonHeaders.h"
 #if PRIMAL_PLATFORM_LINUX
+#include "Core/Log.h"
 #include "Platform/Platform.h"
 #include "Platform/PlatformTypes.h"
+
+import primal.jobs;
 
 // Linux counterpart of MainWin32.cpp: entry point of a game executable linked with the engine.
 // NOTE: an executable that defines its own main() (e.g. EngineTest) doesn't pull this in,
@@ -21,6 +24,9 @@ auto main() -> int
 {
     // NOTE: for leak checking, configure with -DPRIMAL_ENABLE_SANITIZERS=ON.
     primal::platform::set_current_directory_to_executable_path();
+    primal::log::initialize();
+    primal::log::open_file("primal.log");
+    primal::jobs::initialize();
 
     if (::engine_initialize())
     {
@@ -30,6 +36,9 @@ auto main() -> int
         }
     }
     ::engine_shutdown();
+    primal::jobs::shutdown();
+    primal::log::shutdown();
+    primal::log::close_file();
     return 0;
 }
 

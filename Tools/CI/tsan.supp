@@ -1,0 +1,10 @@
+# Copyright (c) 2026 Charles Smith
+# Distributed under the MIT license. See the LICENSE file in the project root for more information.
+#
+# ThreadSanitizer suppressions for the graphics tests (ci.sh tsan). Only races inside third-party libraries that
+# TSan can't see into (they aren't built with it). One per line, with where it was seen.
+
+# lavapipe 26.x (the CI image): its llvmpipe worker threads, mutexes and queue thread.
+race:libvulkan_lvp.so
+# LLVM 23.x, which lavapipe uses to compile shaders on its llvmpipe threads.
+race:libLLVM.so

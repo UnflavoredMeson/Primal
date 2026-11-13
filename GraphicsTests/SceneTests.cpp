@@ -12,9 +12,14 @@
 
 #include <doctest.h>
 
+#include <algorithm>
 #include <array>
+#include <chrono>
 #include <string>
 #include <vector>
+
+import primal.frame;
+import primal.jobs;
 
 using namespace primal;
 
@@ -145,38 +150,41 @@ class Scene
         return _lights[index];
     }
 
-    // Updates the scripts and renders one frame on every view, alternating the light sets between the views.
-    // lod_threshold picks the LOD of every geometry that has more than one.
+    // Runs one frame (frame::run(): the scripts, the transforms, then rendering on every view), alternating the light
+    // sets between the views. lod_threshold picks the LOD of every geometry that has more than one.
     auto render_frame(graphics_test::Session &session, f32 lod_threshold = 0.f) -> void
     {
         graphics_test::pump_events();
-        script::update(frame_time);
-
-        const u32 item_count{render_item_count()};
-        _render_item_ids.resize(item_count);
-        _thresholds.assign(item_count, lod_threshold);
-        if (item_count)
-        {
-            geometry::get_render_item_ids(_render_item_ids.data(), item_count);
-        }
-
-        for (u32 i{0}; i < graphics_test::max_views; ++i)
-        {
-            const graphics_test::View &view{session.view(i)};
-            if (!view.is_valid())
+        frame::run(
+            frame_time,
+            [this, &session, lod_threshold]
             {
-                continue;
-            }
-            graphics::FrameInfo info{};
-            info.render_item_ids = _render_item_ids.data();
-            info.render_item_count = item_count;
-            info.thresholds = _thresholds.data();
-            info.light_set_key = (i % 2) == 0 ? first_light_set : second_light_set;
-            info.last_frame_time = frame_time * 1000.f;
-            info.average_frame_time = frame_time * 1000.f;
-            info.camera_id = view.camera.get_id();
-            view.surface.render(info);
-        }
+                const u32 item_count{render_item_count()};
+                _render_item_ids.resize(item_count);
+                _thresholds.assign(item_count, lod_threshold);
+                if (item_count)
+                {
+                    geometry::get_render_item_ids(_render_item_ids.data(), item_count);
+                }
+
+                for (u32 i{0}; i < graphics_test::max_views; ++i)
+                {
+                    const graphics_test::View &view{session.view(i)};
+                    if (!view.is_valid())
+                    {
+                        continue;
+                    }
+                    graphics::FrameInfo info{};
+                    info.render_item_ids = _render_item_ids.data();
+                    info.render_item_count = item_count;
+                    info.thresholds = _thresholds.data();
+                    info.light_set_key = (i % 2) == 0 ? first_light_set : second_light_set;
+                    info.last_frame_time = frame_time * 1000.f;
+                    info.average_frame_time = frame_time * 1000.f;
+                    info.camera_id = view.camera.get_id();
+                    view.surface.render(info);
+                }
+            });
     }
 
     auto render_frames(graphics_test::Session &session, u32 count, f32 lod_threshold = 0.f) -> void
@@ -198,6 +206,38 @@ class Scene
     auto add_box_entity(math::v3 position) -> void
     {
         add_entity(_box_normal_id, {&_plain_material_id, 1}, position);
+    }
+
+    // Adds an entity whose geometry is a cube of small boxes, each a submesh of its own: one render item per box.
+    // Many render items for few entities (the constant buffer limits the entities a frame can have).
+    auto add_cluster_entity(math::v3 position, u32 boxes_per_side) -> void
+    {
+        test_content::Lod lod{};
+        for (u32 x{0}; x < boxes_per_side; ++x)
+        {
+            for (u32 y{0}; y < boxes_per_side; ++y)
+            {
+                for (u32 z{0}; z < boxes_per_side; ++z)
+                {
+                    test_content::Submesh box{
+                        test_content::make_box(test_content::ElementsType::static_normal, {0.1f, 0.1f, 0.1f})};
+                    const math::v3 offset{
+                        0.3f * static_cast<f32>(x), 0.3f * static_cast<f32>(y), 0.3f * static_cast<f32>(z)};
+                    for (math::v3 &p : box.positions)
+                    {
+                        p = {p.x + offset.x, p.y + offset.y, p.z + offset.z};
+                    }
+                    lod.submeshes.push_back(std::move(box));
+                }
+            }
+        }
+        const id::id_type geometry_id{create_geometry({&lod, 1})};
+        _geometry_ids.push_back(geometry_id);
+
+        std::vector<id::id_type> materials;
+        materials.resize(lod.submeshes.size());
+        std::ranges::fill(materials, _plain_material_id);
+        add_entity(geometry_id, materials, position);
     }
 
     auto add_point_light(u64 light_set_key, math::v3 position, math::v3 color) -> graphics::Light
@@ -656,6 +696,87 @@ TEST_CASE("the renderer is restarted with a scene")
         }
         session.shutdown_and_check();
     }
+}
+
+TEST_CASE("a scene with 1100 objects is prepared on several threads")
+{
+    // More objects than one batch of fill_per_object_data() and transform::update_matrices() (1024 each), so the job
+    // system's workers take part (when it has any).
+    graphics_test::Session session{};
+    add_two_views(session);
+    {
+        Scene scene{};
+        constexpr u32 columns{40};
+        for (u32 i{0}; i < 1100; ++i)
+        {
+            const u32 row{i / columns};
+            const u32 column{i % columns};
+            scene.add_box_entity({static_cast<f32>(column) - 20.f, 0.5f, static_cast<f32>(row) - 14.f});
+        }
+        CHECK(scene.render_item_count() == 1105);
+        scene.render_frames(session, 10);
+    }
+    session.shutdown_and_check();
+}
+
+// Not a test: a measurement for issue #1 step 7 (recording in parallel). Run it with
+//     x64/Release/GraphicsTests -tc="benchmark*" --no-skip
+// and compare PRIMAL_VULKAN_PARALLEL_RECORDING=0 (one command buffer, recorded by the rendering thread) and
+// PRIMAL_JOBS=0 with the default.
+TEST_CASE("benchmark: a frame with 6400 render items" * doctest::skip())
+{
+    graphics_test::Session session{};
+    session.add_view("Benchmark", 320, 240, true);
+    {
+        Scene scene{};
+        // 100 entities of 4 x 4 x 4 boxes.
+        for (u32 i{0}; i < 100; ++i)
+        {
+            const u32 row{i / 10};
+            const u32 column{i % 10};
+            scene.add_cluster_entity(
+                {static_cast<f32>(column) * 2.f - 10.f, 0.5f, static_cast<f32>(row) * 2.f - 10.f}, 4);
+        }
+        scene.render_frames(session, 30);
+
+        constexpr u32 frames{300};
+        const auto start{std::chrono::steady_clock::now()};
+        scene.render_frames(session, frames);
+        const std::chrono::duration<double, std::milli> total{std::chrono::steady_clock::now() - start};
+        MESSAGE("threads: " << jobs::worker_count() << ", per frame: " << total.count() / frames << " ms");
+    }
+    session.shutdown_and_check();
+}
+
+// Not a test: render preparation in parallel. Run it with
+//     x64/Release/GraphicsTests -tc="benchmark*" --no-skip
+// and compare PRIMAL_JOBS=0 (one thread) with the default. A frame's CPU time includes waiting for the GPU, so
+// keep the window small; the constant buffer (1 MB a frame) limits the scene to about 2,000 objects.
+TEST_CASE("benchmark: a frame with 1500 objects" * doctest::skip())
+{
+    graphics_test::Session session{};
+    session.add_view("Benchmark", 320, 240, true);
+    {
+        Scene scene{};
+        constexpr u32 side{39}; // 39 x 39 = 1,521 boxes
+        for (u32 x{0}; x < side; ++x)
+        {
+            for (u32 z{0}; z < side; ++z)
+            {
+                scene.add_box_entity({static_cast<f32>(x) - 20.f, 0.5f, static_cast<f32>(z) - 20.f});
+            }
+        }
+        scene.render_frames(session, 30);
+
+        constexpr u32 frames{300};
+        const auto start{std::chrono::steady_clock::now()};
+        scene.render_frames(session, frames);
+        const std::chrono::duration<double, std::milli> total{std::chrono::steady_clock::now() - start};
+        MESSAGE(
+            "threads: " << jobs::worker_count() << ", render items: " << scene.render_item_count()
+                        << ", per frame: " << total.count() / frames << " ms");
+    }
+    session.shutdown_and_check();
 }
 
 TEST_SUITE_END();

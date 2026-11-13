@@ -3,6 +3,8 @@
 #pragma once
 #include "D3D12CommonHeaders.h"
 
+#include <atomic>
+
 namespace primal::graphics::d3d12
 {
 
@@ -189,13 +191,17 @@ class ConstantBuffer
     {
         _buffer.release();
         _cpu_address = nullptr;
-        _cpu_offset = 0;
+        _cpu_offset.store(0, std::memory_order_relaxed);
     }
 
-    constexpr auto clear() -> void
+    auto clear() -> void
     {
-        _cpu_offset = 0;
+        _cpu_offset.store(0, std::memory_order_relaxed);
     }
+    // Right after clear(), before the frame's first allocation: makes sure that many bytes fit, with a bigger buffer
+    // (the next power of two) when they don't. The old buffer is released once no frame uses it.
+    auto reserve(u64 bytes) -> void;
+    // Lock-free: any thread may allocate. nullptr when the buffer is full (reserve() at the start of the frame).
     [[nodiscard]] auto allocate(u32 size) -> u8 *;
 
     template <typename T>
@@ -221,17 +227,17 @@ class ConstantBuffer
         return _cpu_address;
     }
 
+    // Lock-free: only computes an address (called once per render item, also from jobs).
     template <typename T>
-    [[nodiscard]] constexpr auto gpu_address(T *const allocation) -> D3D12_GPU_VIRTUAL_ADDRESS
+    [[nodiscard]] auto gpu_address(T *const allocation) const -> D3D12_GPU_VIRTUAL_ADDRESS
     {
-        const std::scoped_lock lock{_mutex};
         assert(_cpu_address && allocation);
         if (!_cpu_address || !allocation)
         {
             return {};
         }
         const u8 *const address{reinterpret_cast<const u8 *>(allocation)};
-        assert(address <= _cpu_address + _cpu_offset);
+        assert(address <= _cpu_address + _cpu_offset.load(std::memory_order_relaxed));
         assert(address >= _cpu_address);
         const u64 offset{static_cast<u64>(address - _cpu_address)};
         return _buffer.gpu_address() + offset;
@@ -247,10 +253,11 @@ class ConstantBuffer
     }
 
   private:
+    auto map() -> void;
+
     D3D12Buffer _buffer;
     u8 *_cpu_address{nullptr};
-    u32 _cpu_offset{0};
-    std::mutex _mutex;
+    std::atomic<u32> _cpu_offset{0};
 };
 
 class UavClearableBuffer

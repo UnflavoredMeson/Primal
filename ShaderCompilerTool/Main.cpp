@@ -7,10 +7,10 @@
 //
 // Usage: PrimalShaderCompiler [d3d12] [vulkan]   (no arguments: the platform's default backend)
 
+#include "Core/Log.h"
 #include "Platform/Platform.h"
 #include "ShaderCompilation.h"
 
-#include <cstdio>
 #include <cstring>
 
 using namespace primal;
@@ -27,6 +27,9 @@ auto platform_name(graphics::GraphicsPlatform platform) -> const char *
 
 auto main(int argc, char *const *argv) -> int
 {
+    // The build reads this tool's output: compiler errors must arrive as the compiler wrote them.
+    log::set_console_style(log::ConsoleStyle::plain);
+
     utl::vector<graphics::GraphicsPlatform> platforms;
     for (int i{1}; i < argc; ++i)
     {
@@ -47,7 +50,8 @@ auto main(int argc, char *const *argv) -> int
 #else
             constexpr const char *usage{"PrimalShaderCompiler [vulkan]"};
 #endif
-            std::fprintf(stderr, "PrimalShaderCompiler: unknown backend '%s'\nUsage: %s\n", argv[i], usage);
+            log::error(log::Category::tools, "PrimalShaderCompiler: unknown backend '{}'", argv[i]);
+            log::error(log::Category::tools, "Usage: {}", usage);
             return 2;
         }
     }
@@ -63,9 +67,9 @@ auto main(int argc, char *const *argv) -> int
     {
         if (!::compile_shaders(platform))
         {
-            std::fprintf(
-                stderr,
-                "PrimalShaderCompiler: error: failed to compile the engine shaders for %s\n",
+            log::error(
+                log::Category::tools,
+                "PrimalShaderCompiler: error: failed to compile the engine shaders for {}",
                 platform_name(platform));
             return 1;
         }

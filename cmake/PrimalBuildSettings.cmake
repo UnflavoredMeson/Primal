@@ -33,7 +33,14 @@ target_compile_definitions(primal_build_settings INTERFACE
     $<$<CONFIG:Debug>:_DEBUG>
 )
 
+if(PRIMAL_ENABLE_SANITIZERS AND PRIMAL_ENABLE_TSAN)
+    message(FATAL_ERROR "PRIMAL_ENABLE_SANITIZERS (ASan) and PRIMAL_ENABLE_TSAN can't be used in the same build.")
+endif()
 if(PRIMAL_ENABLE_SANITIZERS)
     target_compile_options(primal_build_settings INTERFACE -fsanitize=address,undefined -fno-omit-frame-pointer)
     target_link_options(primal_build_settings INTERFACE -fsanitize=address,undefined)
+endif()
+if(PRIMAL_ENABLE_TSAN)
+    target_compile_options(primal_build_settings INTERFACE -fsanitize=thread -fno-omit-frame-pointer)
+    target_link_options(primal_build_settings INTERFACE -fsanitize=thread)
 endif()

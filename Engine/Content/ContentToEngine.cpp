@@ -220,7 +220,7 @@ auto is_single_mesh(const void *const data) -> bool
     return submesh_count == 1;
 }
 
-constexpr auto gpu_id_from_fake_pointer(u8 const *const pointer) -> id::id_type
+auto gpu_id_from_fake_pointer(u8 const *const pointer) -> id::id_type
 {
     assert(reinterpret_cast<uintptr_t>(pointer) & single_mesh_marker);
     static_assert(sizeof(uintptr_t) > sizeof(id::id_type));

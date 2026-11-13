@@ -65,7 +65,7 @@ auto DescriptorHeap::initialize(u32 capacity) -> bool
     ::vkGetDescriptorSetLayoutSupport(device, &layout_info, &support);
     if (!support.supported)
     {
-        log_message("Vulkan: a resource heap with %u mutable descriptors isn't supported.\n", capacity);
+        log::error(log::Category::vulkan, "A resource heap with {} mutable descriptors isn't supported.", capacity);
         return false;
     }
 
@@ -170,13 +170,17 @@ auto DescriptorHeap::free(DescriptorHandle &handle) -> void
     {
         return;
     }
-    const std::scoped_lock lock{_mutex};
-    assert(_set && _size);
-    assert(handle._container == this);
-    assert(handle.index < _capacity);
-
     const u32 frame_idx{core::current_frame_index()};
-    _deferred_free_indices[frame_idx].push_back(handle.index);
+    {
+        const std::scoped_lock lock{_mutex};
+        assert(_set && _size);
+        assert(handle._container == this);
+        assert(handle.index < _capacity);
+
+        _deferred_free_indices[frame_idx].push_back(handle.index);
+    }
+    // Not under _mutex: process_deferred_releases() holds the deferred-release mutex while it takes _mutex, so taking
+    // them the other way round here could deadlock.
     core::set_deferred_releases_flag(frame_idx);
     handle = {};
 }
@@ -302,19 +306,41 @@ ConstantBuffer::ConstantBuffer(const VulkanBufferInitInfo &info)
     NAME_VK_OBJECT_INDEXED(buffer(), VK_OBJECT_TYPE_BUFFER, size(), "Constant Buffer - size");
 }
 
-auto ConstantBuffer::allocate(u32 size) -> u8 *
+auto ConstantBuffer::reserve(u64 bytes) -> void
 {
-    const std::scoped_lock lock{_mutex};
-    const u32 aligned_size{static_cast<u32>(math::align_size_up<alignment>(size))};
-    assert(_cpu_offset + aligned_size <= _buffer.size());
-    if (_cpu_offset + aligned_size <= _buffer.size())
+    assert(_cpu_offset.load(std::memory_order_relaxed) == 0 && "reserve() before the frame's first allocation");
+    if (bytes <= _buffer.size())
     {
-        u8 *const address{_buffer.cpu_address() + _cpu_offset};
-        _cpu_offset += aligned_size;
-        return address;
+        return;
     }
 
-    return nullptr;
+    u64 new_size{_buffer.size() ? _buffer.size() : alignment};
+    while (new_size < bytes)
+    {
+        new_size *= 2;
+    }
+    assert(new_size <= u32_invalid_id);
+    log::debug(log::Category::vulkan, "Constant buffer grown from {} to {} bytes", _buffer.size(), new_size);
+
+    // The old buffer goes through deferred release: a frame still in flight may use it.
+    _buffer = VulkanBuffer{get_default_init_info(static_cast<u32>(new_size)), true};
+    NAME_VK_OBJECT_INDEXED(buffer(), VK_OBJECT_TYPE_BUFFER, size(), "Constant Buffer - size");
+}
+
+auto ConstantBuffer::allocate(u32 size) -> u8 *
+{
+    const u32 aligned_size{static_cast<u32>(math::align_size_up<alignment>(size))};
+    u32 offset{_cpu_offset.load(std::memory_order_relaxed)};
+    do
+    {
+        if (offset + aligned_size > _buffer.size())
+        {
+            assert(false && "The frame's constant buffer is full: reserve() more at the start of the frame.");
+            return nullptr;
+        }
+    } while (!_cpu_offset.compare_exchange_weak(offset, offset + aligned_size, std::memory_order_relaxed));
+
+    return _buffer.cpu_address() + offset;
 }
 
 //// UAV CLEARABLE BUFFER /////////////////////////////////////////////////////////////////////////

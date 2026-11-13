@@ -3,7 +3,7 @@
 #
 # CMake build for Linux (Engine + EngineTest). On Windows, keep using Primal.slnx / the .vcxproj files.
 
-cmake_minimum_required(VERSION 3.25)
+cmake_minimum_required(VERSION 3.28)
 project(Primal LANGUAGES CXX)
 
 if(WIN32)
@@ -22,6 +22,7 @@ endif()
 set(PRIMAL_ENGINE_TEST "ENTITY_COMPONENTS" CACHE STRING "Which EngineTest test to build (ENTITY_COMPONENTS, WINDOW, RENDERER, SURFACES)")
 set_property(CACHE PRIMAL_ENGINE_TEST PROPERTY STRINGS ENTITY_COMPONENTS WINDOW RENDERER SURFACES)
 option(PRIMAL_ENABLE_SANITIZERS "Build with AddressSanitizer + UndefinedBehaviorSanitizer" OFF)
+option(PRIMAL_ENABLE_TSAN "Build with ThreadSanitizer (not together with PRIMAL_ENABLE_SANITIZERS)" OFF)
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 include(PrimalDependencies)

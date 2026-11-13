@@ -16,45 +16,12 @@
 #include "VulkanUpload.h"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
-#include <cstdarg>
 #include <cstdlib>
+#include <memory>
 
-namespace primal::graphics::vulkan
-{
-
-auto log_message(const char *format, ...) -> void // NOLINT(modernize-avoid-variadic-functions): printf wrapper
-{
-    char buffer[1024];
-    std::va_list args;
-    va_start(args, format);
-    std::va_list args_copy;
-    va_copy(args_copy, args);
-    const int length{std::vsnprintf(buffer, sizeof(buffer), format, args)};
-    va_end(args);
-
-    const char *message{buffer};
-    std::unique_ptr<char[]> long_message;
-    if (length >= static_cast<int>(sizeof(buffer)))
-    {
-        // Validation messages can be longer than the stack buffer.
-        long_message = std::make_unique<char[]>(static_cast<size_t>(length) + 1);
-        std::vsnprintf(long_message.get(), static_cast<size_t>(length) + 1, format, args_copy);
-        message = long_message.get();
-    }
-    va_end(args_copy);
-    if (length < 0)
-    {
-        return;
-    }
-
-    std::fputs(message, stderr);
-#if PRIMAL_PLATFORM_WINDOWS
-    ::OutputDebugStringA(message);
-#endif
-}
-
-}
+import primal.jobs;
 
 namespace primal::graphics::vulkan::core
 {
@@ -321,6 +288,19 @@ VkDebugUtilsMessengerEXT debug_messenger{VK_NULL_HANDLE};
 VkPhysicalDevice main_physical_device{VK_NULL_HANDLE};
 VkDevice main_device{VK_NULL_HANDLE};
 VulkanCommand gfx_command;
+
+// One per thread that records secondary command buffers: a pool per frame, and the buffers allocated from it
+// (reused after the pool is reset). Slot jobs::worker_index(), or the last slot for a thread outside the pool.
+struct ThreadCommandPools
+{
+    std::array<VkCommandPool, frame_buffer_count> pools{};
+    std::array<utl::vector<VkCommandBuffer>, frame_buffer_count> buffers{};
+    std::array<u32, frame_buffer_count> used{};
+};
+// unique_ptr: the vector grows on the recording thread while no job records; a job keeps a reference meanwhile.
+utl::vector<std::unique_ptr<ThreadCommandPools>> thread_command_pools;
+bool parallel_recording{true};
+
 surface_collection surfaces;
 VmaAllocator vma_allocator{VK_NULL_HANDLE};
 VulkanBuffer zero_buffer_object{};
@@ -333,6 +313,8 @@ vkx::VulkanBarrier resource_barriers{};
 // Same sizes as the D3D12 backend.
 constexpr u32 srv_heap_capacity{4096};
 constexpr u32 constant_buffer_size{1024 * 1024};
+// Room reserved for what the frame allocates besides the gpass's render items (global shader data, ...).
+constexpr u64 other_constant_bytes{256 * 1024};
 
 PFN_vkSetDebugUtilsObjectNameEXT set_debug_utils_object_name{nullptr};
 
@@ -368,18 +350,21 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(
     const VkDebugUtilsMessengerCallbackDataEXT *data,
     void *)
 {
-    const char *label{"info"};
+    const char *const message{data && data->pMessage ? data->pMessage : ""};
     if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
     {
-        label = "ERROR";
         ++validation_error_count;
+        log::error(log::Category::vulkan, "Validation: {}", message);
     }
     else if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
     {
-        label = "warning";
         ++validation_warning_count;
+        log::warning(log::Category::vulkan, "Validation: {}", message);
     }
-    log_message("::Vulkan %s: %s\n", label, data && data->pMessage ? data->pMessage : "");
+    else
+    {
+        log::debug(log::Category::vulkan, "Validation: {}", message);
+    }
     return VK_FALSE;
 }
 
@@ -439,7 +424,7 @@ auto create_instance() -> bool
     // Load it here first: calling into a missing delay-loaded DLL raises an SEH exception.
     if (!::LoadLibraryW(L"vulkan-1.dll"))
     {
-        log_message("Vulkan: vulkan-1.dll (the Vulkan loader) wasn't found.\n");
+        log::error(log::Category::vulkan, "vulkan-1.dll (the Vulkan loader) wasn't found.");
         return false;
     }
 #endif
@@ -448,8 +433,9 @@ auto create_instance() -> bool
     VkCall(::vkEnumerateInstanceVersion(&api_version));
     if (api_version < minimum_api_version)
     {
-        log_message(
-            "Vulkan: the loader supports Vulkan %u.%u, 1.3 is required.\n",
+        log::error(
+            log::Category::vulkan,
+            "The loader supports Vulkan {}.{}, 1.3 is required.",
             VK_API_VERSION_MAJOR(api_version),
             VK_API_VERSION_MINOR(api_version));
         return false;
@@ -485,7 +471,7 @@ auto create_instance() -> bool
     }
     if (!window_system_count)
     {
-        log_message("Vulkan: no supported window system surface extension.\n");
+        log::error(log::Category::vulkan, "No supported window system surface extension.");
         return false;
     }
     // Extra swapchain color spaces (FP16 scRGB like the D3D12 back buffer). Optional.
@@ -523,7 +509,7 @@ auto create_instance() -> bool
     }
     if (use_validation() && !validation)
     {
-        log_message("Warning: Vulkan validation layer is not available. Install vulkan-validation-layers.\n");
+        log::warning(log::Category::vulkan, "The validation layer is not available. Install vulkan-validation-layers.");
     }
 #endif
     if (layer_settings)
@@ -582,7 +568,10 @@ auto create_instance() -> bool
     validation_enabled = validation && debug_utils;
     if (validation)
     {
-        log_message("::Vulkan validation layer enabled%s\n", layer_settings ? " (+ synchronization validation)" : "");
+        log::info(
+            log::Category::vulkan,
+            "Validation layer enabled{}",
+            layer_settings ? " (+ synchronization validation)" : "");
     }
 
 #ifdef _DEBUG
@@ -633,7 +622,7 @@ auto get_required_features(const DeviceFeatures &supported, DeviceFeatures &enab
         {
             if (log_missing)
             {
-                log_message("Vulkan: missing device feature %s\n", name);
+                log::error(log::Category::vulkan, "Missing device feature {}", name);
             }
             ok = false;
         }
@@ -709,8 +698,9 @@ auto is_device_suitable(VkPhysicalDevice physical_device, bool log_missing) -> b
     {
         if (log_missing)
         {
-            log_message(
-                "Vulkan: %s supports Vulkan %u.%u, 1.3 is required.\n",
+            log::error(
+                log::Category::vulkan,
+                "{} supports Vulkan {}.{}, 1.3 is required.",
                 properties.deviceName,
                 VK_API_VERSION_MAJOR(properties.apiVersion),
                 VK_API_VERSION_MINOR(properties.apiVersion));
@@ -729,7 +719,7 @@ auto is_device_suitable(VkPhysicalDevice physical_device, bool log_missing) -> b
         {
             if (log_missing)
             {
-                log_message("Vulkan: %s doesn't support %s\n", properties.deviceName, name);
+                log::error(log::Category::vulkan, "{} doesn't support {}", properties.deviceName, name);
             }
             ok = false;
         }
@@ -804,14 +794,15 @@ auto create_device() -> bool
     main_physical_device = determine_main_physical_device();
     if (!main_physical_device)
     {
-        log_message("Vulkan: no suitable GPU found.\n");
+        log::error(log::Category::vulkan, "No suitable GPU found.");
         return false;
     }
 
     VkPhysicalDeviceProperties properties{};
     ::vkGetPhysicalDeviceProperties(main_physical_device, &properties);
-    log_message(
-        "::Vulkan device: %s (Vulkan %u.%u.%u)\n",
+    log::info(
+        log::Category::vulkan,
+        "Device: {} (Vulkan {}.{}.{})",
         properties.deviceName,
         VK_API_VERSION_MAJOR(properties.apiVersion),
         VK_API_VERSION_MINOR(properties.apiVersion),
@@ -1052,6 +1043,74 @@ auto deferred_release(VkObjectType type, u64 handle, VmaAllocation allocation) -
 }
 }
 
+namespace
+{
+
+// PRIMAL_VULKAN_PARALLEL_RECORDING=0 records every draw on the rendering thread.
+auto parallel_recording_from_environment() -> bool
+{
+    constexpr const char *name{"PRIMAL_VULKAN_PARALLEL_RECORDING"};
+#ifdef _MSC_VER
+    // std::getenv is deprecated by MSVC (C4996).
+    char *env{nullptr};
+    size_t size{0};
+    if (_dupenv_s(&env, &size, name) != 0 || !env)
+    {
+        return true;
+    }
+    const bool enabled{env[0] != '0'};
+    std::free(env);
+    return enabled;
+#else
+    const char *const env{std::getenv(name)};
+    return !env || env[0] != '0';
+#endif
+}
+
+auto create_thread_command_pools() -> std::unique_ptr<ThreadCommandPools>
+{
+    auto pools{std::make_unique<ThreadCommandPools>()};
+    VkCommandPoolCreateInfo pool_info{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
+    pool_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+    pool_info.queueFamilyIndex = graphics_queue_family();
+    for (VkCommandPool &pool : pools->pools)
+    {
+        VkCall(::vkCreateCommandPool(main_device, &pool_info, nullptr, &pool));
+    }
+    return pools;
+}
+
+// After the frame's fence was waited for: its secondary command buffers aren't in use anymore.
+auto reset_thread_command_pools(u32 frame_idx) -> void
+{
+    for (const std::unique_ptr<ThreadCommandPools> &pools : thread_command_pools)
+    {
+        if (pools->used[frame_idx])
+        {
+            VkCall(::vkResetCommandPool(main_device, pools->pools[frame_idx], 0));
+            pools->used[frame_idx] = 0;
+        }
+    }
+}
+
+// After the GPU is idle (gfx_command.release()). Destroying a pool frees its command buffers.
+auto release_thread_command_pools() -> void
+{
+    for (const std::unique_ptr<ThreadCommandPools> &pools : thread_command_pools)
+    {
+        for (const VkCommandPool pool : pools->pools)
+        {
+            if (pool)
+            {
+                ::vkDestroyCommandPool(main_device, pool, nullptr);
+            }
+        }
+    }
+    thread_command_pools.clear();
+}
+
+}
+
 auto initialize() -> bool
 {
     if (main_device)
@@ -1063,6 +1122,7 @@ auto initialize() -> bool
     validation_error_count = 0;
     validation_warning_count = 0;
     validation_enabled = false;
+    parallel_recording = parallel_recording_from_environment();
 
     if (!create_instance())
     {
@@ -1108,6 +1168,7 @@ auto initialize() -> bool
 auto shutdown() -> void
 {
     gfx_command.release();
+    release_thread_command_pools();
 
     for (u32 i{0}; i < frame_buffer_count; ++i)
     {
@@ -1178,7 +1239,7 @@ auto shutdown() -> void
 
     if (const u32 error_count{validation_error_count})
     {
-        log_message("::Vulkan: %u validation error(s) were reported.\n", error_count);
+        log::error(log::Category::vulkan, "{} validation error(s) were reported.", error_count);
     }
 }
 
@@ -1309,6 +1370,48 @@ auto static_sampler(vkx::StaticSampler::Type type) -> VkSampler
     return static_samplers[type];
 }
 
+auto prepare_thread_command_pools() -> void
+{
+    const u32 slots{jobs::worker_count() + 1};
+    while (thread_command_pools.size() < slots)
+    {
+        thread_command_pools.emplace_back(create_thread_command_pools());
+    }
+}
+
+auto begin_secondary(const VkCommandBufferInheritanceInfo &inheritance) -> VkCommandBuffer
+{
+    const u32 worker{jobs::worker_index()};
+    const u32 slot{worker == u32_invalid_id ? jobs::worker_count() : worker};
+    assert(slot < thread_command_pools.size() && "Call prepare_thread_command_pools() before recording in jobs.");
+    ThreadCommandPools &pools{*thread_command_pools[slot]};
+    const u32 frame_idx{current_frame_index()};
+
+    utl::vector<VkCommandBuffer> &buffers{pools.buffers[frame_idx]};
+    const u32 index{pools.used[frame_idx]++};
+    if (index == buffers.size())
+    {
+        VkCommandBufferAllocateInfo alloc_info{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
+        alloc_info.commandPool = pools.pools[frame_idx];
+        alloc_info.level = VK_COMMAND_BUFFER_LEVEL_SECONDARY;
+        alloc_info.commandBufferCount = 1;
+        VkCommandBuffer cmd{VK_NULL_HANDLE};
+        VkCall(::vkAllocateCommandBuffers(main_device, &alloc_info, &cmd));
+        buffers.push_back(cmd);
+    }
+
+    VkCommandBufferBeginInfo begin_info{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+    begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT | VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT;
+    begin_info.pInheritanceInfo = &inheritance;
+    VkCall(::vkBeginCommandBuffer(buffers[index], &begin_info));
+    return buffers[index];
+}
+
+auto parallel_recording_enabled() -> bool
+{
+    return parallel_recording;
+}
+
 auto current_frame_index() -> u32
 {
     return gfx_command.frame_index();
@@ -1392,6 +1495,7 @@ auto render_surface(SurfaceId id, FrameInfo info) -> void
     // Wait for the GPU to finish with this frame's command buffer and reset it.
     const VkCommandBuffer cmd{gfx_command.begin_frame()};
     const u32 frame_idx{current_frame_index()};
+    reset_thread_command_pools(frame_idx);
 
     if (deferred_releases_flag[frame_idx])
     {
@@ -1400,6 +1504,9 @@ auto render_surface(SurfaceId id, FrameInfo info) -> void
 
     ConstantBuffer &cb{constant_buffers[frame_idx]};
     cb.clear();
+    // The render items decide how much of the constant buffer the frame needs: room for them and for the rest of
+    // the frame (global data), before anything is allocated.
+    cb.reserve(other_constant_bytes + gpass::collect_render_items(info, id));
 
     // Nothing to render to (minimized or out of date). The frame is skipped; its command
     // buffer is reset by the next begin_frame().

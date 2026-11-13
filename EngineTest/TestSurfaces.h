@@ -7,7 +7,6 @@
 #include "../EngineDLL/ShaderCompilation.h"
 #include "Test.h"
 
-#include <cstdio>
 #include <iterator>
 
 // 4 windows, each with a graphics surface. No camera or render items, so each frame is the gpass clear color
@@ -91,9 +90,9 @@ auto on_window_event(const platform::WindowEvent &event) -> void
             {
                 const platform::Window win{surface->window};
                 surface->surface.resize(win.width(), win.height());
-                std::fprintf(
-                    stderr,
-                    "surface %u resized: %u x %u\n",
+                log::info(
+                    log::Category::test,
+                    "surface {} resized: {} x {}",
                     static_cast<u32>(surface->surface.get_id()),
                     surface->surface.width(),
                     surface->surface.height());
@@ -110,7 +109,7 @@ auto on_window_event(const platform::WindowEvent &event) -> void
                 graphics::get_option(graphics::RendererOption::vsync, &vsync, sizeof(bool));
                 vsync = !vsync;
                 graphics::set_option(graphics::RendererOption::vsync, &vsync, sizeof(bool));
-                std::fprintf(stderr, "vsync %s\n", vsync ? "on" : "off");
+                log::info(log::Category::test, "vsync {}", vsync ? "on" : "off");
             }
             else if (event.key == InputCode::key_f11)
             {
@@ -133,7 +132,7 @@ auto test_initialize() -> bool
     // Post-processing needs the engine shaders (compiled only when the sources changed).
     if (!::compile_shaders(graphics::GraphicsPlatform::vulkan))
     {
-        std::fprintf(stderr, "Failed to compile the engine shaders.\n");
+        log::error(log::Category::test, "Failed to compile the engine shaders.");
         return false;
     }
 

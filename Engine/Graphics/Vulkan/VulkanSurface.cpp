@@ -132,7 +132,9 @@ auto create_platform_surface(const platform::NativeWindowHandle &native) -> VkSu
         }
         break;
 #endif
-        default: log_message("Vulkan: unsupported native window kind %u\n", static_cast<u32>(native.kind)); break;
+        default:
+            log::error(log::Category::vulkan, "Unsupported native window kind {}", static_cast<u32>(native.kind));
+            break;
     }
 
     return surface;
@@ -165,7 +167,7 @@ auto VulkanSurface::create() -> bool
             core::physical_device(), core::graphics_queue_family(), _surface, &is_supported));
     if (!is_supported)
     {
-        log_message("Vulkan: the graphics queue can't present to this window.\n");
+        log::error(log::Category::vulkan, "The graphics queue can't present to this window.");
         return false;
     }
 
@@ -292,14 +294,15 @@ auto VulkanSurface::create_swapchain() -> bool
     }
 
     _image_index = 0;
-    DEBUG_OP(log_message(
-        "::Vulkan swapchain created: %u x %u, %u images, format %d, color space %d, present mode %d\n",
+    log::debug(
+        log::Category::vulkan,
+        "Swapchain created: {} x {}, {} images, format {}, color space {}, present mode {}",
         _extent.width,
         _extent.height,
         _image_count,
         static_cast<s32>(_format),
         static_cast<s32>(_color_space),
-        static_cast<s32>(_present_mode)));
+        static_cast<s32>(_present_mode));
     return true;
 }
 

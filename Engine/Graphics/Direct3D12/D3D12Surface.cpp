@@ -92,7 +92,7 @@ auto D3D12Surface::resize() -> void
 
     finalize();
 
-    DEBUG_OP(::OutputDebugString(L"::D3D12 Surface Resized.\n"));
+    log::debug(log::Category::d3d12, "Surface resized.");
 }
 
 auto D3D12Surface::finalize() -> void

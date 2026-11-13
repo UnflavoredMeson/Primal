@@ -11,6 +11,7 @@
 #endif
 #include <Windows.h>
 #endif
+#include "Core/Log.h"
 #include "Graphics/Renderer.h"
 #include "Platform/Window.h"
 
@@ -33,25 +34,12 @@
 #define PRIMAL_VK_DEBUG_BREAK() std::raise(SIGTRAP)
 #endif
 
-// Lets the compiler check log_message() format strings against their arguments (clang/gcc only).
-#if defined(__clang__) || defined(__GNUC__)
-#define PRIMAL_VK_PRINTF_FORMAT(format_index, first_arg) __attribute__((format(printf, format_index, first_arg)))
-#else
-#define PRIMAL_VK_PRINTF_FORMAT(format_index, first_arg)
-#endif
-
 namespace primal::graphics::vulkan
 {
 // Same as d3d12::frame_buffer_count: the CPU can record up to this many frames ahead of the GPU.
 constexpr u32 frame_buffer_count{3};
 // Vulkan 1.3 core: dynamic rendering, synchronization2, maintenance4 (+ 1.2 timeline semaphores).
 constexpr u32 minimum_api_version{VK_API_VERSION_1_3};
-
-// printf-style logging for the backend. Writes to stderr and, on Windows, to the debugger output
-// (OutputDebugStringA), because a WinMain process has no console. Defined in VulkanCore.cpp.
-// NOTE: the attribute goes first: after a trailing return type it would apply to the type and be ignored.
-PRIMAL_VK_PRINTF_FORMAT(1, 2)
-auto log_message(const char *format, ...) -> void; // NOLINT(modernize-avoid-variadic-functions)
 
 // Vulkan handles as u64 (debug names, deferred releases). Dispatchable handles are pointers; non-dispatchable handles
 // are pointers in 64-bit builds and u64 in 32-bit ones, so a single kind of cast doesn't fit both.
@@ -91,7 +79,7 @@ inline auto check_result(VkResult result, const char *call, const char *file, u3
     {
         return true;
     }
-    log_message("Vulkan error %d in: %s\nLine: %u\n%s\n", static_cast<s32>(result), file, line, call);
+    log::error(log::Category::vulkan, "Error {} in {} ({}:{})", static_cast<s32>(result), call, file, line);
 #ifdef _DEBUG
     PRIMAL_VK_DEBUG_BREAK();
 #endif

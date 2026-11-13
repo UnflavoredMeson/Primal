@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright (c) 2026 Charles Smith
+  Distributed under the MIT license. See the LICENSE file in the project root for more information.
+
+  C++ named modules of the engine (import primal.jobs; ...) for Engine.vcxproj and for every project that links
+  engine.lib. Import next to Vulkan.props, before Microsoft.Cpp.targets.
+
+  - Every source file is scanned for imports, so that MSBuild compiles a module interface (.ixx) before the files
+    that import it.
+  - A project other than the engine gets a reference to Engine.vcxproj: that is how MSBuild hands the engine's
+    compiled module interfaces (.ifc) to it. The reference doesn't link anything: the projects name engine.lib
+    themselves.
+  - C5050 ("possible incompatible environment while importing module") is off in the other projects. The engine is
+    built without RTTI, exceptions and /sdl, its users with them, so MSVC warns on every import. That difference is
+    not new: the engine's headers are already compiled both ways, in engine.lib and in the projects that include
+    them, and the modules use neither RTTI nor exceptions.
+-->
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <AllProjectBMIsArePublic>true</AllProjectBMIsArePublic>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <ScanSourceForModuleDependencies>true</ScanSourceForModuleDependencies>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(MSBuildProjectName)' != 'Engine'">
+    <ClCompile>
+      <DisableSpecificWarnings>5050;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup Condition="'$(MSBuildProjectName)' != 'Engine'">
+    <ProjectReference Include="$(MSBuildThisFileDirectory)Engine.vcxproj">
+      <Project>{fca0e998-f996-4f06-b797-b2aa744845d9}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemGroup>
+</Project>

@@ -231,19 +231,56 @@ class Project : ViewModelBase
         var configName = VisualStudio.GetConfigurationName(StandAloneBuildConfig);
         var bin = $@"{Path}x64\{configName}\game.bin";
 
+        // NOTE: geometry isn't written yet: the engine can't read it from game.bin (content::read_geometry()), and a
+        //       built game has no way to get the assets. Such entities get their other components only.
+        static bool CanWriteToBinary(Component component) => component is not Components.Geometry;
+        if (ActiveScene.GameEntities.Any(entity => entity.Components.Any(c => !CanWriteToBinary(c))))
+        {
+            Logger.Log(MessageType.Warning, "The built game shows no meshes yet: geometry isn't saved to game.bin.");
+        }
+
         using (var bw = new BinaryWriter(File.Open(bin, FileMode.Create, FileAccess.Write)))
         {
             bw.Write(ActiveScene.GameEntities.Count);
             foreach (var entity in ActiveScene.GameEntities)
             {
+                var components = entity.Components.Where(CanWriteToBinary).ToList();
                 bw.Write(0); // entity type (reserved for later)
-                bw.Write(entity.Components.Count);
-                foreach (var component in entity.Components)
+                bw.Write(components.Count);
+                foreach (var component in components)
                 {
                     bw.Write((int)component.ToEnumType());
                     component.WriteToBinary(bw);
                 }
             }
+        }
+    }
+
+    // The game reads the engine shaders from shaders\{d3d12,vulkan}\shaders.bin next to its executable. The engine's
+    // build writes them to <engine>\x64\<configuration>\shaders\ (ShaderCompilerTool), so copy that folder over.
+    private void CopyEngineShaders()
+    {
+        var configName = VisualStudio.GetConfigurationName(StandAloneBuildConfig);
+        var source = System.IO.Path.Combine(MainWindow.PrimalPath ?? string.Empty, "x64", configName, "shaders");
+        var target = System.IO.Path.Combine(Path, "x64", configName, "shaders");
+        if (!Directory.Exists(source))
+        {
+            Logger.Log(MessageType.Warning, $"Engine shaders not found in {source}: build the engine's {configName} configuration first.");
+            return;
+        }
+
+        try
+        {
+            foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
+            {
+                var destination = System.IO.Path.Combine(target, System.IO.Path.GetRelativePath(source, file));
+                Directory.CreateDirectory(System.IO.Path.GetDirectoryName(destination));
+                File.Copy(file, destination, true);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Log(MessageType.Warning, $"Failed to copy the engine shaders: {ex.Message}");
         }
     }
 
@@ -253,6 +290,7 @@ class Project : ViewModelBase
         if (VisualStudio.BuildSucceeded)
         {
             SaveToBinary();
+            CopyEngineShaders();
             await Task.Run(() => VisualStudio.Run(this, StandAloneBuildConfig, debug));
         }
     }
@@ -277,13 +315,16 @@ class Project : ViewModelBase
         }
     }
 
+    // NOTE: synchronous (Invoke, not BeginInvoke): the engine destroys the script objects here, and their code is in
+    //       the game code DLL, so this must finish before UnloadGameCodeDll() frees it. Queued with BeginInvoke, it
+    //       ran after the DLL was unloaded (access violation in the scripts' destructors) and the list
+    //       of scripts to restore after the reload was always empty.
     private List<(GameEntity Entity, string ScriptName)> RemoveScriptComponents()
     {
-        _ = Application.Current.Dispatcher.BeginInvoke(() =>
+        return Application.Current.Dispatcher.Invoke(() =>
         {
-            if (!ActiveScene.IsActive) return [];
-
             var scriptNames = new List<(GameEntity Entity, string ScriptName)>();
+            if (ActiveScene?.IsActive != true) return scriptNames;
 
             foreach (var entity in ActiveScene.GameEntities)
             {
@@ -298,8 +339,6 @@ class Project : ViewModelBase
             MSEntity.Refresh();
             return scriptNames;
         });
-
-        return [];
     }
 
     private void AddScriptComponents(List<(GameEntity Entity, string ScriptName)> scriptNames)

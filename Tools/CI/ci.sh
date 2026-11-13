@@ -8,6 +8,7 @@
 #   Tools/CI/ci.sh checks              formatting (clang-format) and include cycles
 #   Tools/CI/ci.sh build <preset>      all four EngineTest variants + header_check, then the tests
 #   Tools/CI/ci.sh sanitizers          ASan + UBSan build, then the tests
+#   Tools/CI/ci.sh tsan                ThreadSanitizer build, then the unit and graphics tests
 #   Tools/CI/ci.sh graphics <config>   only the graphics tests of an existing build (Debug or Release)
 #   Tools/CI/ci.sh tidy                clang-tidy over every Linux configuration, warnings are errors
 #
@@ -62,7 +63,7 @@ run_tests() {
 job_checks() {
     section "clang-format ($(clang-format --version))"
     # Third-party folders are tracked too; their own .clang-format files turn formatting off.
-    git ls-files -z -- '*.h' '*.cpp' | xargs -0 clang-format --dry-run --Werror
+    git ls-files -z -- '*.h' '*.cpp' '*.ixx' | xargs -0 clang-format --dry-run --Werror
     echo "Formatting is clean."
 
     section "Include cycles"
@@ -70,6 +71,9 @@ job_checks() {
 
     section "DirectXMath only behind primal::math"
     python3 Tools/check_math_usage.py .
+
+    section "Output only through primal::log"
+    python3 Tools/check_log_usage.py .
 }
 
 job_build() {
@@ -112,11 +116,32 @@ job_sanitizers() {
     UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 run_tests Debug
 }
 
-# clang-tidy needs the compile database only (configure, no build).
+# ThreadSanitizer: data races and lock-order inversions in the unit and graphics tests. The driver's own races are
+# suppressed in tsan.supp: TSan can't see into a library that isn't built with it.
+job_tsan() {
+    section "Build Debug with ThreadSanitizer"
+    cmake --preset linux-tsan -DPRIMAL_ENGINE_TEST=ENTITY_COMPONENTS
+    cmake --build --preset linux-tsan --target UnitTests GraphicsTests
+
+    export TSAN_OPTIONS="halt_on_error=1:second_deadlock_stack=1:suppressions=${PWD}/Tools/CI/tsan.supp"
+    section "Run the unit tests (ThreadSanitizer)"
+    x64/Debug/UnitTests
+    run_graphics_tests Debug
+}
+
+# clang-tidy needs the compile database (configure) and the compiled module interfaces.
 tidy() {
     local dir=$1 test=$2 build_type=$3 files=$4
     section "clang-tidy: ${build_type}, ${test}"
     cmake --preset linux-debug -B "${dir}" -DCMAKE_BUILD_TYPE="${build_type}" -DPRIMAL_ENGINE_TEST="${test}" > /dev/null
+    # A file that imports a named module needs the module's compiled interface and its own module map. Build those
+    # (the dependency scan of every target, and the interface units) and nothing else.
+    local -a module_targets
+    mapfile -t module_targets < <(ninja -C "${dir}" -t targets all |
+        sed -n 's/^\(.*\(CXX\.dd\|\.ixx\.o\)\): .*/\1/p' | grep -v header_check)
+    if ((${#module_targets[@]})); then
+        ninja -C "${dir}" "${module_targets[@]}" > /dev/null
+    fi
     run-clang-tidy -quiet -p "${dir}" -warnings-as-errors='*' "${files}"
 }
 
@@ -139,10 +164,11 @@ case ${1:-} in
     checks) job_checks ;;
     build) job_build "${2:-}" ;;
     sanitizers) job_sanitizers ;;
+    tsan) job_tsan ;;
     graphics) run_graphics_tests "${2:-Debug}" ;;
     tidy) job_tidy ;;
     *)
-        echo "usage: $0 checks | build <preset> | sanitizers | graphics [Debug|Release] | tidy" >&2
+        echo "usage: $0 checks | build <preset> | sanitizers | tsan | graphics [Debug|Release] | tidy" >&2
         exit 2
         ;;
 esac

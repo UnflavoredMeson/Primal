@@ -2,9 +2,13 @@
 // Distributed under the MIT license. See the LICENSE file in the project root for more information.
 #pragma once
 #include "../Engine/Common/PlatformDetection.h"
+#include "../Engine/Core/Log.h"
 
+#include <charconv>
 #include <chrono>
+#include <cstdlib>
 #include <string>
+#include <string_view>
 #include <thread>
 
 #ifndef TEST_ENTITY_COMPONENTS
@@ -19,6 +23,33 @@
 #ifndef TEST_SURFACES
 #define TEST_SURFACES 0
 #endif
+
+// The value of an environment variable as an unsigned number, or 'fallback' when it isn't set or isn't a number.
+inline auto test_env_u32(const char *name, unsigned fallback) -> unsigned
+{
+    std::string value;
+#if PRIMAL_PLATFORM_WINDOWS
+    char *buffer{nullptr};
+    size_t length{0};
+    if (::_dupenv_s(&buffer, &length, name) == 0 && buffer)
+    {
+        value = buffer;
+        std::free(buffer);
+    }
+#else
+    if (const char *const text{std::getenv(name)})
+    {
+        value = text;
+    }
+#endif
+    unsigned result{fallback};
+    const std::string_view text{value};
+    if (std::from_chars(text.data(), text.data() + text.size(), result).ec != std::errc{})
+    {
+        return fallback;
+    }
+    return result;
+}
 
 class Test
 {
@@ -35,7 +66,6 @@ class Test
 #endif
 #include <Windows.h>
 #else
-#include <cstdio>
 #endif
 class TimeIt
 {
@@ -64,13 +94,8 @@ class TimeIt
 
         if (std::chrono::duration_cast<std::chrono::seconds>(clock::now() - _seconds).count() >= 1)
         {
-            const std::string msg{
-                "Avg. frame (ms): " + std::to_string(_us_avg * 0.001f) + " " + std::to_string(_counter) + " fps\n"};
-#if PRIMAL_PLATFORM_WINDOWS
-            ::OutputDebugStringA(msg.c_str());
-#else
-            std::fputs(msg.c_str(), stderr);
-#endif
+            primal::log::info(
+                primal::log::Category::test, "Avg. frame (ms): {:.6f} {} fps", _us_avg * 0.001f, _counter);
             _us_avg = 0.f;
             _counter = 1;
             _seconds = clock::now();

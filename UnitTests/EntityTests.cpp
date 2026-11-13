@@ -3,10 +3,14 @@
 #include "Components/Entity.h"
 #include "Components/Script.h"
 #include "Components/Transform.h"
+#include "Core/Log.h"
 
 #include <doctest.h>
 
+#include <chrono>
 #include <string>
+
+import primal.jobs;
 
 using namespace primal;
 
@@ -60,6 +64,35 @@ class MovingScript : public script::EntityScript
 };
 
 REGISTER_SCRIPT(MovingScript);
+
+// Runs the job system for one test, with its info line turned off.
+class JobPool
+{
+  public:
+    explicit JobPool(u32 workers = u32_invalid_id)
+        : _level{log::level()}
+    {
+        log::set_level(log::Level::warning);
+        REQUIRE(jobs::initialize(workers));
+    }
+    DISABLE_COPY_AND_MOVE(JobPool);
+    ~JobPool()
+    {
+        jobs::shutdown();
+        log::set_level(_level);
+    }
+
+  private:
+    log::Level _level;
+};
+
+auto world_x(game_entity::Entity entity) -> f32
+{
+    math::m4x4 world{};
+    math::m4x4 inverse_world{};
+    transform::get_transform_matrices(entity.get_id(), world, inverse_world);
+    return world._41;
+}
 
 auto create_scripted_entity() -> game_entity::Entity
 {
@@ -390,6 +423,113 @@ TEST_CASE("transform::update applies only the flagged parts")
     }
 
     game_entity::remove(entity.get_id());
+}
+
+TEST_CASE("update_matrices() computes every changed matrix, on the job system's workers")
+{
+    const JobPool pool{4};
+
+    // More than one batch of update_matrices(), so the workers take part.
+    constexpr u32 count{2000};
+    utl::vector<game_entity::Entity> entities;
+    for (u32 i{0}; i < count; ++i)
+    {
+        entities.push_back(create_entity({static_cast<f32>(i), 0.f, 0.f}));
+    }
+    transform::update_matrices();
+
+    u32 wrong{0};
+    for (u32 i{0}; i < count; ++i)
+    {
+        wrong += math::is_equal(world_x(entities[i]), static_cast<f32>(i)) ? 0 : 1;
+    }
+    CHECK(wrong == 0);
+
+    // Move every other entity, twice: each is computed once, with its last position.
+    utl::vector<transform::ComponentCache> caches;
+    for (u32 round{0}; round < 2; ++round)
+    {
+        caches.clear();
+        for (u32 i{0}; i < count; i += 2)
+        {
+            caches.push_back({
+                .rotation = {},
+                .position = {static_cast<f32>(i + 1 + round), 0.f, 0.f},
+                .scale = {},
+                .id = entities[i].transform().get_id(),
+                .flags = transform::ComponentFlags::position,
+            });
+        }
+        transform::update(caches.data(), static_cast<u32>(caches.size()));
+    }
+    transform::update_matrices();
+
+    wrong = 0;
+    for (u32 i{0}; i < count; ++i)
+    {
+        const f32 expected{static_cast<f32>(i % 2 == 0 ? i + 2 : i)};
+        wrong += math::is_equal(world_x(entities[i]), expected) ? 0 : 1;
+    }
+    CHECK(wrong == 0);
+
+    for (const game_entity::Entity entity : entities)
+    {
+        game_entity::remove(entity.get_id());
+    }
+}
+
+// Not a test: Run it with
+//     x64/Release/UnitTests -tc="benchmark*" --no-skip
+// and compare PRIMAL_JOBS=0 (one thread) with the default (all hardware threads).
+TEST_CASE("benchmark: the transform phase of 100000 entities" * doctest::skip())
+{
+    const JobPool pool{};
+    constexpr u32 count{100'000};
+    constexpr u32 rounds{50};
+
+    utl::vector<game_entity::Entity> entities;
+    utl::vector<transform::ComponentCache> caches;
+    for (u32 i{0}; i < count; ++i)
+    {
+        entities.push_back(create_entity({static_cast<f32>(i), 0.f, 0.f}));
+        caches.push_back({
+            .rotation = {0.f, 0.f, 0.f, 1.f},
+            .position = {},
+            .scale = {},
+            .id = entities.back().transform().get_id(),
+            .flags = transform::ComponentFlags::position | transform::ComponentFlags::rotation,
+        });
+    }
+    transform::update_matrices();
+
+    std::chrono::nanoseconds apply{0};
+    std::chrono::nanoseconds matrices{0};
+    for (u32 round{0}; round < rounds; ++round)
+    {
+        for (u32 i{0}; i < count; ++i)
+        {
+            caches[i].position = {static_cast<f32>(i), static_cast<f32>(round), 0.f};
+        }
+        const auto start{std::chrono::steady_clock::now()};
+        transform::update(caches.data(), count);
+        const auto applied{std::chrono::steady_clock::now()};
+        transform::update_matrices();
+        const auto end{std::chrono::steady_clock::now()};
+        apply += applied - start;
+        matrices += end - applied;
+    }
+    CHECK(math::is_equal(world_x(entities[count - 1]), static_cast<f32>(count - 1)));
+
+    const auto ms{[](std::chrono::nanoseconds total)
+                  { return std::chrono::duration<double, std::milli>(total).count() / rounds; }};
+    MESSAGE(
+        "threads: " << jobs::worker_count() << ", per frame: apply caches " << ms(apply) << " ms, compute matrices "
+                    << ms(matrices) << " ms");
+
+    for (const game_entity::Entity entity : entities)
+    {
+        game_entity::remove(entity.get_id());
+    }
 }
 
 TEST_SUITE_END();
