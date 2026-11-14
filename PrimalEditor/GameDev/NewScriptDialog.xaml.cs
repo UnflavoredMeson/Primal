@@ -23,7 +23,6 @@ partial class NewScriptDialog : Window
 
 namespace {1} {{
 
-REGISTER_SCRIPT({0});
 auto {0}::begin_play() -> void
 {{
 
@@ -55,6 +54,7 @@ public:
     auto end_play() -> void override;
 private:
 }};
+PRIMAL_SCRIPT({0});
 }}";
 
     private static readonly string _namespace = GetNamespaceFromProjectName();

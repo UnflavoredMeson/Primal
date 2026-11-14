@@ -9,14 +9,6 @@
 
 #include <wrl.h>
 
-#ifndef EDITOR_INTERFACE
-#if defined(_MSC_VER)
-#define EDITOR_INTERFACE extern "C" __declspec(dllexport)
-#else
-#define EDITOR_INTERFACE extern "C" __attribute__((visibility("default")))
-#endif
-#endif
-
 class Progression
 {
   public:

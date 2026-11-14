@@ -63,7 +63,7 @@ class MovingScript : public script::EntityScript
     }
 };
 
-REGISTER_SCRIPT(MovingScript);
+PRIMAL_SCRIPT(MovingScript);
 
 // Runs the job system for one test, with its info line turned off.
 class JobPool
@@ -536,12 +536,9 @@ TEST_SUITE_END();
 
 TEST_SUITE_BEGIN("script");
 
-TEST_CASE("REGISTER_SCRIPT registers the class under the hash of its name")
+TEST_CASE("PRIMAL_SCRIPT registers the class under its name")
 {
-    const script::detail::script_creator creator{
-        script::detail::get_script_creator(script::detail::string_hash()("MovingScript"))};
-
-    CHECK(creator == &script::detail::create_script<MovingScript>);
+    CHECK(script::detail::find_script_creator("MovingScript") == &script::detail::create_script<MovingScript>);
 }
 
 TEST_CASE("an entity with a script owns one script instance")

@@ -62,6 +62,8 @@ auto engine_shutdown() -> void
     {
         platform::remove_window(game_window.window.get_id());
     }
+    // Game scripts end first: their end_play() may still use the game's entities.
+    script::end_game_scripts();
     content::unload_game();
 }
 #endif

@@ -12,6 +12,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <string_view>
 
 namespace primal::content
 {
@@ -63,12 +64,9 @@ auto read_script(const u8 *&data, game_entity::EntityInfo &info) -> bool
     // if a script name is longer than 255 characters then something is probably
     // very wrong, either with the binary writer or the game programmer.
     assert(name_length < 256);
-    char script_name[256]{};
-    std::memcpy(&script_name[0], data, name_length);
+    const std::string_view script_name{reinterpret_cast<const char *>(data), name_length};
     data += name_length;
-    // make the name a zero-terminated c-string.
-    script_name[name_length] = 0;
-    script_info.script_creator = script::detail::get_script_creator(script::detail::string_hash()(script_name));
+    script_info.script_creator = script::detail::find_script_creator(script_name);
     info.script = &script_info;
     return script_info.script_creator != nullptr;
 }

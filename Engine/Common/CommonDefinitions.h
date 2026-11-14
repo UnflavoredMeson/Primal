@@ -26,6 +26,16 @@
 #define DISABLE_COPY_AND_MOVE(T) DISABLE_COPY(T) DISABLE_MOVE(T)
 #endif
 
+// A C function the editor calls across a DLL boundary: EngineDLL's and ContentTools' exports, and the exports of a
+// game DLL (built with USE_WITH_EDITOR) that EngineDLL calls.
+#ifndef EDITOR_INTERFACE
+#if defined(_MSC_VER)
+#define EDITOR_INTERFACE extern "C" __declspec(dllexport)
+#else
+#define EDITOR_INTERFACE extern "C" __attribute__((visibility("default")))
+#endif
+#endif
+
 // Keeps a function out of line (hot loops calling a rarely-run function). Goes first: PRIMAL_NOINLINE auto f() -> T
 #if defined(_MSC_VER)
 #define PRIMAL_NOINLINE __declspec(noinline)

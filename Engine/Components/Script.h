@@ -24,4 +24,12 @@ auto apply_transform_changes() -> void;
 // (tests).
 auto update(f32 dt) -> void;
 
+// Game scripts (GameScript): begin_play_new_scripts() starts every registered one when they aren't running (the
+// first frame of a game), update_scripts() updates them before the entity scripts. A game ends them with
+// end_game_scripts() before it removes its entities: end_play(), then destroyed. A later frame starts them again.
+auto start_game_scripts() -> void;
+auto end_game_scripts() -> void;
+// How many game scripts run now (0 between end_game_scripts() and the next frame).
+[[nodiscard]] auto game_script_count() -> u32;
+
 }

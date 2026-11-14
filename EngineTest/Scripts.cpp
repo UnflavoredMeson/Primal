@@ -7,8 +7,6 @@
 
 using namespace primal;
 
-class RotatorScript;
-REGISTER_SCRIPT(RotatorScript);
 class RotatorScript : public script::EntityScript
 {
   public:
@@ -35,9 +33,8 @@ class RotatorScript : public script::EntityScript
   private:
     f32 _angle{0.f};
 };
+PRIMAL_SCRIPT(RotatorScript);
 
-class FanScript;
-REGISTER_SCRIPT(FanScript);
 class FanScript : public script::EntityScript
 {
   public:
@@ -64,9 +61,8 @@ class FanScript : public script::EntityScript
   private:
     f32 _angle{0.f};
 };
+PRIMAL_SCRIPT(FanScript);
 
-class WibblyWobblyScript;
-REGISTER_SCRIPT(WibblyWobblyScript);
 class WibblyWobblyScript : public script::EntityScript
 {
   public:
@@ -101,9 +97,8 @@ class WibblyWobblyScript : public script::EntityScript
   private:
     f32 _angle{0.f};
 };
+PRIMAL_SCRIPT(WibblyWobblyScript);
 
-class CameraScript;
-REGISTER_SCRIPT(CameraScript);
 class CameraScript : public script::EntityScript
 {
   public:
@@ -232,3 +227,4 @@ class CameraScript : public script::EntityScript
     bool _move_position{false};
     bool _move_rotation{false};
 };
+PRIMAL_SCRIPT(CameraScript);

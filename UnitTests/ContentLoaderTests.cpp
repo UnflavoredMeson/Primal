@@ -23,7 +23,7 @@ using namespace primal;
 // The file: u32 entity_count, then per entity: u32 entity_type (not used yet), u32 component_count, then per
 // component: u32 component_type and its data.
 //   transform: f32 position[3], f32 rotation[3] (Euler angles: pitch, yaw, roll), f32 scale[3]
-//   script:    u32 name_length, char name[name_length] (the class name given to REGISTER_SCRIPT)
+//   script:    u32 name_length, char name[name_length] (the name the script was registered under)
 
 namespace
 {
@@ -46,7 +46,7 @@ class LoadedScript : public script::EntityScript
     }
 };
 
-REGISTER_SCRIPT(LoadedScript);
+PRIMAL_SCRIPT(LoadedScript);
 
 struct Float3
 {

@@ -11,6 +11,7 @@ add_executable(UnitTests
     ContentLoaderTests.cpp
     EntityTests.cpp
     FrameTests.cpp
+    GameScriptTests.cpp
     FreeListTests.cpp
     IdTests.cpp
     InputTests.cpp
@@ -18,6 +19,8 @@ add_executable(UnitTests
     JobTests.cpp
     LogTests.cpp
     MathTests.cpp
+    ScriptRegistryOtherFile.cpp
+    ScriptRegistryTests.cpp
     ShaderBlobTests.cpp
     VectorTests.cpp
 )

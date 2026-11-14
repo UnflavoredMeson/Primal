@@ -47,7 +47,11 @@ static class LightSet
             return key;
         }
 
-        _uploadedBrdfLut ??= UploadedAsset.AddToScene(DefaultAssets.BrdfIntegrationLut);
+        // The BRDF LUT is missing when ContentTools couldn't make it (DefaultAssets logs that).
+        if (_uploadedBrdfLut == null && DefaultAssets.BrdfIntegrationLut != null)
+        {
+            _uploadedBrdfLut = UploadedAsset.AddToScene(DefaultAssets.BrdfIntegrationLut);
+        }
 
         Debug.Assert(!_lightSets.Contains(name));
         if (canBeSelected)

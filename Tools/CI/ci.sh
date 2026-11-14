@@ -149,15 +149,17 @@ job_tidy() {
     local dir=build/ci-tidy
     clang-tidy --version
 
-    # The first pass checks every file. Only EngineTest's sources and defines depend on the test, so the other
-    # tests check EngineTest/ alone.
-    tidy "${dir}" RENDERER Debug '.*'
+    # The first pass checks every file of the repository (only those: CMake 4.5 also puts the standard library's
+    # module source, /usr/include/c++/*/bits/std.cc, into the compile database). Only EngineTest's sources and
+    # defines depend on the test, so the other tests check EngineTest/ alone.
+    local -r repo="^${PWD}/"
+    tidy "${dir}" RENDERER Debug "${repo}"
     local test
     for test in SURFACES WINDOW ENTITY_COMPONENTS; do
-        tidy "${dir}" "${test}" Debug '/EngineTest/'
+        tidy "${dir}" "${test}" Debug "${repo}EngineTest/"
     done
     # Release: other #if branches (asserts and DEBUG_OP are off, typed ids are aliases).
-    tidy "${dir}" RENDERER Release '.*'
+    tidy "${dir}" RENDERER Release "${repo}"
 }
 
 case ${1:-} in

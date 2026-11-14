@@ -58,7 +58,7 @@ class PhaseScript : public script::EntityScript
         set_position({5.f, 6.f, 7.f});
     }
 };
-REGISTER_SCRIPT(PhaseScript);
+PRIMAL_SCRIPT(PhaseScript);
 
 // Removes its own entity in its first update().
 class SelfRemovingScript : public script::EntityScript
@@ -82,7 +82,7 @@ class SelfRemovingScript : public script::EntityScript
         game_entity::queue_remove(get_id());
     }
 };
-REGISTER_SCRIPT(SelfRemovingScript);
+PRIMAL_SCRIPT(SelfRemovingScript);
 
 // Queues one new entity in its first update().
 class SpawningScript : public script::EntityScript
@@ -110,7 +110,7 @@ class SpawningScript : public script::EntityScript
   private:
     bool _has_spawned{false};
 };
-REGISTER_SCRIPT(SpawningScript);
+PRIMAL_SCRIPT(SpawningScript);
 
 // A short log that can't throw (the destructor writes to it).
 class EventLog
@@ -173,7 +173,7 @@ class LifetimeScript : public script::EntityScript
         events.add(game_entity::is_alive(get_id()) ? 'e' : '!');
     }
 };
-REGISTER_SCRIPT(LifetimeScript);
+PRIMAL_SCRIPT(LifetimeScript);
 
 // In begin_play(), creates an entity with a LifetimeScript, directly (allowed at the sync point).
 class CreatingScript : public script::EntityScript
@@ -193,7 +193,7 @@ class CreatingScript : public script::EntityScript
         created = game_entity::create({.transform = &info, .script = &script_info});
     }
 };
-REGISTER_SCRIPT(CreatingScript);
+PRIMAL_SCRIPT(CreatingScript);
 
 auto create_with_script(script::detail::script_creator creator) -> game_entity::Entity
 {
@@ -472,7 +472,7 @@ class LoggingScript : public script::EntityScript
         log_warning("no arguments");
     }
 };
-REGISTER_SCRIPT(LoggingScript);
+PRIMAL_SCRIPT(LoggingScript);
 
 struct LoggedMessage
 {

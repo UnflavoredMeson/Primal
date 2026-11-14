@@ -6,12 +6,18 @@
 #include "Entity.h"
 #include "Transform.h"
 
+#include <string_view>
+#include <unordered_map>
+
 #define USE_TRANSFORM_CACHE_MAP 0
 
 import primal.jobs;
 
 namespace primal::script
 {
+// ScriptBase adds a u32 next to Entity's u32 id: one 16-byte block with the virtual table pointer (see ScriptBase).
+static_assert(sizeof(EntityScript) == 16);
+
 namespace
 {
 
@@ -25,6 +31,10 @@ utl::vector<u8> has_begun_play;
 // Scripts created since the last begin_play_new_scripts().
 utl::vector<ScriptId> new_scripts;
 
+// The game scripts while the game runs (begin_play_new_scripts() starts them, end_game_scripts() ends them).
+utl::vector<detail::game_script_ptr> game_scripts;
+bool game_scripts_running{false};
+
 // One cache per job system thread (jobs::worker_index()), so that scripts can later run in parallel without
 // locking. They run one after another for now.
 utl::vector<utl::vector<transform::ComponentCache>> transform_caches;
@@ -32,34 +42,27 @@ utl::vector<utl::vector<transform::ComponentCache>> transform_caches;
 std::unordered_map<id::id_type, u32> cache_map;
 #endif
 
-using script_registry = std::unordered_map<size_t, detail::script_creator>;
-auto registry() -> script_registry &
+// The registered script types: index = type index (detail::script_type_name()), plus a map from the name's hash.
+// In a function because registrations run during static initialization, in no particular order between files:
+// this way the registry exists before the first one.
+struct ScriptRegistry
 {
-    // NOTE: we put this static variable in a function because of
-    //       the initialization order of static data. This way, we can
-    //       be certain that the data is initialized before accessing it.
-    static script_registry reg;
-    return reg;
-}
+    struct Type
+    {
+        const char *name;                         // zero-terminated, alive for the whole program (a string literal)
+        detail::script_creator creator;           // an entity script, or
+        detail::game_script_creator game_creator; // a game script
+    };
+    utl::vector<Type> types;
+    std::unordered_map<u64, u32> by_hash;
+    u32 errors{0};
+};
 
-// Class names of the registered script types (string literals from REGISTER_SCRIPT), in a function for the same
-// reason as registry().
-auto script_type_names() -> utl::vector<const char *> &
+auto registry() -> ScriptRegistry &
 {
-    static utl::vector<const char *> names;
-    return names;
+    static ScriptRegistry instance;
+    return instance;
 }
-
-#ifdef USE_WITH_EDITOR
-auto script_names() -> utl::vector<std::string> &
-{
-    // NOTE: we put this static variable in a function because of
-    //       the initialization order of static data. This way, we can
-    //       be certain that the data is initialized before accessing it.
-    static utl::vector<std::string> names;
-    return names;
-}
-#endif
 
 // The script of this id hasn't been removed (Release too, unlike exists()).
 auto is_alive(ScriptId id) -> bool
@@ -152,40 +155,77 @@ auto get_cache_ptr(const game_entity::Entity *const entity) -> transform::Compon
 namespace detail
 {
 
-auto register_script(size_t tag, script_creator func) -> u8
+namespace
 {
-    const bool result{registry().insert(script_registry::value_type{tag, func}).second};
-    assert(result);
-    return result;
+
+auto add_script_type(const char *name, script_creator creator, game_script_creator game_creator) -> u32
+{
+    assert(name && *name && (creator != nullptr) != (game_creator != nullptr));
+    ScriptRegistry &reg{registry()};
+    const u32 index{static_cast<u32>(reg.types.size())};
+    const auto [entry, inserted]{reg.by_hash.try_emplace(script_name_hash(name), index)};
+    if (!inserted)
+    {
+        // NOTE: this runs during static initialization, before log::initialize(): the log then writes from this
+        //       thread, so the message isn't lost (in the editor it goes to the game DLL's stderr).
+        ++reg.errors;
+        const std::string_view first{reg.types[entry->second].name};
+        if (first == std::string_view{name})
+        {
+            log::error(
+                log::Category::script,
+                "Two scripts are registered as \"{}\"; the second one is ignored. Give one of them another name: "
+                "PRIMAL_SCRIPT_NAMED(Type, \"Name\")",
+                name);
+        }
+        else
+        {
+            log::error(
+                log::Category::script,
+                R"(The script names "{}" and "{}" have the same hash; the second one is ignored. Rename one of them)",
+                name,
+                first);
+        }
+        return u32_invalid_id;
+    }
+    reg.types.push_back({.name = name, .creator = creator, .game_creator = game_creator});
+    return index;
 }
 
-auto get_script_creator(size_t tag) -> script_creator
+}
+
+auto register_script(const char *name, script_creator creator) -> u32
+{
+    return add_script_type(name, creator, nullptr);
+}
+
+auto register_game_script(const char *name, game_script_creator creator) -> u32
+{
+    return add_script_type(name, nullptr, creator);
+}
+
+auto find_script_creator(std::string_view name) -> script_creator
 {
     // NOTE: nullptr for a name that isn't registered (a game.bin or an editor project that names a script the
     //       game code no longer has). The callers check for it.
-    const auto script = primal::script::registry().find(tag);
-    return script != primal::script::registry().end() ? script->second : nullptr;
-}
-
-auto add_script_type_name(const char *name) -> u32
-{
-    assert(name);
-    script_type_names().push_back(name);
-    return static_cast<u32>(script_type_names().size() - 1);
+    const ScriptRegistry &reg{registry()};
+    const auto entry{reg.by_hash.find(script_name_hash(name))};
+    if (entry == reg.by_hash.end() || std::string_view{reg.types[entry->second].name} != name)
+    {
+        return nullptr;
+    }
+    return reg.types[entry->second].creator;
 }
 
 auto script_type_name(u32 index) -> const char *
 {
-    return index < script_type_names().size() ? script_type_names()[index] : nullptr;
+    return index < registry().types.size() ? registry().types[index].name : nullptr;
 }
 
-#ifdef USE_WITH_EDITOR
-auto add_script_name(const char *name) -> u8
+auto script_registration_errors() -> u32
 {
-    script_names().emplace_back(name);
-    return true;
+    return registry().errors;
 }
-#endif
 
 }
 
@@ -243,8 +283,51 @@ auto remove(Component c) -> void
     }
 }
 
+auto start_game_scripts() -> void
+{
+    assert(game_scripts.empty());
+    game_scripts_running = true;
+    // Every one is created before the first begin_play(), so that a game script can rely on the others existing.
+    for (const ScriptRegistry::Type &type : registry().types)
+    {
+        if (type.game_creator)
+        {
+            game_scripts.emplace_back(type.game_creator());
+        }
+    }
+    for (const auto &game_script : game_scripts)
+    {
+        game_script->begin_play();
+    }
+}
+
+auto end_game_scripts() -> void
+{
+    // In reverse order of their start, then destroyed in the same order.
+    for (u32 i{static_cast<u32>(game_scripts.size())}; i > 0; --i)
+    {
+        game_scripts[i - 1]->end_play();
+    }
+    for (u32 i{static_cast<u32>(game_scripts.size())}; i > 0; --i)
+    {
+        game_scripts[i - 1].reset();
+    }
+    game_scripts.clear();
+    game_scripts_running = false;
+}
+
+auto game_script_count() -> u32
+{
+    return static_cast<u32>(game_scripts.size());
+}
+
 auto begin_play_new_scripts() -> void
 {
+    if (!game_scripts_running)
+    {
+        start_game_scripts();
+    }
+
     // By index: a begin_play() may create scripts, which are added to the list and begin play here too.
     for (u32 i{0}; i < new_scripts.size(); ++i)
     {
@@ -266,6 +349,12 @@ auto update_scripts(f32 dt) -> void
         transform_caches.resize(jobs::worker_count());
     }
 
+    // NOTE: range-for is safe: during the update phase entities (and their scripts) can only be queued, so neither
+    //       list changes here.
+    for (const auto &game_script : game_scripts)
+    {
+        game_script->update(dt);
+    }
     for (const auto &ptr : entity_scripts)
     {
         ptr->update(dt);
@@ -316,13 +405,13 @@ auto EntityScript::set_scale(const game_entity::Entity *const entity, math::v3 s
     cache.scale = scale;
 }
 
-auto EntityScript::script_name() const -> std::string_view
+auto ScriptBase::script_name() const -> std::string_view
 {
     const char *const name{detail::script_type_name(_script_type)};
     return name ? name : "script";
 }
 
-auto EntityScript::log_message(log::Level level, const std::source_location &location, std::string_view text) const
+auto ScriptBase::log_message(log::Level level, const std::source_location &location, std::string_view text) const
     -> void
 {
     const std::string_view name{script_name()};
@@ -334,9 +423,11 @@ auto EntityScript::log_message(log::Level level, const std::source_location &loc
 #ifdef USE_WITH_EDITOR
 #include <atlsafe.h>
 
-extern "C" __declspec(dllexport) auto get_script_names() -> LPSAFEARRAY
+// The names of the game's scripts, for the editor's script list.
+EDITOR_INTERFACE auto get_script_names() -> LPSAFEARRAY
 {
-    const u32 size{static_cast<u32>(primal::script::script_names().size())};
+    const auto &types{primal::script::registry().types};
+    const u32 size{static_cast<u32>(types.size())};
     if (!size)
     {
         return nullptr;
@@ -344,14 +435,20 @@ extern "C" __declspec(dllexport) auto get_script_names() -> LPSAFEARRAY
     CComSafeArray<BSTR> names(size);
     for (u32 i{0}; i < size; ++i)
     {
-        names.SetAt(i, ::A2BSTR_EX(primal::script::script_names()[i].c_str()), false);
+        names.SetAt(i, ::A2BSTR_EX(types[i].name), false);
     }
     return names.Detach();
 }
 
+// The creator of a game's entity script, by name (UTF-8). EngineDLL calls this in the game DLL it loads.
+EDITOR_INTERFACE auto primal_get_script_creator(const char *name) -> primal::script::detail::script_creator
+{
+    return name ? primal::script::detail::find_script_creator(name) : nullptr;
+}
+
 // The editor (EngineDLL) calls this in the game DLL it loads, so that the game's log messages reach the editor's log
 // (see log::detail::set_forward()).
-extern "C" __declspec(dllexport) auto set_log_forward(primal::log::detail::forward_function function) -> void
+EDITOR_INTERFACE auto set_log_forward(primal::log::detail::forward_function function) -> void
 {
     primal::log::detail::set_forward(function);
 }

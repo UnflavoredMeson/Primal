@@ -33,7 +33,7 @@ using namespace primal;
 namespace
 {
 HMODULE game_code_dll{nullptr};
-using get_script_creator_fn = primal::script::detail::script_creator (*)(size_t);
+using get_script_creator_fn = primal::script::detail::script_creator (*)(const char *);
 get_script_creator_fn get_script_creator{nullptr};
 using get_script_names_fn = LPSAFEARRAY (*)();
 get_script_names_fn get_script_names{nullptr};
@@ -146,7 +146,7 @@ auto create_one_game_entity(
     script::InitInfo script_info{};
     if (script_name)
     {
-        script_info.script_creator = script::detail::get_script_creator(script::detail::string_hash()(script_name));
+        script_info.script_creator = script::detail::find_script_creator(script_name);
         assert(script_info.script_creator);
     }
 
@@ -296,22 +296,24 @@ EDITOR_INTERFACE auto LoadGameCodeDll(const char *dll_path) -> u32
     }
     game_code_dll = ::LoadLibraryA(dll_path);
     assert(game_code_dll);
-
-    get_script_creator = (get_script_creator_fn)::GetProcAddress(game_code_dll, "get_script_creator");
-    get_script_names = (get_script_names_fn)::GetProcAddress(game_code_dll, "get_script_names");
-
-    // The game DLL has its own copy of the engine's log: send its messages to this one (a DLL built before
-    // set_log_forward existed doesn't have it, and keeps writing to stderr itself).
-    if (game_code_dll)
+    if (!game_code_dll)
     {
-        if (const auto set_log_forward{
-                reinterpret_cast<set_log_forward_fn>(::GetProcAddress(game_code_dll, "set_log_forward"))})
-        {
-            set_log_forward(&log::detail::write_forwarded);
-        }
+        return FALSE;
     }
 
-    return (game_code_dll && get_script_creator && get_script_names) ? TRUE : FALSE;
+    get_script_creator =
+        reinterpret_cast<get_script_creator_fn>(::GetProcAddress(game_code_dll, "primal_get_script_creator"));
+    get_script_names = reinterpret_cast<get_script_names_fn>(::GetProcAddress(game_code_dll, "get_script_names"));
+
+    // The game DLL has its own copy of the engine's log: send its messages to this one.
+    const auto set_log_forward{
+        reinterpret_cast<set_log_forward_fn>(::GetProcAddress(game_code_dll, "set_log_forward"))};
+    if (set_log_forward)
+    {
+        set_log_forward(&log::detail::write_forwarded);
+    }
+
+    return (get_script_creator && get_script_names && set_log_forward) ? TRUE : FALSE;
 }
 
 EDITOR_INTERFACE auto UnloadGameCodeDll() -> u32
@@ -328,7 +330,7 @@ EDITOR_INTERFACE auto UnloadGameCodeDll() -> u32
 }
 EDITOR_INTERFACE auto GetScriptCreator(const char *name) -> script::detail::script_creator
 {
-    return (game_code_dll && get_script_creator) ? get_script_creator(script::detail::string_hash()(name)) : nullptr;
+    return (game_code_dll && get_script_creator && name) ? get_script_creator(name) : nullptr;
 }
 
 EDITOR_INTERFACE auto GetScriptNames() -> LPSAFEARRAY

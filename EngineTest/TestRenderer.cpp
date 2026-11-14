@@ -189,7 +189,7 @@ auto create_one_game_entity(
     script::InitInfo script_info{};
     if (script_name)
     {
-        script_info.script_creator = script::detail::get_script_creator(script::detail::string_hash()(script_name));
+        script_info.script_creator = script::detail::find_script_creator(script_name);
         assert(script_info.script_creator);
     }
 
