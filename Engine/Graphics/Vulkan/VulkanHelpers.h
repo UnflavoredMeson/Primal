@@ -280,9 +280,6 @@ class RootDescriptors
 // once per command buffer and bind point, as long as the next layouts are compatible with set 1.
 auto bind_resource_heap(VkCommandBuffer cmd, VkPipelineBindPoint bind_point, const RootSignature &signature) -> void;
 
-// Loads the device-level functions the helpers use (vkCmdPushDescriptorSetKHR). Called by core.
-auto load_device_functions(VkDevice device) -> void;
-
 //// PIPELINES //////////////////////////////////////////////////////////////////////////////////
 // Entry point of every SPIR-V module: ShaderCompilation.cpp compiles with -fspv-entrypoint-name=main,
 // because compiled shaders (content::compiled_shader) don't store the HLSL function name.

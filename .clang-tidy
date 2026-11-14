@@ -97,6 +97,8 @@ CheckOptions:
   readability-identifier-naming.FunctionIgnoredRegexp: '^(WinMain|DllMain|[A-Z][A-Za-z0-9]*)$'
   readability-identifier-naming.MethodIgnoredRegexp: '^(QueryInterface|AddRef|Release|Get|[A-Z][A-Za-z0-9]*)$'
   readability-identifier-naming.MacroDefinitionIgnoredRegexp: '^(_[A-Z_]+|DXCall|VkCall|NAME_D3D12_OBJECT.*|DEBUG_BREAK)$'
+  # The Vulkan function pointers keep the Vulkan names (Graphics/Vulkan/VulkanLoader.h).
+  readability-identifier-naming.VariableIgnoredRegexp: '^vk[A-Z][A-Za-z0-9]*$'
   readability-identifier-naming.TemplateParameterIgnoredRegexp: '^[A-Z][A-Za-z0-9]*$'
   # Third-party types we only reference (SDL_Event is a union).
   readability-identifier-naming.UnionIgnoredRegexp: '^SDL_.*$'
