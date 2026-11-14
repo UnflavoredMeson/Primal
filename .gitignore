@@ -294,8 +294,11 @@ paket-files/
 # FAKE - F# Make
 .fake/
 
-# JetBrains Rider
-.idea/
+# JetBrains Rider / CLion: only the shared inspection profile, scope and dictionary are tracked
+.idea/*
+!.idea/inspectionProfiles/
+!.idea/scopes/
+!.idea/dictionaries/
 *.sln.iml
 
 # CodeRush personal settings

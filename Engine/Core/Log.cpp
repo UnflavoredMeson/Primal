@@ -52,6 +52,7 @@
 #include <string>
 #include <system_error>
 #include <thread>
+#include <utility>
 
 namespace primal::log
 {
@@ -640,9 +641,9 @@ auto to_string(Level level) -> std::string_view
 
 auto to_string(Category category) -> std::string_view
 {
-    constexpr std::array<std::string_view, static_cast<size_t>(Category::count)> names{
+    constexpr std::array<std::string_view, std::to_underlying(Category::count)> names{
         "core", "graphics", "vulkan", "d3d12", "content", "input", "script", "tools", "test"};
-    const auto index{static_cast<size_t>(category)};
+    const size_t index{std::to_underlying(category)};
     return index < names.size() ? names[index] : "?";
 }
 

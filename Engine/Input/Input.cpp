@@ -40,13 +40,13 @@ auto unbind(InputSource::Type type, InputCode::Code code) -> void
 {
     assert(type < InputSource::count);
     const u64 key{get_key(type, code)};
-    if (!source_binding_map.count(key))
+    if (!source_binding_map.contains(key))
     {
         return;
     }
 
     const u64 binding_key{source_binding_map[key]};
-    assert(input_bindings.count(binding_key));
+    assert(input_bindings.contains(binding_key));
     InputBinding &binding{input_bindings[binding_key]};
     utl::vector<InputSource> &sources{binding.sources};
     for (u32 i{0}; i < sources.size(); ++i)
@@ -62,14 +62,14 @@ auto unbind(InputSource::Type type, InputCode::Code code) -> void
 
     if (sources.empty())
     {
-        assert(!source_binding_map.count(key));
+        assert(!source_binding_map.contains(key));
         input_bindings.erase(binding_key);
     }
 }
 
 auto unbind(u64 binding) -> void
 {
-    if (!input_bindings.count(binding))
+    if (!input_bindings.contains(binding))
     {
         return;
     }
@@ -79,7 +79,7 @@ auto unbind(u64 binding) -> void
     {
         assert(source.binding == binding);
         const u64 key{get_key(source.source_type, source.code)};
-        assert(source_binding_map.count(key) && source_binding_map[key] == binding);
+        assert(source_binding_map.contains(key) && source_binding_map[key] == binding);
         source_binding_map.erase(key);
     }
 
@@ -94,10 +94,10 @@ auto set(InputSource::Type type, InputCode::Code code, math::v3 value) -> void
     input.previous = input.current;
     input.current = value;
 
-    if (source_binding_map.count(key))
+    if (source_binding_map.contains(key))
     {
         const u64 binding_key{source_binding_map[key]};
-        assert(input_bindings.count(binding_key));
+        assert(input_bindings.contains(binding_key));
         InputBinding &binding{input_bindings[binding_key]};
         binding.is_dirty = true;
 
@@ -127,7 +127,7 @@ auto get(InputSource::Type type, InputCode::Code code, InputValue &value) -> voi
 
 auto get(u64 binding, InputValue &value) -> void
 {
-    if (!input_bindings.count(binding))
+    if (!input_bindings.contains(binding))
     {
         return;
     }

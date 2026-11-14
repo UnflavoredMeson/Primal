@@ -54,6 +54,7 @@ inline auto test_env_u32(const char *name, unsigned fallback) -> unsigned
 class Test
 {
   public:
+    virtual ~Test() = default;
     virtual auto initialize() -> bool = 0;
     virtual auto run() -> void = 0;
     virtual auto shutdown() -> void = 0;

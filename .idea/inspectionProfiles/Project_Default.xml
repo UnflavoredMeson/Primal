@@ -1,0 +1,10 @@
+<!-- Primal's shared CLion inspection profile. Why each inspection is off: Docs/Preferences.md, "CLion inspections". -->
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <!-- Global functions are called as ::Foo() on purpose. -->
+    <inspection_tool class="CppRedundantQualifier" enabled="false" level="INFORMATION" enabled_by_default="false" />
+    <!-- auto only where the type is obvious (modernize-use-auto is off in .clang-tidy too). -->
+    <inspection_tool class="CppUseAuto" enabled="false" level="INFORMATION" enabled_by_default="false" />
+  </profile>
+</component>

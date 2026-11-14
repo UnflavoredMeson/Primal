@@ -28,13 +28,6 @@ class GeometryHierarchyStream
         _gpu_ids = reinterpret_cast<id::id_type *>(&_lod_offsets[_lod_count]);
     }
 
-    constexpr auto gpu_ids(u32 lod, id::id_type *&ids, u32 &id_count) -> void
-    {
-        assert(lod < _lod_count);
-        ids = &_gpu_ids[_lod_offsets[lod].offset];
-        id_count = _lod_offsets[lod].count;
-    }
-
     [[nodiscard]] constexpr auto lod_from_threshold(f32 threshold) -> u32
     {
         assert(threshold >= 0);
