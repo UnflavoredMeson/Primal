@@ -316,8 +316,6 @@ constexpr u32 constant_buffer_size{1024 * 1024};
 // Room reserved for what the frame allocates besides the gpass's render items (global shader data, ...).
 constexpr u64 other_constant_bytes{256 * 1024};
 
-PFN_vkSetDebugUtilsObjectNameEXT set_debug_utils_object_name{nullptr};
-
 utl::vector<DeferredObject> deferred_releases[frame_buffer_count]{};
 u32 deferred_releases_flag[frame_buffer_count]{};
 std::mutex deferred_releases_mutex{};
@@ -419,15 +417,11 @@ auto use_validation() -> bool
 
 auto create_instance() -> bool
 {
-#if PRIMAL_PLATFORM_WINDOWS
-    // vulkan-1.dll is delay-loaded (Engine/Vulkan.props) so D3D12-only machines can still start.
-    // Load it here first: calling into a missing delay-loaded DLL raises an SEH exception.
-    if (!::LoadLibraryW(L"vulkan-1.dll"))
+    // Nothing links the Vulkan loader (VulkanLoader.h): on a machine without one, the renderer just doesn't start.
+    if (!loader::load_library())
     {
-        log::error(log::Category::vulkan, "vulkan-1.dll (the Vulkan loader) wasn't found.");
         return false;
     }
-#endif
 
     u32 api_version{0};
     VkCall(::vkEnumerateInstanceVersion(&api_version));
@@ -564,6 +558,10 @@ auto create_instance() -> bool
     {
         return false;
     }
+    if (!loader::load_instance_functions(vk_instance))
+    {
+        return false;
+    }
     // Without VK_EXT_debug_utils the layer's messages don't reach debug_callback(), so they aren't counted.
     validation_enabled = validation && debug_utils;
     if (validation)
@@ -577,19 +575,13 @@ auto create_instance() -> bool
 #ifdef _DEBUG
     if (debug_utils)
     {
-        set_debug_utils_object_name = reinterpret_cast<PFN_vkSetDebugUtilsObjectNameEXT>(
-            ::vkGetInstanceProcAddr(vk_instance, "vkSetDebugUtilsObjectNameEXT"));
-        if (validation)
+        loader::load_debug_utils_functions(vk_instance);
+        if (validation && ::vkCreateDebugUtilsMessengerEXT)
         {
-            const auto create_messenger{reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(
-                ::vkGetInstanceProcAddr(vk_instance, "vkCreateDebugUtilsMessengerEXT"))};
             // messenger_info was part of the vkCreateInstance pNext chain (pNext may point at settings_info);
             // vkCreateDebugUtilsMessengerEXT requires pNext == nullptr.
             messenger_info.pNext = nullptr;
-            if (create_messenger)
-            {
-                VkCall(create_messenger(vk_instance, &messenger_info, nullptr, &debug_messenger));
-            }
+            VkCall(::vkCreateDebugUtilsMessengerEXT(vk_instance, &messenger_info, nullptr, &debug_messenger));
         }
     }
 #endif
@@ -835,15 +827,24 @@ auto create_device() -> bool
     {
         return false;
     }
+    if (!loader::load_device_functions(main_device))
+    {
+        return false;
+    }
     NAME_VK_OBJECT(main_device, VK_OBJECT_TYPE_DEVICE, "Main Vulkan Device");
-    vkx::load_device_functions(main_device);
 
     return gfx_command.initialize(main_device, queue_family);
 }
 
 auto create_allocator() -> bool
 {
+    // VMA fetches the functions it needs itself (VMA_DYNAMIC_VULKAN_FUNCTIONS, VulkanMemoryAllocator.cpp).
+    VmaVulkanFunctions functions{};
+    functions.vkGetInstanceProcAddr = ::vkGetInstanceProcAddr;
+    functions.vkGetDeviceProcAddr = ::vkGetDeviceProcAddr;
+
     VmaAllocatorCreateInfo info{};
+    info.pVulkanFunctions = &functions;
     info.vulkanApiVersion = minimum_api_version;
     info.physicalDevice = main_physical_device;
     info.device = main_device;
@@ -1212,30 +1213,26 @@ auto shutdown() -> void
     }
     vma_allocator = VK_NULL_HANDLE;
 
-    if (main_device)
+    // The function pointers may be missing when initialize() failed while loading them.
+    if (main_device && ::vkDestroyDevice)
     {
         ::vkDestroyDevice(main_device, nullptr);
     }
     main_device = VK_NULL_HANDLE;
     main_physical_device = VK_NULL_HANDLE;
 
-    if (debug_messenger)
+    if (debug_messenger && ::vkDestroyDebugUtilsMessengerEXT)
     {
-        const auto destroy_messenger{reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(
-            ::vkGetInstanceProcAddr(vk_instance, "vkDestroyDebugUtilsMessengerEXT"))};
-        if (destroy_messenger)
-        {
-            destroy_messenger(vk_instance, debug_messenger, nullptr);
-        }
-        debug_messenger = VK_NULL_HANDLE;
+        ::vkDestroyDebugUtilsMessengerEXT(vk_instance, debug_messenger, nullptr);
     }
-    set_debug_utils_object_name = nullptr;
+    debug_messenger = VK_NULL_HANDLE;
 
-    if (vk_instance)
+    if (vk_instance && ::vkDestroyInstance)
     {
         ::vkDestroyInstance(vk_instance, nullptr);
     }
     vk_instance = VK_NULL_HANDLE;
+    loader::reset_functions();
 
     if (const u32 error_count{validation_error_count})
     {
@@ -1431,7 +1428,7 @@ auto vsync_enabled() -> bool
 auto set_object_name([[maybe_unused]] u64 handle, [[maybe_unused]] VkObjectType type, [[maybe_unused]] const char *name)
     -> void
 {
-    if (!set_debug_utils_object_name || !main_device || !handle)
+    if (!::vkSetDebugUtilsObjectNameEXT || !main_device || !handle)
     {
         return;
     }
@@ -1439,7 +1436,7 @@ auto set_object_name([[maybe_unused]] u64 handle, [[maybe_unused]] VkObjectType 
     info.objectType = type;
     info.objectHandle = handle;
     info.pObjectName = name;
-    set_debug_utils_object_name(main_device, &info);
+    ::vkSetDebugUtilsObjectNameEXT(main_device, &info);
 }
 
 auto create_surface(platform::Window window) -> Surface

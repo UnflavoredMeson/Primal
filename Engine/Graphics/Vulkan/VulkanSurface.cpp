@@ -111,7 +111,12 @@ auto create_platform_surface(const platform::NativeWindowHandle &native) -> VkSu
             VkXlibSurfaceCreateInfoKHR info{VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR};
             info.dpy = static_cast<Display *>(native.display);
             info.window = static_cast<Window>(native.window);
-            VkCall(::vkCreateXlibSurfaceKHR(core::instance(), &info, nullptr, &surface));
+            const auto create{
+                loader::instance_function<PFN_vkCreateXlibSurfaceKHR>(core::instance(), "vkCreateXlibSurfaceKHR")};
+            if (create)
+            {
+                VkCall(create(core::instance(), &info, nullptr, &surface));
+            }
         }
         break;
         case platform::NativeWindowHandle::wayland:
@@ -119,7 +124,12 @@ auto create_platform_surface(const platform::NativeWindowHandle &native) -> VkSu
             VkWaylandSurfaceCreateInfoKHR info{VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR};
             info.display = static_cast<wl_display *>(native.display);
             info.surface = reinterpret_cast<wl_surface *>(native.window);
-            VkCall(::vkCreateWaylandSurfaceKHR(core::instance(), &info, nullptr, &surface));
+            const auto create{loader::instance_function<PFN_vkCreateWaylandSurfaceKHR>(
+                core::instance(), "vkCreateWaylandSurfaceKHR")};
+            if (create)
+            {
+                VkCall(create(core::instance(), &info, nullptr, &surface));
+            }
         }
         break;
 #elif PRIMAL_PLATFORM_WINDOWS
@@ -128,7 +138,12 @@ auto create_platform_surface(const platform::NativeWindowHandle &native) -> VkSu
             VkWin32SurfaceCreateInfoKHR info{VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR};
             info.hinstance = static_cast<HINSTANCE>(native.display);
             info.hwnd = reinterpret_cast<HWND>(native.window);
-            VkCall(::vkCreateWin32SurfaceKHR(core::instance(), &info, nullptr, &surface));
+            const auto create{
+                loader::instance_function<PFN_vkCreateWin32SurfaceKHR>(core::instance(), "vkCreateWin32SurfaceKHR")};
+            if (create)
+            {
+                VkCall(create(core::instance(), &info, nullptr, &surface));
+            }
         }
         break;
 #endif

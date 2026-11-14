@@ -7,13 +7,6 @@
 
 namespace primal::graphics::vulkan::vkx
 {
-namespace
-{
-
-PFN_vkCmdPushDescriptorSetKHR cmd_push_descriptor_set{nullptr};
-
-}
-
 //// BARRIERS /////////////////////////////////////////////////////////////////////////////////////
 auto VulkanBarrier::add(
     VkImage image,
@@ -182,10 +175,10 @@ auto RootDescriptors::add(VkDescriptorType type, u32 binding, const BufferRange 
 
 auto RootDescriptors::push(VkCommandBuffer cmd, VkPipelineBindPoint bind_point, const RootSignature &signature) -> void
 {
-    assert(cmd_push_descriptor_set && signature.is_valid());
+    assert(signature.is_valid());
     if (_count)
     {
-        cmd_push_descriptor_set(cmd, bind_point, signature.layout, root_descriptor_set, _count, &_writes[0]);
+        ::vkCmdPushDescriptorSetKHR(cmd, bind_point, signature.layout, root_descriptor_set, _count, &_writes[0]);
     }
     _count = 0;
 }
@@ -368,14 +361,6 @@ auto dxgi_format_info(u32 dxgi_format) -> FormatInfo
         case 99: return {VK_FORMAT_BC7_SRGB_BLOCK, 4, 4, 16};          // BC7_UNORM_SRGB
         default: return {};
     }
-}
-
-auto load_device_functions(VkDevice device) -> void
-{
-    cmd_push_descriptor_set = device ? reinterpret_cast<PFN_vkCmdPushDescriptorSetKHR>(
-                                           ::vkGetDeviceProcAddr(device, "vkCmdPushDescriptorSetKHR"))
-                                     : nullptr;
-    assert(!device || cmd_push_descriptor_set);
 }
 
 }

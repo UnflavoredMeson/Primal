@@ -8,8 +8,9 @@
   is D3D12 only. Import after the project's ItemDefinitionGroups (they set
   AdditionalIncludeDirectories without %(...)) and before Microsoft.Cpp.targets.
 
-  vulkan-1.dll is delay-loaded, so executables still start on machines without a Vulkan
-  loader; VulkanCore.cpp loads it before the first Vulkan call.
+  Only the headers are used: nothing links vulkan-1.lib. The engine opens vulkan-1.dll at run
+  time and loads every function itself (Graphics\Vulkan\VulkanLoader.h, VK_NO_PROTOTYPES), so
+  executables still start on machines without a Vulkan loader.
 -->
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
@@ -19,15 +20,7 @@
     <ClCompile>
       <!-- ThirdParty\vma: the Vulkan Memory Allocator, vendored so Windows and Linux use the same version. -->
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(VULKAN_SDK)\Include;$(MSBuildThisFileDirectory)ThirdParty\vma</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>PRIMAL_GRAPHICS_VULKAN=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>PRIMAL_GRAPHICS_VULKAN=1;VK_NO_PROTOTYPES;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
-    <Link>
-      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories);$(VULKAN_SDK)\Lib</AdditionalLibraryDirectories>
-      <AdditionalDependencies>vulkan-1.lib;delayimp.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <DelayLoadDLLs>vulkan-1.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
-      <!-- LNK4199 "/DELAYLOAD:vulkan-1.dll ignored; no imports found": expected when the target never uses graphics
-           (e.g. EngineTest with PrimalEngineTest=WINDOW). -->
-      <AdditionalOptions>/IGNORE:4199 %(AdditionalOptions)</AdditionalOptions>
-    </Link>
   </ItemDefinitionGroup>
 </Project>

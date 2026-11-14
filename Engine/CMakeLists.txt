@@ -42,6 +42,7 @@ target_sources(Engine PRIVATE
     Graphics/Vulkan/VulkanInterface.cpp
     Graphics/Vulkan/VulkanLight.cpp
     Graphics/Vulkan/VulkanLightCulling.cpp
+    Graphics/Vulkan/VulkanLoader.cpp
     Graphics/Vulkan/VulkanMemoryAllocator.cpp
     Graphics/Vulkan/VulkanPostProcess.cpp
     Graphics/Vulkan/VulkanResources.cpp
@@ -62,8 +63,13 @@ target_link_libraries(Engine PUBLIC
     primal::sal
     Microsoft::DirectXMath
     SDL3::SDL3
-    Vulkan::Vulkan
+    # Headers only: the Vulkan library is opened at run time (Graphics/Vulkan/VulkanLoader.h).
+    Vulkan::Headers
+    ${CMAKE_DL_LIBS}
 )
+# No Vulkan prototypes: every Vulkan function is a pointer that VulkanLoader.cpp loads. PUBLIC, so anything that
+# includes the backend's headers (header_check) sees the same declarations.
+target_compile_definitions(Engine PUBLIC VK_NO_PROTOTYPES)
 
 # Shader compiler (HLSL -> DXIL/SPIR-V via DXC). Used by ShaderCompilerTool, EngineTest and, later, a Linux EngineDLL.
 # NOTE: on Windows the .vcxproj files compile EngineDLL/ShaderCompilation.cpp directly.

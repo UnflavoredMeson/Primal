@@ -14,10 +14,10 @@
 #include "Core/Log.h"
 #include "Graphics/Renderer.h"
 #include "Platform/Window.h"
+// The Vulkan headers (core API only) and the loaded function pointers. Window-system surface extensions (xlib,
+// wayland, win32) are included by VulkanSurface.cpp alone, so their headers' macros don't leak into the engine.
+#include "VulkanLoader.h"
 
-// NOTE: only the core API here. Window-system surface extensions (xlib, wayland, win32) are
-//       included by VulkanSurface.cpp alone, so their headers' macros don't leak into the engine.
-#include <vulkan/vulkan.h>
 // Vulkan Memory Allocator (Engine/ThirdParty/vma; declarations only, the implementation is
 // compiled once in VulkanMemoryAllocator.cpp).
 #include <vk_mem_alloc.h>

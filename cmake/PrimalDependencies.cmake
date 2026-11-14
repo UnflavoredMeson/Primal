@@ -45,5 +45,7 @@ add_library(primal_sal_stub INTERFACE)
 add_library(primal::sal ALIAS primal_sal_stub)
 target_include_directories(primal_sal_stub SYSTEM INTERFACE "${PROJECT_SOURCE_DIR}/Engine/ThirdParty/sal")
 
-# Vulkan loader + headers (system packages: vulkan-icd-loader, vulkan-headers).
+# Vulkan headers (system package: vulkan-headers). The engine links only Vulkan::Headers and opens the loader
+# (vulkan-icd-loader) at run time; FindVulkan still looks for the library, which every Linux machine with a Vulkan
+# driver has.
 find_package(Vulkan 1.3 REQUIRED)

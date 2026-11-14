@@ -60,6 +60,7 @@
     <ClInclude Include="Graphics\Vulkan\VulkanInterface.h" />
     <ClInclude Include="Graphics\Vulkan\VulkanLight.h" />
     <ClInclude Include="Graphics\Vulkan\VulkanLightCulling.h" />
+    <ClInclude Include="Graphics\Vulkan\VulkanLoader.h" />
     <ClInclude Include="Graphics\Vulkan\VulkanPostProcess.h" />
     <ClInclude Include="Graphics\Vulkan\VulkanResources.h" />
     <ClInclude Include="Graphics\Vulkan\VulkanShaders.h" />
@@ -107,6 +108,7 @@
     <ClCompile Include="Graphics\Vulkan\VulkanInterface.cpp" />
     <ClCompile Include="Graphics\Vulkan\VulkanLight.cpp" />
     <ClCompile Include="Graphics\Vulkan\VulkanLightCulling.cpp" />
+    <ClCompile Include="Graphics\Vulkan\VulkanLoader.cpp" />
     <ClCompile Include="Graphics\Vulkan\VulkanMemoryAllocator.cpp" />
     <ClCompile Include="Graphics\Vulkan\VulkanPostProcess.cpp" />
     <ClCompile Include="Graphics\Vulkan\VulkanResources.cpp" />
