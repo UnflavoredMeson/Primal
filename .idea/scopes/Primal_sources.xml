@@ -1,0 +1,4 @@
+<!-- Our own files: use this scope for Code | Inspect Code. Leaves out build output, vendored code and inspection exports. -->
+<component name="DependencyValidationManager">
+  <scope name="Primal sources" pattern="file:*/&amp;&amp;!file:build//*&amp;&amp;!file:x64//*&amp;&amp;!file:packages//*&amp;&amp;!file:Engine/ThirdParty//*&amp;&amp;!file:ContentTools/MikkTSpace//*&amp;&amp;!file:PrimalEditor/obj//*&amp;&amp;!file:PrimalEditor/bin//*&amp;&amp;!file:Docs/Inspections//*" />
+</component>

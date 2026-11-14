@@ -155,10 +155,6 @@ class D3D12MaterialStream
     {
         return _root_signature_id;
     }
-    [[nodiscard]] constexpr auto texture_ids() const -> id::id_type *
-    {
-        return _texture_ids;
-    }
     [[nodiscard]] constexpr auto descriptor_indices() const -> u32 *
     {
         return _descriptor_indices;

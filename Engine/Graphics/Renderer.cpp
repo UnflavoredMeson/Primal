@@ -11,6 +11,8 @@
 #include "Vulkan/VulkanInterface.h"
 #endif
 
+#include <utility>
+
 namespace primal::graphics
 {
 namespace
@@ -70,12 +72,12 @@ auto get_option(RendererOption::Option option, void *const parameter, u32 parame
 
 auto get_engine_shaders_path() -> const char *
 {
-    return engine_shader_paths[static_cast<u32>(gfx.platform)];
+    return engine_shader_paths[std::to_underlying(gfx.platform)];
 }
 
 auto get_engine_shaders_path(GraphicsPlatform platform) -> const char *
 {
-    return engine_shader_paths[static_cast<u32>(platform)];
+    return engine_shader_paths[std::to_underlying(platform)];
 }
 
 auto create_surface(platform::Window window) -> Surface
